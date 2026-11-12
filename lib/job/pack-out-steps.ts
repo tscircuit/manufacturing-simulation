@@ -341,9 +341,9 @@ export const PACK_OUT_STEPS: JobStep[] = [
     station: STATIONS.packOut,
     closeUpView: {
       ...PACK_CLOSE_UP,
-      azimuthRadians: 1.45,
-      elevationRadians: 1.05,
-      distanceM: 0.95,
+      azimuthRadians: 1.3,
+      elevationRadians: 0.72,
+      distanceM: 1.1,
     },
     getFocusPoint: getLabelFocusPoint,
     run: closeBoxAndApplyLabel,

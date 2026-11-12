@@ -14,6 +14,9 @@ export interface HudSnapshot {
   steps: Array<{ label: string; seconds: number; state: StepRowState }>
   walkingSeconds: number
   cycleSeconds: number
+  /** E: the next step, or Pause / Resume while something runs. */
   stepPromptLabel: string | null
+  /** C: run the rest of this bench. */
+  benchPromptLabel: string | null
   screwdriverPromptLabel: string | null
 }

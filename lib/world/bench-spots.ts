@@ -8,21 +8,24 @@ const TOP = FOLDING_TABLE.topHeightM
  * which points upstream along the line; operator on the +Z edge). Treat these
  * as read-only and clone before mutating.
  */
-export const SPACER_BENCH_SPOTS = {
-  basket: new Vector3(0, TOP, 0.12),
-}
-
 export const ASSEMBLY_BENCH_SPOTS = {
-  motorTrayCenter: new Vector3(0.42, TOP, 0.16),
+  spacerBasket: new Vector3(0.74, TOP, 0.12),
+  /** Three rows of four motors, back face up. */
+  motorTrayCenter: new Vector3(0.45, TOP, 0.12),
   motorTraySpacingM: 0.055,
-  spacerRest: new Vector3(0.22, TOP, 0.27),
+  spacerRest: new Vector3(0.2, TOP, 0.27),
   jigTop: new Vector3(0, TOP + 0.03, 0.2),
-  longScrewBin: new Vector3(0.08, TOP, -0.02),
-  usedScrewBin: new Vector3(-0.07, TOP, -0.02),
-  screwdriverRest: new Vector3(-0.17, TOP + 0.0135, 0.07),
-  pcbStackBase: new Vector3(-0.3, TOP + 0.004, 0.22),
+  longScrewBin: new Vector3(0.115, TOP, 0),
+  usedScrewBin: new Vector3(0, TOP, 0),
+  cableBin: new Vector3(-0.115, TOP, 0),
+  screwdriverRest: new Vector3(-0.21, TOP + 0.0135, 0.07),
+  /** Three stacks of controller PCBs, the first one nearest the jig. */
+  pcbStackBases: [
+    new Vector3(-0.3, TOP + 0.004, 0.24),
+    new Vector3(-0.37, TOP + 0.004, 0.24),
+    new Vector3(-0.44, TOP + 0.004, 0.24),
+  ],
   pcbStackSpacingM: 0.0045,
-  motorCableStart: new Vector3(-0.5, TOP, 0.16),
 }
 
 export const QC_BENCH_SPOTS = {

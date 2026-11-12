@@ -5,6 +5,7 @@ import {
   type TableId,
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
+import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
   COILED_USB_CABLE,
   createCoiledUsbCable,
@@ -55,7 +56,6 @@ import {
   SCREW_LYING_QUATERNION,
   SCREWDRIVER_REST_QUATERNION,
   SHIP_READY_BENCH_SPOTS,
-  SPACER_BENCH_SPOTS,
 } from "lib/world/bench-spots"
 
 /** Pre-crimped JST-PH cable between the motor and the PCB. */
@@ -84,6 +84,8 @@ export interface ManufacturingWorld {
   screwdriver: Screwdriver
   longScrewBin: Group
   usedScrewBin: Group
+  /** Bin of pre-crimped JST-PH motor cables. */
+  cableBin: Group
   /** Four long screws for this unit, in the long-screw bin. */
   longScrews: Group[]
   /** Stock screws taken out of the motor, in the used-screw bin. */
@@ -103,11 +105,13 @@ export interface ManufacturingWorld {
 }
 
 const TOP = FOLDING_TABLE.topHeightM
-const MOTORS_IN_TRAY = 4
-const PCBS_IN_STACK = 5
+const MOTOR_TRAY_COLUMNS = 4
+const MOTOR_TRAY_ROWS = 3
+const PCBS_PER_STACK = 5
 const JIG_HEIGHT_M = 0.03
 const SPARE_SPACER_COUNT = 16
 const SPARE_LONG_SCREW_COUNT = 18
+const SPARE_MOTOR_CABLE_COUNT = 4
 const BOXES_IN_STACK = 3
 const COILS_IN_STACK = 4
 const CHARGERS_IN_STACK = 3
@@ -128,9 +132,9 @@ function createPlacedTable(tableId: TableId): Group {
   return table
 }
 
-function populateSpacerBench(table: Group): { spacer: Group } {
+function addSpacerBasket(table: Group): Group {
   const basket = createSpacerBasket()
-  basket.position.copy(SPACER_BENCH_SPOTS.basket)
+  basket.position.copy(ASSEMBLY_BENCH_SPOTS.spacerBasket)
   table.add(basket)
   for (let index = 0; index < SPARE_SPACER_COUNT; index++) {
     const spacer = createBackfaceSpacer()
@@ -143,10 +147,10 @@ function populateSpacerBench(table: Group): { spacer: Group } {
     basket.add(spacer)
   }
   const spacer = createBackfaceSpacer()
-  spacer.position.set(0.02, 0.0175, 0.035)
+  spacer.position.set(-0.04, 0.0175, 0.035)
   spacer.rotation.y = 0.3
   basket.add(spacer)
-  return { spacer }
+  return spacer
 }
 
 function addScrewsToBin(params: {
@@ -175,19 +179,130 @@ function addScrewsToBin(params: {
   return screws
 }
 
+function addMotorTray(table: Group): Nema17Motor {
+  const spots = ASSEMBLY_BENCH_SPOTS
+  const pitchM = spots.motorTraySpacingM
+  const tray = createRectangleShape({
+    widthM: MOTOR_TRAY_COLUMNS * pitchM + 0.03,
+    depthM: MOTOR_TRAY_ROWS * pitchM + 0.015,
+  })
+  const slotOffsets: Array<{ x: number; z: number }> = []
+  for (let row = 0; row < MOTOR_TRAY_ROWS; row++) {
+    for (let column = 0; column < MOTOR_TRAY_COLUMNS; column++) {
+      const offset = {
+        x: (column - (MOTOR_TRAY_COLUMNS - 1) / 2) * pitchM,
+        z: (row - (MOTOR_TRAY_ROWS - 1) / 2) * pitchM,
+      }
+      slotOffsets.push(offset)
+      // Shape Y maps to -Z after extrusion.
+      tray.holes.push(
+        createCircleHole({ x: offset.x, y: -offset.z, radiusM: 0.012 }),
+      )
+    }
+  }
+  const trayMesh = createExtrudedMesh({
+    shape: tray,
+    depthM: JIG_HEIGHT_M,
+    material: createStandardMaterial({ color: 0x39424b }),
+    baseYM: TOP,
+  })
+  trayMesh.position.x = spots.motorTrayCenter.x
+  trayMesh.position.z = spots.motorTrayCenter.z
+  table.add(trayMesh)
+  const motors = slotOffsets.map((offset) => {
+    const motor = createNema17Motor()
+    motor.group.position.set(
+      spots.motorTrayCenter.x + offset.x,
+      TOP + JIG_HEIGHT_M,
+      spots.motorTrayCenter.z + offset.z,
+    )
+    table.add(motor.group)
+    return motor
+  })
+  // Take from the front row, nearest the jig.
+  return motors[(MOTOR_TRAY_ROWS - 1) * MOTOR_TRAY_COLUMNS]
+}
+
+function addPcbStacks(table: Group): ControllerPcb {
+  const spots = ASSEMBLY_BENCH_SPOTS
+  const stacks = spots.pcbStackBases.map((base) => {
+    table.add(
+      createBoxMesh({
+        size: [0.06, 0.004, 0.06],
+        material: BLACK_PLASTIC_MATERIAL,
+        position: [base.x, base.y - 0.002, base.z],
+      }),
+    )
+    const pcbs: ControllerPcb[] = []
+    for (let level = 0; level < PCBS_PER_STACK; level++) {
+      const pcb = createControllerPcb()
+      pcb.group.position.copy(base)
+      pcb.group.position.y += level * spots.pcbStackSpacingM
+      table.add(pcb.group)
+      pcbs.push(pcb)
+    }
+    return pcbs
+  })
+  return stacks[0][PCBS_PER_STACK - 1]
+}
+
+/** Cable bin with spare coiled cables and, on top, the cable for this unit with both plugs at the scoop. */
+function addCableBin(table: Group): {
+  cableBin: Group
+  motorCable: MotorCable
+} {
+  const cableBin = createPartsBin({ labelColor: 0xf2c230 })
+  cableBin.position.copy(ASSEMBLY_BENCH_SPOTS.cableBin)
+  table.add(cableBin)
+  for (let index = 0; index < SPARE_MOTOR_CABLE_COUNT; index++) {
+    const coil = createCoiledJstCable()
+    coil.position.set(
+      (scatter(index + 500) - 0.5) * 0.03,
+      0.0025 + index * 0.0028,
+      -0.02 + (scatter(index + 520) - 0.5) * 0.03,
+    )
+    coil.rotation.y = scatter(index + 540) * Math.PI * 2
+    cableBin.add(coil)
+  }
+  const motorPlug = createJstPlug()
+  const boardPlug = createJstPlug()
+  for (const [index, plug] of [motorPlug, boardPlug].entries()) {
+    plug.group.position.set(-0.015 + index * 0.03, 0.016, 0.035)
+    plug.group.quaternion.copy(PLUG_LYING_QUATERNION)
+    cableBin.add(plug.group)
+  }
+  const cable = createFlexCable({
+    startAnchor: motorPlug.wireAnchor,
+    endAnchor: boardPlug.wireAnchor,
+    color: 0x1f2226,
+    radiusM: 0.0012,
+    minYM: TOP + 0.004,
+    slackOffset: new Vector3(0, 0, -0.05),
+    leadLengthM: 0.012,
+  })
+  cable.slackFrame = cableBin
+  return { cableBin, motorCable: { cable, motorPlug, boardPlug } }
+}
+
 function populateAssemblyBench(
   table: Group,
 ): Pick<
   ManufacturingWorld,
+  | "spacer"
   | "motor"
   | "pcb"
   | "screwdriver"
   | "longScrewBin"
   | "usedScrewBin"
+  | "cableBin"
   | "longScrews"
   | "motorCable"
 > {
   const spots = ASSEMBLY_BENCH_SPOTS
+  const spacer = addSpacerBasket(table)
+  const motor = addMotorTray(table)
+  const pcb = addPcbStacks(table)
+
   const jig = createRectangleShape({ widthM: 0.07, depthM: 0.07 })
   jig.holes.push(createCircleHole({ x: 0, y: 0, radiusM: 0.012 }))
   const jigMesh = createExtrudedMesh({
@@ -199,38 +314,6 @@ function populateAssemblyBench(
   jigMesh.position.x = spots.jigTop.x
   jigMesh.position.z = spots.jigTop.z
   table.add(jigMesh)
-
-  const tray = createRectangleShape({ widthM: 0.25, depthM: 0.07 })
-  for (let slot = 0; slot < MOTORS_IN_TRAY; slot++) {
-    tray.holes.push(
-      createCircleHole({
-        x: (slot - (MOTORS_IN_TRAY - 1) / 2) * spots.motorTraySpacingM,
-        y: 0,
-        radiusM: 0.012,
-      }),
-    )
-  }
-  const trayMesh = createExtrudedMesh({
-    shape: tray,
-    depthM: JIG_HEIGHT_M,
-    material: createStandardMaterial({ color: 0x39424b }),
-    baseYM: TOP,
-  })
-  trayMesh.position.x = spots.motorTrayCenter.x
-  trayMesh.position.z = spots.motorTrayCenter.z
-  table.add(trayMesh)
-  const motors: Nema17Motor[] = []
-  for (let slot = 0; slot < MOTORS_IN_TRAY; slot++) {
-    const motor = createNema17Motor()
-    motor.group.position.set(
-      spots.motorTrayCenter.x +
-        (slot - (MOTORS_IN_TRAY - 1) / 2) * spots.motorTraySpacingM,
-      TOP + JIG_HEIGHT_M,
-      spots.motorTrayCenter.z,
-    )
-    table.add(motor.group)
-    motors.push(motor)
-  }
 
   const longScrewBin = createPartsBin({ labelColor: 0x2f6fb0 })
   longScrewBin.position.copy(spots.longScrewBin)
@@ -251,59 +334,23 @@ function populateAssemblyBench(
     // The four for this unit sit on top, near the scoop.
     screw.position.set((index - 1.5) * 0.02, 0.0125, 0.035)
   }
+  const { cableBin, motorCable } = addCableBin(table)
 
   const screwdriver = createScrewdriver()
   screwdriver.group.position.copy(spots.screwdriverRest)
   screwdriver.group.quaternion.copy(SCREWDRIVER_REST_QUATERNION)
   table.add(screwdriver.group)
 
-  table.add(
-    createBoxMesh({
-      size: [0.06, 0.004, 0.06],
-      material: BLACK_PLASTIC_MATERIAL,
-      position: [
-        spots.pcbStackBase.x,
-        spots.pcbStackBase.y - 0.002,
-        spots.pcbStackBase.z,
-      ],
-    }),
-  )
-  const pcbs: ControllerPcb[] = []
-  for (let level = 0; level < PCBS_IN_STACK; level++) {
-    const pcb = createControllerPcb()
-    pcb.group.position.copy(spots.pcbStackBase)
-    pcb.group.position.y += level * spots.pcbStackSpacingM
-    table.add(pcb.group)
-    pcbs.push(pcb)
-  }
-
-  const motorPlug = createJstPlug()
-  const boardPlug = createJstPlug()
-  motorPlug.group.position.copy(spots.motorCableStart).setY(TOP + 0.00225)
-  boardPlug.group.position.copy(spots.motorCableStart).setY(TOP + 0.00225)
-  boardPlug.group.position.z += 0.1
-  motorPlug.group.quaternion.copy(PLUG_LYING_QUATERNION)
-  boardPlug.group.quaternion.copy(PLUG_LYING_QUATERNION)
-  table.add(motorPlug.group, boardPlug.group)
-  const cable = createFlexCable({
-    startAnchor: motorPlug.wireAnchor,
-    endAnchor: boardPlug.wireAnchor,
-    color: 0x1f2226,
-    radiusM: 0.0012,
-    minYM: TOP,
-    slackOffset: new Vector3(0.07, 0, 0),
-    leadLengthM: 0.012,
-  })
-  cable.slackFrame = table
-
   return {
-    motor: motors[MOTORS_IN_TRAY - 1],
-    pcb: pcbs[PCBS_IN_STACK - 1],
+    spacer,
+    motor,
+    pcb,
     screwdriver,
     longScrewBin,
     usedScrewBin,
+    cableBin,
     longScrews,
-    motorCable: { cable, motorPlug, boardPlug },
+    motorCable,
   }
 }
 
@@ -418,18 +465,16 @@ function populateShipReadyBench(table: Group): void {
   )
 }
 
-/** Build the five line benches and every part on them, in their starting state. */
+/** Build the four line benches and every part on them, in their starting state. */
 export function createWorld(): ManufacturingWorld {
   const root = new Group()
   const tables: Record<TableId, Group> = {
-    spacer_bench: createPlacedTable("spacer_bench"),
     assembly_bench: createPlacedTable("assembly_bench"),
     qc_bench: createPlacedTable("qc_bench"),
     pack_out_bench: createPlacedTable("pack_out_bench"),
     ship_ready_bench: createPlacedTable("ship_ready_bench"),
   }
   for (const table of Object.values(tables)) root.add(table)
-  const spacerBench = populateSpacerBench(tables.spacer_bench)
   const assemblyBench = populateAssemblyBench(tables.assembly_bench)
   const qcBench = populateQcBench(tables.qc_bench)
   const packOutBench = populatePackOutBench(tables.pack_out_bench)
@@ -444,7 +489,6 @@ export function createWorld(): ManufacturingWorld {
   return {
     root,
     tables,
-    ...spacerBench,
     ...assemblyBench,
     ...qcBench,
     ...packOutBench,

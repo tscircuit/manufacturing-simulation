@@ -71,6 +71,7 @@ export const VIEWER_STYLES = `
 .msim .stick { position: absolute; left: max(20px, env(safe-area-inset-left, 0px)); bottom: calc(120px + env(safe-area-inset-bottom, 0px)); width: 104px; height: 104px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); touch-action: none; }
 .msim .knob { position: absolute; left: 32px; top: 32px; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); }
 .msim .act { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(130px + env(safe-area-inset-bottom, 0px)); width: 72px; height: 72px; border-radius: 50%; font-weight: 600; background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.msim .act.run-bench { bottom: calc(214px + env(safe-area-inset-bottom, 0px)); font-size: 12px; line-height: 1.1; }
 @media (max-width: 720px) {
   .msim .timing { top: auto; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); max-height: 45%; }
   .msim .panel { max-height: 55%; }

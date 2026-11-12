@@ -1,6 +1,11 @@
 import { Vector3 } from "three"
 import { STATIONS } from "lib/layout/station-layout"
-import { getJigFocusPoint, getPointInTableFrame } from "lib/job/bench-frames"
+import {
+  getJigFocusPoint,
+  getPointInTableFrame,
+  getSpacerBasketFocusPoint,
+} from "lib/job/bench-frames"
+import { FORWARD_FINGER_DIRECTION } from "lib/operator/operator-body"
 import type { JobStep } from "lib/job/job-step"
 import {
   returnScrewdriver,
@@ -75,24 +80,50 @@ function* moveScrewdriverTo(
   )
 }
 
-function* setSpacerDownAndLoadMotor(ctx: SimContext): SimTask {
+function* takeSpacerFromBasket(ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  const bench = world.tables.assembly_bench
-  ctx.statusText = "Setting the spacer down next to the motors"
+  const { spacer } = world
+  const hand = operator.rightHand
+  const basket = spacer.parent
+  if (!basket) throw new Error("Spacer must start in the basket")
+  ctx.statusText = "Picking a printed spacer out of the basket"
+  hand.targetFingerDirection.copy(FORWARD_FINGER_DIRECTION)
+  yield* grabObject({
+    hand,
+    object: spacer,
+    localGripPoint: new Vector3(0, 0.003, 0.019),
+    fingerCurl: 1,
+    durationSeconds: 0.9,
+  })
   yield* moveObject(
     {
-      object: world.spacer,
-      hand: operator.rightHand,
-      parent: bench,
+      object: spacer,
+      hand,
+      parent: basket,
+      localPosition: spacer.position.clone().add(new Vector3(0, 0.07, 0.03)),
+      localQuaternion: spacer.quaternion.clone(),
+      durationSeconds: 0.45,
+    },
+    ctx,
+  )
+  ctx.statusText = "Setting the spacer down by the jig"
+  yield* moveObject(
+    {
+      object: spacer,
+      hand,
+      parent: world.tables.assembly_bench,
       localPosition: ASSEMBLY_BENCH_SPOTS.spacerRest,
       localQuaternion: IDENTITY_QUATERNION,
-      durationSeconds: 0.8,
+      durationSeconds: 0.9,
       arcHeightM: 0.05,
     },
     ctx,
   )
-  yield* releaseHand(operator.rightHand)
+  yield* releaseHand(hand)
+}
 
+function* loadMotorIntoJig(ctx: SimContext): SimTask {
+  const { world, operator } = ctx
   ctx.statusText = "Loading a NEMA17 into the jig, back face up"
   yield* grabObject({
     hand: operator.leftHand,
@@ -105,7 +136,7 @@ function* setSpacerDownAndLoadMotor(ctx: SimContext): SimTask {
     {
       object: world.motor.group,
       hand: operator.leftHand,
-      parent: bench,
+      parent: world.tables.assembly_bench,
       localPosition: ASSEMBLY_BENCH_SPOTS.jigTop,
       localQuaternion: IDENTITY_QUATERNION,
       liftHeightM: 0.04,
@@ -323,7 +354,58 @@ function* driveLongScrews(ctx: SimContext): SimTask {
 function* plugInMotorCable(ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const { motorCable, motor, pcb } = world
-  ctx.statusText = "Plugging the pre-crimped cable into the motor"
+  const bench = world.tables.assembly_bench
+  const { jigTop } = ASSEMBLY_BENCH_SPOTS
+  const plugGrip = new Vector3(0, 0.005, 0)
+  ctx.statusText = "Taking a pre-crimped cable out of the cable bin"
+  yield* runInParallel([
+    grabObject({
+      hand: operator.rightHand,
+      object: motorCable.motorPlug.group,
+      localGripPoint: plugGrip,
+      fingerCurl: 0.95,
+    }),
+    grabObject({
+      hand: operator.leftHand,
+      object: motorCable.boardPlug.group,
+      localGripPoint: plugGrip,
+      fingerCurl: 0.95,
+    }),
+  ])
+  // Lift the whole cable out with both hands and bring it over the jig.
+  motorCable.cable.slackFrame = bench
+  motorCable.cable.slackOffset.set(0, -0.02, 0.02)
+  yield* runInParallel([
+    moveObject(
+      {
+        object: motorCable.motorPlug.group,
+        hand: operator.rightHand,
+        parent: bench,
+        localPosition: new Vector3(
+          jigTop.x + 0.02,
+          jigTop.y + 0.09,
+          jigTop.z - 0.02,
+        ),
+        localQuaternion: motor.cableSocket.quaternion,
+        durationSeconds: 1,
+        arcHeightM: 0.05,
+      },
+      ctx,
+    ),
+    moveObject(
+      {
+        object: motorCable.boardPlug.group,
+        hand: operator.leftHand,
+        parent: bench,
+        localPosition: new Vector3(jigTop.x - 0.04, jigTop.y + 0.1, jigTop.z),
+        localQuaternion: IDENTITY_QUATERNION,
+        durationSeconds: 1,
+        arcHeightM: 0.05,
+      },
+      ctx,
+    ),
+  ])
+  ctx.statusText = "Plugging the cable into the side of the motor"
   yield* plugIn(
     {
       plug: motorCable.motorPlug,
@@ -374,11 +456,18 @@ function* pickUpMotorAssembly(ctx: SimContext): SimTask {
 
 export const ASSEMBLY_BENCH_STEPS: JobStep[] = [
   {
-    label: "Set spacer down, load motor in jig",
+    label: "Take a spacer from the basket",
+    station: STATIONS.spacers,
+    closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.9 },
+    getFocusPoint: getSpacerBasketFocusPoint,
+    run: takeSpacerFromBasket,
+  },
+  {
+    label: "Load a motor in the jig",
     station: STATIONS.assembly,
     closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.95 },
     getFocusPoint: getJigFocusPoint,
-    run: setSpacerDownAndLoadMotor,
+    run: loadMotorIntoJig,
   },
   {
     label: "Remove 4 stock screws to the used bin",
@@ -411,7 +500,11 @@ export const ASSEMBLY_BENCH_STEPS: JobStep[] = [
   {
     label: "Plug in the motor cable",
     station: STATIONS.assembly,
-    closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.45 },
+    closeUpView: {
+      azimuthRadians: 2.0,
+      elevationRadians: 0.4,
+      distanceM: 0.45,
+    },
     getFocusPoint: getJigFocusPoint,
     run: plugInMotorCable,
   },

@@ -27,13 +27,12 @@ simulation.ctx.progress.cycleSeconds // total including walking
 
 - **Floor:** unit 322 at 2325, 18'3½" × 47'5¼" (46'0¼" on the window side), with the washroom on the east wall, the entry door in the NE corner and the window wall on the west.
 - **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK and bends at the hips for 29" tables.
-- **Line:** five 6' folding tables end to end along the window wall:
-  1. **Spacer bench:** a basket of printed NEMA17 backface spacers.
-  2. **Assembly bench:** NEMA17 motors in a tray, a jig, the controller PCBs, a screwdriver, pre-crimped JST-PH 2.0 6-pin motor cables, and two black Akro-Mils 30210 AkroBins. The blue-tagged bin holds the long M3 screws; the red-tagged bin starts empty and collects the motor's stock screws. The stock screws are too short once the 4 mm spacer and PCB are added.
-  3. **QC bench:** a cradle, a laptop running the motor-bench page, and a 10-port USB-C GaN charging station. One USB-C goes to the PCB data port, one to its PD power port. The motor spins and the screen shows the result.
-  4. **Pack-out bench:** a stack of The Boxery 7×4×3" white tuck mailers with pink anti-static foam pre-cut top and bottom, coiled LISEN USB-C cables, 45 W USB-C chargers, an Epson EcoTank ET-2400, and a printed AveneMark 2×4" label sheet (10-up).
-  5. **Ship-ready bench.**
-- **Job:** 15 timed steps. Pick a spacer, load the motor, swap the 4 stock screws for long ones through the spacer and PCB, plug in the motor cable, run the USB-C spin test, pack the motor with 2 USB-C cables and a charger, close the box, apply the label, and move it to ship-ready.
+- **Line:** four 6' folding tables end to end along the window wall:
+  1. **Assembly bench:** a basket of printed NEMA17 backface spacers, three rows of NEMA17 motors, a jig, three stacks of controller PCBs, a screwdriver, and three black Akro-Mils 30210 AkroBins. The blue-tagged bin holds the long M3 screws; the red-tagged bin starts empty and collects the motor's stock screws, which are too short once the 4 mm spacer and PCB are added; the yellow-tagged bin holds pre-crimped JST-PH 2.0 6-pin motor cables.
+  2. **QC bench:** a cradle, a laptop running the motor-bench page, and a 10-port USB-C GaN charging station. One USB-C goes to the PCB data port, one to its PD power port. The motor spins and the screen shows the result.
+  3. **Pack-out bench:** a stack of The Boxery 7×4×3" white tuck mailers with pink anti-static foam pre-cut top and bottom, coiled LISEN USB-C cables, 45 W USB-C chargers, an Epson EcoTank ET-2400, and a printed AveneMark 2×4" label sheet (10-up).
+  4. **Ship-ready bench.**
+- **Job:** 15 timed steps. Take a spacer, load the motor, swap the 4 stock screws for long ones through the spacer and PCB, lift a cable out of its bin and plug both ends, run the USB-C spin test, pack the motor with 2 USB-C cables and a charger, close the box, apply the label, and move it to ship-ready.
 - **Timing:** each step and walking time are clocked, at 0.5× to 8×. A cycle is about 1:32. Gesture durations are placeholders, not measured.
 
 The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The label artwork is `label-preview.png` from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging) (2" wide × 4" tall when applied). Parts are from the lab inventory where it lists them; the PCB, laptop and charging station are simplified models. Table positions are placeholders until the real layout is measured.
@@ -48,10 +47,13 @@ The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. T
 | 1 / 2 / 3 | Overview / Follow / Close-up camera |
 | G | Toggle game mode |
 | WASD or arrows | Walk (game mode) |
-| E | Do the next job step at this station (game mode) |
+| E | Do the next job step at this station; while anything runs, pause or resume it in place (game mode) |
+| C | Run every remaining step at this bench without stopping (game mode) |
 | F | Pick up or put back the screwdriver (game mode) |
 
-Touch screens get an on-screen stick and an Act button in game mode.
+Touch screens get an on-screen stick, an Act button and a Run bench button in game mode.
+
+When the operator stands between the camera and the work, or the camera is zoomed inside him, his body fades out so the work stays visible.
 
 ## Code layout
 

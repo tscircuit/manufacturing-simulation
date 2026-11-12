@@ -1,5 +1,10 @@
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
-import { type Station, STATIONS } from "lib/layout/station-layout"
+import {
+  type Station,
+  STATIONS,
+  TABLE_PLACEMENTS,
+  type TableId,
+} from "lib/layout/station-layout"
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
 import { runJobStep } from "lib/job/run-job-step"
@@ -24,8 +29,12 @@ export interface GameAction {
 export interface GameActions {
   /** Next job step, bound to E. */
   stepAction: GameAction | null
+  /** Every remaining step at this bench in one go, bound to C. */
+  benchAction: GameAction | null
   /** Pick up or put back the screwdriver, bound to F. */
   screwdriverAction: GameAction | null
+  /** While a task runs, E pauses or resumes it in place. */
+  pauseLabel: "Pause" | "Resume" | null
 }
 
 /** Joystick-style input, -1..1 on each axis, relative to the camera's heading. */
@@ -59,13 +68,38 @@ function* stepUpAndRun(
   yield* params.createTask()
 }
 
-/** Actions available to the player right now. Empty while a task is running. */
+/** Run job steps one after another for as long as the next one is at `tableId`. */
+function* runRestOfBench(
+  params: { tableId: TableId },
+  ctx: SimContext,
+): SimTask {
+  const tableLabel = TABLE_PLACEMENTS[params.tableId].label
+  for (;;) {
+    const stepIndex = ctx.progress.completedStepCount
+    const step = ASSEMBLY_JOB_STEPS[stepIndex]
+    if (!step || step.station.tableId !== params.tableId) break
+    yield* walkToStation(step.station, ctx)
+    yield* runJobStep({ stepIndex }, ctx)
+  }
+  ctx.statusText = `${tableLabel} done`
+}
+
+/** Actions available to the player right now. While a task runs, only pausing is offered. */
 export function getGameActions(
-  params: { isTaskRunning: boolean },
+  params: { isTaskRunning: boolean; isTaskPaused: boolean },
   ctx: SimContext,
 ): GameActions {
-  const actions: GameActions = { stepAction: null, screwdriverAction: null }
-  if (params.isTaskRunning || ctx.mode !== "game") return actions
+  const actions: GameActions = {
+    stepAction: null,
+    benchAction: null,
+    screwdriverAction: null,
+    pauseLabel: null,
+  }
+  if (ctx.mode !== "game") return actions
+  if (params.isTaskRunning) {
+    actions.pauseLabel = params.isTaskPaused ? "Resume" : "Pause"
+    return actions
+  }
   const { progress, operator } = ctx
 
   if (progress.isHoldingLooseScrewdriver) {
@@ -98,6 +132,20 @@ export function getGameActions(
           },
           ctx,
         ),
+    }
+  }
+  const tableId = nextStep?.station.tableId
+  const remainingAtBench = ASSEMBLY_JOB_STEPS.slice(stepIndex).findIndex(
+    (step) => step.station.tableId !== tableId,
+  )
+  const stepsLeftAtBench =
+    remainingAtBench === -1
+      ? ASSEMBLY_JOB_STEPS.length - stepIndex
+      : remainingAtBench
+  if (nextStep && tableId && actions.stepAction && stepsLeftAtBench > 1) {
+    actions.benchAction = {
+      label: `Run the rest of the ${TABLE_PLACEMENTS[tableId].label} (${stepsLeftAtBench} steps)`,
+      createTask: () => runRestOfBench({ tableId }, ctx),
     }
   }
   const handsAreEmpty =

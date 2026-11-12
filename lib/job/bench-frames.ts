@@ -6,7 +6,6 @@ import {
   PACK_OUT_BENCH_SPOTS,
   QC_BENCH_SPOTS,
   SHIP_READY_BENCH_SPOTS,
-  SPACER_BENCH_SPOTS,
 } from "lib/world/bench-spots"
 
 /** Express a point fixed to `object` in a table's local frame. */
@@ -34,10 +33,11 @@ function getTablePoint(
 export function getSpacerBasketFocusPoint(ctx: SimContext): Vector3 {
   return getTablePoint(
     {
-      tableId: "spacer_bench",
-      localPoint: SPACER_BENCH_SPOTS.basket
+      tableId: "assembly_bench",
+      // Between the basket and the spacer rest by the jig.
+      localPoint: ASSEMBLY_BENCH_SPOTS.spacerBasket
         .clone()
-        .add(new Vector3(0, 0.05, 0)),
+        .add(new Vector3(-0.25, 0.05, 0.06)),
     },
     ctx,
   )

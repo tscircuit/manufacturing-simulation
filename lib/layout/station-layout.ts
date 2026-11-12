@@ -1,5 +1,4 @@
 export type TableId =
-  | "spacer_bench"
   | "assembly_bench"
   | "qc_bench"
   | "pack_out_bench"
@@ -49,11 +48,10 @@ function placeOnLine(params: {
 
 // Positions follow the v2 line description; adjust once the real layout is measured.
 export const TABLE_PLACEMENTS: Record<TableId, TablePlacement> = {
-  spacer_bench: placeOnLine({ lineOrder: 1, label: "Spacer bench" }),
-  assembly_bench: placeOnLine({ lineOrder: 2, label: "Assembly bench" }),
-  qc_bench: placeOnLine({ lineOrder: 3, label: "QC bench" }),
-  pack_out_bench: placeOnLine({ lineOrder: 4, label: "Pack-out bench" }),
-  ship_ready_bench: placeOnLine({ lineOrder: 5, label: "Ship-ready bench" }),
+  assembly_bench: placeOnLine({ lineOrder: 1, label: "Assembly bench" }),
+  qc_bench: placeOnLine({ lineOrder: 2, label: "QC bench" }),
+  pack_out_bench: placeOnLine({ lineOrder: 3, label: "Pack-out bench" }),
+  ship_ready_bench: placeOnLine({ lineOrder: 4, label: "Ship-ready bench" }),
 }
 
 /** A place to stand at a table, measured in the table's local frame. */
@@ -64,7 +62,12 @@ export interface Station {
 }
 
 export const STATIONS = {
-  spacers: { tableId: "spacer_bench", alongTableM: 0, standoffFromEdgeM: 0.3 },
+  /** Upstream end of the assembly bench, by the spacer basket and the motor tray. */
+  spacers: {
+    tableId: "assembly_bench",
+    alongTableM: 0.5,
+    standoffFromEdgeM: 0.3,
+  },
   assembly: {
     tableId: "assembly_bench",
     alongTableM: 0,

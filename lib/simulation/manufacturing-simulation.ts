@@ -42,6 +42,9 @@ function createJobProgress(): JobProgress {
   }
 }
 
+/** E runs the next step (or pauses a running one), C runs the rest of the bench, F handles the screwdriver. */
+export type GameActionKind = "step" | "bench" | "screwdriver"
+
 /**
  * The unit 322 floor, its benches and the operator, advanced in fixed steps.
  * Has no rendering or DOM dependencies, so it runs headless in tests.
@@ -50,6 +53,8 @@ export class ManufacturingSimulation {
   readonly ctx: SimContext
   readonly roomShell: RoomShell
   private activeTask: SimTask | null = null
+  /** A paused task keeps its place and resumes from the same point. */
+  private isTaskPausedFlag = false
   private walkInput: WalkInput = {
     forward: 0,
     right: 0,
@@ -82,6 +87,17 @@ export class ManufacturingSimulation {
     return this.activeTask !== null
   }
 
+  get isTaskPaused(): boolean {
+    return this.activeTask !== null && this.isTaskPausedFlag
+  }
+
+  /** Freeze the running task where it is, or carry on from there. */
+  setTaskPaused(isPaused: boolean): void {
+    if (!this.activeTask) return
+    this.isTaskPausedFlag = isPaused
+    if (isPaused) this.ctx.operator.walkSpeedMps = 0
+  }
+
   /** Put every part back in its starting place and the operator at the door. */
   reset(): void {
     this.activeTask = null
@@ -103,6 +119,7 @@ export class ManufacturingSimulation {
 
   startTask(task: SimTask): void {
     this.activeTask = task
+    this.isTaskPausedFlag = false
     // Run up to the first yield so the task sets its status immediately.
     if (task.next().done) this.activeTask = null
   }
@@ -148,14 +165,27 @@ export class ManufacturingSimulation {
   }
 
   getGameActions(): GameActions {
-    return getGameActions({ isTaskRunning: this.isTaskRunning }, this.ctx)
+    return getGameActions(
+      { isTaskRunning: this.isTaskRunning, isTaskPaused: this.isTaskPaused },
+      this.ctx,
+    )
   }
 
   /** Run the action bound to E ("step") or F ("screwdriver"), if available. */
-  runGameAction(actionKind: "step" | "screwdriver"): boolean {
+  runGameAction(actionKind: GameActionKind): boolean {
+    if (this.activeTask && this.ctx.mode === "game") {
+      // While something is running, E pauses and resumes it.
+      if (actionKind !== "step") return false
+      this.setTaskPaused(!this.isTaskPausedFlag)
+      return true
+    }
     const actions = this.getGameActions()
     const action =
-      actionKind === "step" ? actions.stepAction : actions.screwdriverAction
+      actionKind === "step"
+        ? actions.stepAction
+        : actionKind === "bench"
+          ? actions.benchAction
+          : actions.screwdriverAction
     if (!action) return false
     this.startTask(action.createTask())
     return true
@@ -164,6 +194,11 @@ export class ManufacturingSimulation {
   /** Advance the simulation by `dtSeconds` of simulated time. */
   step(dtSeconds: number): void {
     const { ctx } = this
+    if (this.activeTask && this.isTaskPausedFlag) {
+      ctx.operator.walkSpeedMps = 0
+      updateOperatorPose(ctx.operator, dtSeconds)
+      return
+    }
     if (this.activeTask) {
       if (this.activeTask.next(dtSeconds).done) this.activeTask = null
     } else if (ctx.mode === "game") {

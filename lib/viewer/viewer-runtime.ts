@@ -13,7 +13,10 @@ import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { type TableId, TABLE_PLACEMENTS } from "lib/layout/station-layout"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
-import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
+import {
+  type GameActionKind,
+  ManufacturingSimulation,
+} from "lib/simulation/manufacturing-simulation"
 import type { ScenarioId } from "lib/simulation/scenarios"
 import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
@@ -23,6 +26,10 @@ import { createLabelSprite } from "lib/viewer/create-label-sprite"
 import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
 import { NEMA17_LABEL_DATA_URL } from "lib/viewer/nema17-label-artwork"
 import type { HudSnapshot } from "lib/viewer/hud-snapshot"
+import {
+  getOperatorObstruction,
+  updateMaterialOpacity,
+} from "lib/viewer/operator-fade"
 import { createStationRing } from "lib/viewer/station-ring"
 import type { QcDisplayState } from "lib/models/qc-laptop"
 import type { ManufacturingWorld } from "lib/world/create-world"
@@ -86,6 +93,8 @@ export class ViewerRuntime {
     pass: createQcScreenTexture("pass"),
   }
   private shownQcDisplayState: QcDisplayState | null = null
+  private operatorBodyOpacity = 1
+  private operatorHandOpacity = 1
   private animationFrameId = 0
   private previousFrameMs = 0
   private previousHudMs = 0
@@ -201,7 +210,7 @@ export class ViewerRuntime {
     this.emitHud()
   }
 
-  runGameAction(actionKind: "step" | "screwdriver"): void {
+  runGameAction(actionKind: GameActionKind): void {
     this.simulation.runGameAction(actionKind)
     this.emitHud()
   }
@@ -232,6 +241,24 @@ export class ViewerRuntime {
       dtSeconds: realSeconds,
       operatorPosition: operator.position,
       fallbackCloseUpTarget: getPinchWorldPosition(operator.rightHand),
+    })
+    const obstruction = getOperatorObstruction({
+      operator,
+      cameraPosition: this.camera.position,
+      lookTarget: this.cameraRig.target,
+      checkSightLine: this.cameraRig.mode === "close_up",
+    })
+    this.operatorBodyOpacity = updateMaterialOpacity({
+      materials: operator.materials,
+      currentOpacity: this.operatorBodyOpacity,
+      isFaded: obstruction !== "none",
+      dtSeconds: realSeconds,
+    })
+    this.operatorHandOpacity = updateMaterialOpacity({
+      materials: operator.handMaterials,
+      currentOpacity: this.operatorHandOpacity,
+      isFaded: obstruction === "camera_inside",
+      dtSeconds: realSeconds,
     })
     this.updateStationRing(nowMs)
     if (nowMs - this.previousHudMs > HUD_INTERVAL_MS) this.emitHud()
@@ -382,7 +409,8 @@ export class ViewerRuntime {
     )
     let statusText = ctx.statusText
     const nextStep = ASSEMBLY_JOB_STEPS[progress.completedStepCount]
-    const hasPrompt = actions.stepAction || actions.screwdriverAction
+    const hasPrompt =
+      actions.stepAction || actions.benchAction || actions.screwdriverAction
     if (
       ctx.mode === "game" &&
       !this.simulation.isTaskRunning &&
@@ -390,10 +418,10 @@ export class ViewerRuntime {
       nextStep &&
       !progress.isHoldingLooseScrewdriver
     ) {
-      const tableLabel =
-        TABLE_PLACEMENTS[nextStep.station.tableId].label.toLowerCase()
+      const tableLabel = TABLE_PLACEMENTS[nextStep.station.tableId].label
       statusText = `Next: ${nextStep.label.toLowerCase()} at the ${tableLabel}`
     }
+    if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
     this.options.onHudChange({
       mode: ctx.mode,
       statusText,
@@ -404,7 +432,8 @@ export class ViewerRuntime {
       steps,
       walkingSeconds: Math.max(0, progress.cycleSeconds - stepSeconds),
       cycleSeconds: progress.cycleSeconds,
-      stepPromptLabel: actions.stepAction?.label ?? null,
+      stepPromptLabel: actions.pauseLabel ?? actions.stepAction?.label ?? null,
+      benchPromptLabel: actions.benchAction?.label ?? null,
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
     })
   }
@@ -451,6 +480,7 @@ export class ViewerRuntime {
     if (mode === "game") {
       if (key === "e") this.runGameAction("step")
       if (key === "f") this.runGameAction("screwdriver")
+      if (key === "c") this.runGameAction("bench")
       if (key.startsWith("arrow") || key === " ") event.preventDefault()
     }
     if (key === "1") this.setCameraMode("overview")
