@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="Browser simulation of a 6′2″ operator assembling and packing NEMA17 motor controller units on the unit 322 floor.">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}[hidden]{display:none!important}</style>
+<title>Unit 322 Line Sim</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: full-bleed 3D viewport; floating instrument panels (controls top-left, cycle timing top-right, camera + status along the bottom). */
+:root{
+  --bg:#e7ebee; --panel:rgba(255,255,255,.9); --fg:#18212b; --muted:#5a6876; --line:#c9d1d9;
+  --accent:#b35f00; --accent-fg:#fff; --ok:#1d7f4f; --btn:#f3f5f7;
+  --scene-bg:#dfe5ea; --floor:#c9cfd4; --floor-line:#b4bcc3; --wall:#f2f4f5;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --bg:#0c1116; --panel:rgba(17,24,31,.9); --fg:#e4eaf0; --muted:#8a98a7; --line:#2a3541;
+  --accent:#ffc533; --accent-fg:#1a1400; --ok:#58d39a; --btn:#1b2530;
+  --scene-bg:#0c1116; --floor:#262e36; --floor-line:#35404b; --wall:#3a4550; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --bg:#0c1116; --panel:rgba(17,24,31,.9); --fg:#e4eaf0; --muted:#8a98a7; --line:#2a3541;
+  --accent:#ffc533; --accent-fg:#1a1400; --ok:#58d39a; --btn:#1b2530;
+  --scene-bg:#0c1116; --floor:#262e36; --floor-line:#35404b; --wall:#3a4550; color-scheme:dark }
+html,body{height:100%}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);font-size:13px;line-height:1.4;overflow:hidden}
+#app{position:relative;height:100%;overflow:hidden}
+#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;outline:none}
+.panel{position:absolute;top:12px;background:var(--panel);border:1px solid var(--line);border-radius:6px;backdrop-filter:blur(6px);max-height:calc(100% - 120px);overflow:auto}
+.ctl{left:max(16px,env(safe-area-inset-left,0px));width:min(290px,calc(100% - 32px))}
+.timing{right:max(16px,env(safe-area-inset-right,0px));width:min(300px,calc(100% - 32px))}
+summary{cursor:pointer;padding:9px 12px;font-weight:600;font-size:13px;display:flex;gap:8px;align-items:baseline;justify-content:space-between;list-style:none}
+summary::-webkit-details-marker{display:none}
+summary::after{content:"▾";color:var(--muted);font-size:11px}
+details:not([open]) summary::after{content:"▸"}
+.eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:500}
+.body{padding:2px 12px 12px;display:flex;flex-direction:column;gap:10px}
+.grp{display:flex;flex-direction:column;gap:5px}
+.row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+button,select{font:inherit;color:var(--fg);background:var(--btn);border:1px solid var(--line);border-radius:4px;padding:6px 9px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible,summary:focus-visible,#c:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
+button[aria-pressed="true"]{background:var(--accent);color:var(--accent-fg);border-color:var(--accent);font-weight:600}
+.seg{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.seg button{border-radius:0}.seg button:first-child{border-radius:4px 0 0 4px}.seg button:last-child{border-radius:0 4px 4px 0;border-left:0}
+.stack button{text-align:left;width:100%}
+.facts{font-family:var(--mono);font-size:11px;color:var(--muted);display:grid;grid-template-columns:auto 1fr;gap:1px 10px;margin:0}
+.facts dd{margin:0;color:var(--fg);font-variant-numeric:tabular-nums}
+ol#rows{list-style:none;margin:0;padding:0 12px;counter-reset:s}
+ol#rows li{counter-increment:s;display:grid;grid-template-columns:18px 1fr auto;gap:6px;padding:4px 0;border-top:1px solid var(--line);color:var(--muted)}
+ol#rows li::before{content:counter(s);font-family:var(--mono);font-size:11px}
+ol#rows li.act{color:var(--fg);font-weight:600}
+ol#rows li.act::before{color:var(--accent)}
+ol#rows li.done{color:var(--fg)}
+ol#rows li.done::before{content:"✓";color:var(--ok)}
+.t{font-family:var(--mono);font-variant-numeric:tabular-nums;font-size:12px}
+.tot{display:grid;grid-template-columns:1fr auto;gap:2px 8px;padding:8px 12px 11px;border-top:1px solid var(--line);margin-top:2px}
+.tot b{font-weight:600}
+.bottom{position:absolute;left:max(16px,env(safe-area-inset-left,0px));right:max(16px,env(safe-area-inset-right,0px));bottom:calc(12px + env(safe-area-inset-bottom,0px));display:flex;gap:8px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;pointer-events:none}
+.bottom>*{pointer-events:auto}
+.status{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:7px 11px;min-width:0;max-width:520px;flex:1 1 240px}
+#now{font-weight:600}
+#hint{color:var(--muted);font-size:11.5px}
+#prompt{color:var(--fg);margin-top:3px}
+kbd{font-family:var(--mono);font-size:11px;background:var(--accent);color:var(--accent-fg);border-radius:3px;padding:1px 5px;font-weight:600}
+.cam{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px;display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.cam label{display:flex;gap:5px;align-items:center;color:var(--muted);padding:0 4px}
+#stick{position:absolute;left:max(20px,env(safe-area-inset-left,0px));bottom:calc(120px + env(safe-area-inset-bottom,0px));width:104px;height:104px;border-radius:50%;background:var(--panel);border:1px solid var(--line);touch-action:none}
+#knob{position:absolute;left:32px;top:32px;width:40px;height:40px;border-radius:50%;background:var(--accent)}
+#actE{position:absolute;right:max(20px,env(safe-area-inset-right,0px));bottom:calc(130px + env(safe-area-inset-bottom,0px));width:72px;height:72px;border-radius:50%;font-weight:600;background:var(--accent);color:var(--accent-fg);border-color:var(--accent)}
+@media (max-width:720px){ .timing{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));max-height:45%} .panel{max-height:55%} }
+</style>
+</head>
+
+<div id="app">
+  <canvas id="c" tabindex="0" aria-label="3D view of the unit 322 floor with the operator and work stations"></canvas>
+
+  <section class="panel ctl"><details open id="ctlD">
+    <summary><span><span class="eyebrow">2325 · Unit 322</span><br>Line sim</span></summary>
+    <div class="body">
+      <div class="grp">
+        <span class="eyebrow">Mode</span>
+        <div class="seg"><button id="mSim" aria-pressed="true">Simulation</button><button id="mGame" aria-pressed="false">Game</button></div>
+      </div>
+      <div class="grp stack">
+        <span class="eyebrow">Scenario</span>
+        <button id="scWalk">Walk the floor</button>
+        <button id="scTool">Pick up the screwdriver</button>
+        <button id="scJob">Assemble and pack a motor</button>
+      </div>
+      <div class="grp">
+        <span class="eyebrow">Clock</span>
+        <div class="row">
+          <button id="pause" aria-pressed="false">Pause</button>
+          <select id="speed" aria-label="Simulation speed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="2">2×</option><option value="4">4×</option><option value="8">8×</option></select>
+          <button id="reset">Reset</button>
+        </div>
+      </div>
+      <dl class="facts">
+        <dt>Operator</dt><dd>6′2″ · 1.88 m</dd>
+        <dt>Floor</dt><dd>18′3½″ × 47′5¼″</dd>
+        <dt>Tables</dt><dd>3 × 6′ folding, 29″ high</dd>
+      </dl>
+    </div>
+  </details></section>
+
+  <section class="panel timing"><details open id="timD">
+    <summary><span>Cycle timing</span><span class="t" id="totalTop">0.0 s</span></summary>
+    <ol id="rows"></ol>
+    <div class="tot">
+      <span>Walking and transit</span><span class="t" id="tWalk">0.0 s</span>
+      <b>Cycle total</b><b class="t" id="tTotal">0.0 s</b>
+    </div>
+  </details></section>
+
+  <div id="stick" hidden><div id="knob"></div></div>
+  <button id="actE" hidden>Act</button>
+
+  <div class="bottom">
+    <div class="status">
+      <div id="now">Walking the floor</div>
+      <div id="prompt" hidden></div>
+      <div id="hint">Drag to orbit · scroll or pinch to zoom · right-drag to pan</div>
+    </div>
+    <div class="cam">
+      <button id="cOver" aria-pressed="false">Overview</button>
+      <button id="cFollow" aria-pressed="true">Follow</button>
+      <button id="cClose" aria-pressed="false">Close-up</button>
+      <label><input type="checkbox" id="auto" checked> Auto close-up</label>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+'use strict';
+const T=THREE, $=id=>document.getElementById(id);
+const V=(x,y,z)=>new T.Vector3(x||0,y||0,z||0);
+const QI=new T.Quaternion();
+const qE=(x,y,z)=>new T.Quaternion().setFromEuler(new T.Euler(x,y,z));
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const ease=k=>k*k*(3-2*k);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+/* ================= LAYOUT (metres). Edit here to move things. =================
+   Room: x runs west→east (0..RW), z runs north→south (0..RL). Entry door is in the NE corner.
+   Table local frame: long axis = x, operator stands on the +z side facing -z. */
+const FT=0.3048;
+const RW=18.291*FT, RL=47.437*FT, RLW=46.02*FT, NOTCH=5.8*FT, RH=2.74;
+const BATH={x0:RW-3.4*FT, z0:5.65*FT, z1:11.36*FT};
+const LAYOUT={
+  tables:{
+    A:{x:0.45,    z:5.5, rot: Math.PI/2, label:'Assembly bench'},
+    B:{x:RW-0.45, z:5.6, rot:-Math.PI/2, label:'P2S printer'},
+    C:{x:RW-0.45, z:9.2, rot:-Math.PI/2, label:'Pack-out'},
+  },
+  start:{x:2.9,z:3.0,yaw:0.2},
+  patrol:[[2.8,1.3],[1.7,4.0],[2.9,7.6],[1.6,12.4],[3.9,13.0],[3.5,8.0],[3.2,3.2]],
+};
+const TOP=0.74, TL=1.83, TD=0.76;          // 6' x 30" x 29" folding table
+const HUMAN_H=74*0.0254;                    // 6'2"
+const PRX=-0.35, PRZ=0.05;                  // printer position on table B
+
+/* ================= renderer / scene ================= */
+const canvas=$('c');
+const renderer=new T.WebGLRenderer({canvas,antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio||1,2));
+renderer.outputEncoding=T.sRGBEncoding;
+renderer.shadowMap.enabled=true; renderer.shadowMap.type=T.PCFSoftShadowMap;
+const scene=new T.Scene();
+const camera=new T.PerspectiveCamera(42,1,0.02,80);
+const hemi=new T.HemisphereLight(0xffffff,0x8090a0,0.75); scene.add(hemi);
+const sun=new T.DirectionalLight(0xffffff,0.75); sun.position.set(RW/2-5,10,RL/2-3); sun.target.position.set(RW/2,0,RL/2);
+sun.castShadow=true; sun.shadow.mapSize.set(2048,2048);
+Object.assign(sun.shadow.camera,{left:-9,right:9,top:9,bottom:-9,near:1,far:30}); sun.shadow.bias=-0.0006;
+scene.add(sun,sun.target);
+const fill=new T.DirectionalLight(0xffffff,0.25); fill.position.set(RW+4,5,RL/2+4); scene.add(fill);
+
+const M=(color,o)=>new T.MeshStandardMaterial(Object.assign({color,roughness:0.7,metalness:0},o||{}));
+function mesh(geo,mat,x,y,z){const m=new T.Mesh(geo,mat); m.position.set(x||0,y||0,z||0); m.castShadow=true; m.receiveShadow=true; return m;}
+const bx=(w,h,d,mat,x,y,z)=>mesh(new T.BoxGeometry(w,h,d),mat,x,y,z);
+const cy=(r1,r2,h,mat,x,y,z,seg)=>mesh(new T.CylinderGeometry(r1,r2,h,seg||20),mat,x,y,z);
+function octShape(size,clip){const h=size/2,c=h-clip,s=new T.Shape();
+  [[-c,-h],[c,-h],[h,-c],[h,c],[c,h],[-c,h],[-h,c],[-h,-c]].forEach((p,i)=>i?s.lineTo(p[0],p[1]):s.moveTo(p[0],p[1])); s.closePath(); return s;}
+function hole(x,y,r){const p=new T.Path(); p.absarc(x,y,r,0,Math.PI*2,true); return p;}
+function extrudeY(shape,depth,mat,y){const g=new T.ExtrudeGeometry(shape,{depth,bevelEnabled:false,curveSegments:20}); g.rotateX(-Math.PI/2); return mesh(g,mat,0,y||0,0);}
+
+/* ---------- room (static) ---------- */
+const matFloor=M(0xcccccc,{roughness:0.95,side:T.DoubleSide}), matWall=M(0xeeeeee,{roughness:0.95}), matTrim=M(0x7b8794);
+const matGlass=new T.MeshBasicMaterial({color:0x9fd0ee,transparent:true,opacity:0.16,depthWrite:false});
+let floorTex=null;
+function makeFloorTex(){
+  const c=document.createElement('canvas'); c.width=c.height=128; const g=c.getContext('2d');
+  g.fillStyle=css('--floor')||'#ccc'; g.fillRect(0,0,128,128); g.strokeStyle=css('--floor-line')||'#bbb'; g.lineWidth=2; g.strokeRect(0,0,128,128);
+  const t=new T.CanvasTexture(c); t.wrapS=t.wrapT=T.RepeatWrapping; t.repeat.set(1/(2*FT),1/(2*FT)); t.encoding=T.sRGBEncoding; t.anisotropy=4; return t;
+}
+function applyTheme(){
+  scene.background=new T.Color(css('--scene-bg')||'#dde');
+  if(floorTex) floorTex.dispose(); floorTex=makeFloorTex(); matFloor.map=floorTex; matFloor.color.set(0xffffff); matFloor.needsUpdate=true;
+  matWall.color.set(css('--wall')||'#eee');
+}
+new MutationObserver(applyTheme).observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change',applyTheme);
+
+function wallPlane(x1,z1,x2,z2,y0,y1,mat){ // single-sided, faces the room so you can see in from outside
+  const len=Math.hypot(x2-x1,z2-z1), m=new T.Mesh(new T.PlaneGeometry(len,y1-y0),mat||matWall);
+  let nx=-(z2-z1)/len, nz=(x2-x1)/len; const mx=(x1+x2)/2, mz=(z1+z2)/2;
+  if(nx*(RW/2-mx)+nz*(RL/2-mz)<0){nx=-nx;nz=-nz;}
+  m.position.set(mx,(y0+y1)/2,mz); m.rotation.y=Math.atan2(nx,nz); m.receiveShadow=true; scene.add(m); return m;
+}
+(function buildRoom(){
+  const s=new T.Shape(); s.moveTo(0,0); s.lineTo(RW,0); s.lineTo(RW,RL); s.lineTo(NOTCH,RL); s.lineTo(NOTCH,RLW); s.lineTo(0,RLW); s.closePath();
+  const fg=new T.ShapeGeometry(s); fg.rotateX(Math.PI/2); const f=new T.Mesh(fg,matFloor); f.receiveShadow=true; scene.add(f);
+  wallPlane(0,0,RW,0,0,RH);                                   // north
+  wallPlane(RW,1.25,RW,RL,0,RH); wallPlane(RW,0,RW,1.25,2.1,RH); // east, with entry door opening
+  wallPlane(RW,RL,NOTCH,RL,0,RH); wallPlane(NOTCH,RL,NOTCH,RLW,0,RH); wallPlane(NOTCH,RLW,0,RLW,0,RH); // south + notch
+  wallPlane(0,RLW,0,0,0,0.8); wallPlane(0,RLW,0,0,2.5,RH); wallPlane(0,RLW,0,0,0.8,2.5,matGlass);    // west window wall
+  [4.9,9.1,13.2,17.2,21.1,32.1,36.5,41.3].forEach(ft=>scene.add(bx(0.04,1.7,0.04,matTrim,0.02,1.65,ft*FT)));
+  scene.add(bx(0.12,RH,0.9,matWall,0.06,RH/2,26.4*FT));       // structural column on the window wall
+  const door=new T.Group(); door.position.set(RW-0.02,0,0.06); door.rotation.y=-1.25; door.add(bx(0.045,2.05,1.1,M(0x8a6a48),0,1.025,0.55)); scene.add(door);
+  // washroom
+  const b=BATH, t=0.1, dz0=6.9*FT, dz1=9.4*FT;
+  scene.add(bx(RW-b.x0,RH,t,matWall,(b.x0+RW)/2,RH/2,b.z0), bx(RW-b.x0,RH,t,matWall,(b.x0+RW)/2,RH/2,b.z1));
+  scene.add(bx(t,RH,dz0-b.z0,matWall,b.x0,RH/2,(b.z0+dz0)/2), bx(t,RH,b.z1-dz1,matWall,b.x0,RH/2,(dz1+b.z1)/2), bx(t,RH-2.05,dz1-dz0,matWall,b.x0,2.05+(RH-2.05)/2,(dz0+dz1)/2));
+  const bd=new T.Group(); bd.position.set(b.x0,0,dz0); bd.rotation.y=-0.5; bd.add(bx(0.04,2.03,dz1-dz0,M(0x8a6a48),0,1.015,(dz1-dz0)/2)); scene.add(bd);
+  const por=M(0xf4f4f0,{roughness:0.3});
+  scene.add(bx(0.38,0.4,0.5,por,RW-0.32,0.2,b.z1-0.5), bx(0.4,0.42,0.18,por,RW-0.3,0.6,b.z1-0.16), bx(0.42,0.12,0.36,por,RW-0.3,0.82,b.z0+0.4));
+})();
+
+function label(text,w){
+  const c=document.createElement('canvas'); c.width=512; c.height=96; const g=c.getContext('2d');
+  g.fillStyle='rgba(14,20,26,.82)'; g.fillRect(0,0,512,96); g.fillStyle='#ffc533'; g.fillRect(0,0,10,96);
+  g.fillStyle='#fff'; g.font='600 46px "IBM Plex Sans",system-ui,sans-serif'; g.textBaseline='middle'; g.fillText(text,30,50);
+  const t=new T.CanvasTexture(c); t.encoding=T.sRGBEncoding;
+  const s=new T.Sprite(new T.SpriteMaterial({map:t,depthWrite:false})); s.scale.set(w,w*96/512,1); return s;
+}
+
+/* ================= parts ================= */
+const mSteel=M(0xb9bec4,{metalness:0.8,roughness:0.35}), mBlack=M(0x1c1e21,{roughness:0.5}), mDark=M(0x2c3035,{roughness:0.6});
+function makeTable(){
+  const g=new T.Group(), top=M(0xe6e4dd,{roughness:0.85}), leg=M(0x6f757c,{metalness:0.6,roughness:0.45});
+  g.add(bx(TL,0.045,TD,top,0,TOP-0.0225,0));
+  [-0.7,0.7].forEach(x=>{ [-0.28,0.28].forEach(z=>g.add(cy(0.014,0.014,TOP-0.045,leg,x,(TOP-0.045)/2,z,10))); g.add(bx(0.025,0.025,0.56,leg,x,0.2,0)); });
+  return g;
+}
+function makeScrew(){ const g=new T.Group(); g.add(cy(0.00275,0.00275,0.003,mBlack,0,0.0015,0,14), cy(0.0015,0.0015,0.016,mSteel,0,-0.008,0,10), cy(0.0012,0.0012,0.0004,mSteel,0,0.0031,0,6)); return g; }
+function makeMotor(){ // origin = centre of mounting face, +y toward the back face
+  const g=new T.Group(), cap=M(0xc7ccd1,{metalness:0.7,roughness:0.4});
+  g.add(extrudeY(octShape(0.0423,0.004),0.009,cap,0), extrudeY(octShape(0.0415,0.006),0.022,mBlack,0.009), extrudeY(octShape(0.0423,0.004),0.009,mDark,0.031));
+  g.add(cy(0.011,0.011,0.002,cap,0,-0.001,0), cy(0.0025,0.0025,0.024,mSteel,0,-0.012,0,14), bx(0.016,0.006,0.005,M(0xf2f2ee),0,0.035,-0.0235));
+  g.screws=[[-1,-1],[1,-1],[1,1],[-1,1]].map(p=>{const s=makeScrew(); s.position.set(p[0]*0.0155,0.040,p[1]*0.0155); s.userData.h=p; g.add(s); return s;});
+  return g;
+}
+function makeSpacer(){ // from backface-spacer-4mm.scad: face 42, pitch 31, 1 mm base, 3 mm sleeves OD 10, bore 3.4, rotor hole 22.6, 5 mm corner clip
+  const g=new T.Group(), m=M(0xf07a1c,{roughness:0.8}), P=0.0155;
+  const s=octShape(0.042,0.005); s.holes.push(hole(0,0,0.0113)); [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(p=>s.holes.push(hole(p[0]*P,p[1]*P,0.0017)));
+  g.add(extrudeY(s,0.001,m,0));
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(p=>{const r=new T.Shape(); r.absarc(0,0,0.005,0,Math.PI*2,false); r.holes.push(hole(0,0,0.0017)); const e=extrudeY(r,0.003,m,0.001); e.position.x=p[0]*P; e.position.z=p[1]*P; g.add(e);});
+  return g;
+}
+function makePCB(){
+  const g=new T.Group(), P=0.0155, gold=M(0xd9b24a,{metalness:0.8,roughness:0.3});
+  const s=octShape(0.042,0.005); [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(p=>s.holes.push(hole(p[0]*P,p[1]*P,0.0017)));
+  g.add(extrudeY(s,0.0016,M(0x14633a,{roughness:0.45}),0));
+  [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(p=>{const r=new T.Shape(); r.absarc(0,0,0.0031,0,Math.PI*2,false); r.holes.push(hole(0,0,0.0017)); const e=extrudeY(r,0.00005,gold,0.0016); e.position.x=p[0]*P; e.position.z=p[1]*P; g.add(e);});
+  const y=0.0016;
+  g.add(bx(0.007,0.0009,0.007,mBlack,-0.004,y+0.00045,0.003), bx(0.005,0.0009,0.005,mBlack,0.008,y+0.00045,-0.004), bx(0.004,0.0009,0.004,mBlack,0,y+0.00045,-0.0005));
+  g.add(bx(0.009,0.0032,0.0073,mSteel,0,y+0.0016,-0.017), bx(0.006,0.004,0.008,M(0xf2f2ee),0.0175,y+0.002,0.002), bx(0.004,0.003,0.004,mDark,-0.011,y+0.0015,-0.007));
+  [[-0.012,0.009],[-0.008,0.012],[0.004,0.011],[0.009,0.008],[0.011,-0.011]].forEach(p=>g.add(bx(0.0016,0.0008,0.0009,M(0xb08a5a),p[0],y+0.0004,p[1])));
+  g.add(bx(0.0012,0.0006,0.0012,new T.MeshBasicMaterial({color:0x53ff9a}),-0.015,y+0.0003,0.004));
+  return g;
+}
+function makeTool(){ // origin = tip, +y = toward handle
+  const g=new T.Group(), spin=new T.Group(); g.add(spin); g.spin=spin;
+  spin.add(cy(0.0016,0.0012,0.1,mSteel,0,0.05,0,10), cy(0.008,0.005,0.012,mBlack,0,0.106,0,14), cy(0.0135,0.012,0.085,M(0xf2b01e,{roughness:0.55}),0,0.1545,0,14), cy(0.011,0.0135,0.006,mBlack,0,0.2,0,14));
+  for(let i=0;i<6;i++){const a=i*Math.PI/3; spin.add(bx(0.004,0.06,0.003,mBlack,Math.cos(a)*0.0132,0.155,Math.sin(a)*0.0132)).children[spin.children.length-1].rotation.y=-a+Math.PI/2;}
+  return g;
+}
+function makeFoam(flip){ // 110 x 70 footprint, 8 mm slab + 22 mm frame with a 78 x 46 pocket
+  const g=new T.Group(), m=M(0x3b3f45,{roughness:1});
+  const s=new T.Shape(); s.moveTo(-0.055,-0.035); s.lineTo(0.055,-0.035); s.lineTo(0.055,0.035); s.lineTo(-0.055,0.035); s.closePath();
+  const h=new T.Path(); h.moveTo(-0.039,-0.023); h.lineTo(-0.039,0.023); h.lineTo(0.039,0.023); h.lineTo(0.039,-0.023); h.closePath(); s.holes.push(h);
+  if(flip){ g.add(extrudeY(s,0.022,m,0), bx(0.11,0.007,0.07,m,0,0.0255,0)); } else { g.add(bx(0.11,0.008,0.07,m,0,0.004,0), extrudeY(s,0.022,m,0.008)); }
+  return g;
+}
+const BXL=0.116, BXW=0.076, BXH=0.064, BXT=0.003;
+function makeBox(){ // mailer blank: base, four hinged walls, lid + tuck flap on the back wall
+  const g=new T.Group(), k=M(0xb98f5e,{roughness:0.95}); g.add(bx(BXL,BXT,BXW,k,0,BXT/2,0));
+  function wall(phi,px,pz,len){ const hinge=new T.Group(); hinge.position.set(px,BXT/2,pz); hinge.rotation.y=phi; const fold=new T.Group(); hinge.add(fold);
+    fold.add(bx(BXH,BXT,len,k,BXH/2,0,0)); const tip=new T.Object3D(); tip.position.x=BXH; fold.add(tip); g.add(hinge); return {fold,tip}; }
+  const o={g, wl:wall(Math.PI,-BXL/2,0,BXW), wr:wall(0,BXL/2,0,BXW), wf:wall(-Math.PI/2,0,BXW/2,BXL), wb:wall(Math.PI/2,0,-BXW/2,BXL)};
+  o.lid=new T.Group(); o.lid.position.x=BXH; o.wb.fold.add(o.lid); o.lid.add(bx(BXW,BXT,BXL,k,BXW/2,0,0));
+  o.flap=new T.Group(); o.flap.position.x=BXW; o.lid.add(o.flap); o.flap.add(bx(0.02,BXT,BXL-0.012,k,0.01,0,0));
+  o.lidTip=new T.Object3D(); o.lidTip.position.x=BXW-0.005; o.lid.add(o.lidTip);
+  return o;
+}
+function makePrinter(){ // Bambu Lab P2S-style enclosed CoreXY, ~392 x 478 x 406 mm
+  const g=new T.Group(), w=0.392,h=0.478,d=0.406, body=M(0x25282c,{roughness:0.55}), glass=new T.MeshStandardMaterial({color:0x9fc4d8,transparent:true,opacity:0.16,roughness:0.1,depthWrite:false});
+  g.add(bx(w,0.07,d,body,0,0.035,0), bx(w,0.03,d,body,0,h-0.015,0), bx(w,h-0.1,0.012,body,0,h/2+0.02,-d/2+0.006), bx(0.012,h-0.1,d,body,-w/2+0.006,h/2+0.02,0), bx(0.012,h-0.1,d,body,w/2-0.006,h/2+0.02,0));
+  g.add(bx(w,0.045,0.012,body,0,h-0.052,d/2-0.006), bx(0.07,0.03,0.004,new T.MeshBasicMaterial({color:0x2ad1a3}),0.13,h-0.052,d/2+0.001));
+  g.add(bx(0.27,0.012,0.27,mDark,0,0.108,0), bx(0.256,0.004,0.256,M(0x8a6f2a,{roughness:0.9,metalness:0.3}),0,0.117,0));
+  g.add(cy(0.005,0.005,0.37,mSteel,0,h-0.09,-0.02).rotateZ(Math.PI/2), bx(0.06,0.07,0.055,mDark,0.02,h-0.105,-0.02), bx(w-0.03,0.004,0.01,new T.MeshBasicMaterial({color:0xfff3d0}),0,h-0.033,d/2-0.02));
+  const plate=new T.Object3D(); plate.position.set(0.035,0.119,0.11); g.add(plate);
+  const door=new T.Group(); door.position.set(-w/2+0.004,0.07,d/2+0.003); g.add(door);
+  const dg=new T.Mesh(new T.BoxGeometry(w-0.008,0.36,0.004),glass); dg.position.set((w-0.008)/2,0.18,0); door.add(dg);
+  door.add(bx(w-0.008,0.012,0.006,body,(w-0.008)/2,0.006,0), bx(w-0.008,0.012,0.006,body,(w-0.008)/2,0.354,0), bx(0.012,0.09,0.014,mBlack,w-0.03,0.2,0.008));
+  const handle=new T.Object3D(); handle.position.set(w-0.03,0.2,0.016); door.add(handle);
+  return {g,door,handle,plate};
+}
+
+/* ================= dynamic world ================= */
+let Wd=null;   // world state, rebuilt on reset
+const worldRoot=new T.Group(); scene.add(worldRoot);
+const Q_SIDE=qE(0,0,-Math.PI/2), Q_TOOLREST=qE(Math.PI/2,0,0);
+const P={ jig:V(0,TOP+0.03,0.20), dish:V(0.12,TOP,0.24), spacerSpot:V(0.22,TOP,0.12), toolRest:V(0.32,TOP+0.0135,0.085),
+          boxStack:V(-0.28,TOP,0.20), boxSpot:V(0,TOP,0.20), asmSpot:V(0.19,TOP+0.02115,0.27), foamB:V(0.36,TOP,0.115), foamT:V(0.36,TOP,0.275), done:V(0.62,TOP,0.2) };
+function buildWorld(){
+  while(worldRoot.children.length) worldRoot.remove(worldRoot.children[0]);
+  const w={tables:{},opIdx:0,times:[],jobT:0,jobActive:false,jobDone:false,cur:-1,busy:false,freeTool:false,dishScrews:[]};
+  for(const k in LAYOUT.tables){ const c=LAYOUT.tables[k], g=makeTable(); g.position.set(c.x,0,c.z); g.rotation.y=c.rot; worldRoot.add(g); w.tables[k]=g;
+    const l=label(c.label,0.62); l.position.set(0,1.62,-0.3); g.add(l); }
+  const A=w.tables.A, B=w.tables.B, C=w.tables.C;
+  // --- assembly bench
+  const jig=new T.Shape(); jig.moveTo(-0.035,-0.035); jig.lineTo(0.035,-0.035); jig.lineTo(0.035,0.035); jig.lineTo(-0.035,0.035); jig.closePath(); jig.holes.push(hole(0,0,0.012));
+  const jm=extrudeY(jig,0.03,M(0x4d5a66),TOP); jm.position.x=P.jig.x; jm.position.z=P.jig.z; A.add(jm);
+  const tray=new T.Shape(); tray.moveTo(-0.125,-0.035); tray.lineTo(0.125,-0.035); tray.lineTo(0.125,0.035); tray.lineTo(-0.125,0.035); tray.closePath();
+  for(let i=0;i<4;i++) tray.holes.push(hole((i-1.5)*0.055,0,0.012));
+  const tm=extrudeY(tray,0.03,M(0x39424b),TOP); tm.position.x=-0.33; tm.position.z=0.17; A.add(tm);
+  w.motors=[0,1,2,3].map(i=>{const m=makeMotor(); m.position.set(-0.33+(i-1.5)*0.055,TOP+0.03,0.17); A.add(m); return m;}); w.motor=w.motors[3];
+  A.add(bx(0.06,0.004,0.06,mBlack,-0.14,TOP+0.002,0.26));
+  w.pcbs=[0,1,2,3,4].map(i=>{const p=makePCB(); p.position.set(-0.14,TOP+0.004+i*0.0045,0.26); A.add(p); return p;}); w.pcb=w.pcbs[4];
+  const dish=new T.Group(); dish.position.copy(P.dish); dish.add(cy(0.036,0.032,0.002,M(0x2f6fb0),0,0.001,0,28)); const rim=mesh(new T.TorusGeometry(0.035,0.0025,8,32),M(0x2f6fb0),0,0.004,0); rim.rotation.x=Math.PI/2; dish.add(rim); A.add(dish);
+  w.tool=makeTool(); w.tool.position.copy(P.toolRest); w.tool.quaternion.copy(Q_TOOLREST); A.add(w.tool);
+  // --- printer bench
+  w.printer=makePrinter(); w.printer.g.position.set(PRX,TOP,PRZ); B.add(w.printer.g);
+  w.spacers=[[0.035,0.11],[-0.035,0.11],[0.035,0.05],[-0.035,0.05]].map(p=>{const s=makeSpacer(); s.position.set(p[0],0.119,p[1]); w.printer.g.add(s); return s;}); w.spacer=w.spacers[0];
+  [0.35,0.58].forEach((x,i)=>{const sp=new T.Group(); sp.position.set(x,TOP+0.1,-0.05); sp.rotation.x=Math.PI/2; sp.add(cy(0.1,0.1,0.065,M(i?0x2e7d5b:0xf07a1c),0,0,0,28), cy(0.1,0.1,0.07,mDark,0,0,0,28).scale.set(1,1,1)&&cy(0.03,0.03,0.072,mBlack,0,0,0,16)); B.add(sp);});
+  // --- pack-out bench
+  for(let i=0;i<4;i++){const b=makeBox(); b.g.position.set(P.boxStack.x,TOP+i*0.0035,P.boxStack.z); C.add(b.g); if(i===3) w.box=b;}
+  w.box.g.position.y=TOP+3*0.0035;
+  w.foamBs=[0,1,2].map(i=>{const f=makeFoam(false); f.position.set(P.foamB.x,TOP+i*0.03,P.foamB.z); C.add(f); return f;}); w.foamB=w.foamBs[2];
+  w.foamTs=[0,1,2].map(i=>{const f=makeFoam(true); f.position.set(P.foamT.x,TOP+i*0.029,P.foamT.z); C.add(f); return f;}); w.foamT=w.foamTs[2];
+  const mat=bx(0.3,0.002,0.24,M(0x2e7d5b,{roughness:0.9}),P.done.x+0.04,TOP+0.001,P.done.z-0.02); C.add(mat);
+  worldRoot.updateMatrixWorld(true);
+  Wd=w; return w;
+}
+const tableOf=k=>LAYOUT.tables[k];
+function standPoint(st){ const g=Wd.tables[st.t]; g.updateWorldMatrix(true,false); const p=g.localToWorld(V(st.x,0,TD/2+st.d)); return {x:p.x,z:p.z,yaw:tableOf(st.t).rot+Math.PI}; }
+
+/* ================= navigation ================= */
+function isFree(x,z,r){
+  if(x<r||x>RW-r||z<r) return false;
+  if(z>(x<NOTCH+r?RLW:RL)-r) return false;
+  if(x>BATH.x0-0.05-r && z>BATH.z0-0.05-r && z<BATH.z1+0.05+r) return false;
+  for(const k in LAYOUT.tables){ const t=LAYOUT.tables[k], dx=x-t.x, dz=z-t.z, c=Math.cos(t.rot), s=Math.sin(t.rot);
+    const lx=dx*c-dz*s, lz=dx*s+dz*c; if(Math.abs(lx)<TL/2+r && Math.abs(lz)<TD/2+r) return false; }
+  return true;
+}
+const CS=0.1, NX=Math.ceil(RW/CS), NZ=Math.ceil(RL/CS); let grid=null;
+function buildGrid(){ grid=new Uint8Array(NX*NZ); for(let j=0;j<NZ;j++) for(let i=0;i<NX;i++) grid[j*NX+i]=isFree((i+.5)*CS,(j+.5)*CS,0.27)?0:1; }
+function nearestFree(i,j){ i=clamp(i,0,NX-1); j=clamp(j,0,NZ-1); if(!grid[j*NX+i]) return [i,j];
+  for(let r=1;r<30;r++) for(let dj=-r;dj<=r;dj++) for(let di=-r;di<=r;di++){ if(Math.max(Math.abs(di),Math.abs(dj))!==r) continue; const a=i+di,b=j+dj; if(a>=0&&b>=0&&a<NX&&b<NZ&&!grid[b*NX+a]) return [a,b]; }
+  return [i,j]; }
+function los(a,b){ const d=Math.hypot(b.x-a.x,b.z-a.z), n=Math.ceil(d/0.05); for(let k=1;k<n;k++){ const t=k/n; if(!isFree(a.x+(b.x-a.x)*t,a.z+(b.z-a.z)*t,0.26)) return false; } return true; }
+function findPath(a,b){
+  if(los(a,b)) return [b];
+  const s=nearestFree(Math.floor(a.x/CS),Math.floor(a.z/CS)), e=nearestFree(Math.floor(b.x/CS),Math.floor(b.z/CS));
+  const N=NX*NZ, gs=new Float32Array(N).fill(1e9), from=new Int32Array(N).fill(-1), closed=new Uint8Array(N), heap=[];
+  const push=(n,f)=>{heap.push([f,n]); let i=heap.length-1; while(i>0){const p=(i-1)>>1; if(heap[p][0]<=heap[i][0]) break; [heap[p],heap[i]]=[heap[i],heap[p]]; i=p;}};
+  const pop=()=>{const top=heap[0], last=heap.pop(); if(heap.length){heap[0]=last; let i=0; for(;;){let l=2*i+1,r=l+1,m=i; if(l<heap.length&&heap[l][0]<heap[m][0]) m=l; if(r<heap.length&&heap[r][0]<heap[m][0]) m=r; if(m===i) break; [heap[m],heap[i]]=[heap[i],heap[m]]; i=m;}} return top;};
+  const hE=(i,j)=>{const dx=Math.abs(i-e[0]),dz=Math.abs(j-e[1]); return Math.max(dx,dz)+0.414*Math.min(dx,dz);};
+  const sn=s[1]*NX+s[0], en=e[1]*NX+e[0]; gs[sn]=0; push(sn,hE(s[0],s[1]));
+  while(heap.length){ const n=pop()[1]; if(closed[n]) continue; closed[n]=1; if(n===en) break; const i=n%NX, j=(n-i)/NX;
+    for(let dj=-1;dj<=1;dj++) for(let di=-1;di<=1;di++){ if(!di&&!dj) continue; const a=i+di,b2=j+dj; if(a<0||b2<0||a>=NX||b2>=NZ) continue; const m=b2*NX+a; if(grid[m]||closed[m]) continue;
+      if(di&&dj&&(grid[j*NX+a]||grid[b2*NX+i])) continue; const g=gs[n]+(di&&dj?1.414:1); if(g<gs[m]){gs[m]=g; from[m]=n; push(m,g+hE(a,b2));} } }
+  const pts=[]; for(let n=en;n!==-1&&n!==sn;n=from[n]) pts.push({x:(n%NX+.5)*CS,z:(Math.floor(n/NX)+.5)*CS}); pts.reverse(); pts.push(b);
+  const out=[]; let cur=a, i=0; while(i<pts.length){ let j=pts.length-1; while(j>i&&!los(cur,pts[j])) j--; out.push(pts[j]); cur=pts[j]; i=j+1; }
+  return out;
+}
+
+/* ================= operator (6'2") ================= */
+const HD={hip:1.01,ank:0.085,thigh:0.47,shin:0.455,sh:0.535,shx:0.215,ua:0.325,fa:0.29,hipx:0.095};
+const PINCH=V(0,-0.105,0.015), UP=V(0,1,0);
+const DIR_DEF=V(0,-0.8,0.6).normalize(), DIR_FWD=V(0,-0.35,0.94).normalize();
+function basis(dir,zh,q){ const y=dir.clone().negate(), x=y.clone().cross(zh).normalize(), z=x.clone().cross(y); return q.setFromRotationMatrix(new T.Matrix4().makeBasis(x,y,z)); }
+function ik2(a,t,l1,l2,pole,J,E){
+  const d=t.clone().sub(a); const dist=clamp(d.length(),Math.abs(l1-l2)+1e-3,l1+l2-1e-3); d.normalize();
+  const k=(l1*l1-l2*l2+dist*dist)/(2*dist), h=Math.sqrt(Math.max(0,l1*l1-k*k));
+  const p=pole.clone().addScaledVector(d,-pole.dot(d)); if(p.lengthSq()<1e-6) p.set(0,0,1); p.normalize();
+  J.copy(a).addScaledVector(d,k).addScaledVector(p,h); E.copy(a).addScaledVector(d,dist);
+}
+function setSeg(m,a,b){ const d=a.clone().sub(b), len=d.length(); m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(UP,d.divideScalar(len||1)); m.scale.set(1,len,1); }
+const H=(function(){
+  const g=new T.Group(); scene.add(g);
+  const shirt=M(0x2d5f8f,{roughness:0.85}), pants=M(0x2a2f37,{roughness:0.9}), skin=M(0xc79a78,{roughness:0.75}), shoe=M(0x17191c), hair=M(0x2b221b,{roughness:0.95});
+  const seg=(r1,r2,mat)=>{const m=mesh(new T.CylinderGeometry(r1,r2,1,14),mat); g.add(m); return m;};
+  const ball=(r,mat)=>{const m=mesh(new T.SphereGeometry(r,14,10),mat); g.add(m); return m;};
+  const torso=new T.Group(); g.add(torso);
+  torso.add(bx(0.33,0.2,0.19,pants,0,0.03,0));
+  const chest=cy(0.195,0.16,0.42,shirt,0,0.325,0,18); chest.scale.z=0.6; torso.add(chest);
+  const yoke=cy(0.07,0.07,0.43,shirt,0,0.535,0,12); yoke.rotation.z=Math.PI/2; yoke.scale.z=0.9; torso.add(yoke);
+  torso.add(cy(0.05,0.055,0.09,skin,0,0.6,0,12));
+  const head=new T.Group(); head.position.set(0,0.62,0); torso.add(head);
+  const sk=mesh(new T.SphereGeometry(1,20,16),skin,0,0.125,0.005); sk.scale.set(0.098,0.125,0.108); head.add(sk);
+  const hr=mesh(new T.SphereGeometry(1,20,12,0,Math.PI*2,0,Math.PI*0.48),hair,0,0.131,-0.006); hr.scale.set(0.103,0.124,0.113); head.add(hr);
+  [-1,1].forEach(s=>head.add(mesh(new T.SphereGeometry(0.011,8,8),mBlack,s*0.036,0.135,0.098)));
+  head.add(bx(0.02,0.03,0.02,skin,0,0.11,0.108));
+  const legs=[1,-1].map(side=>({side,thigh:seg(0.078,0.058,pants),shin:seg(0.056,0.042,pants),knee:ball(0.058,pants),foot:(()=>{const f=bx(0.1,0.075,0.28,shoe); g.add(f); return f;})(),J:V(),E:V()}));
+  function makeHand(side){
+    const hg=new T.Group(); g.add(hg); hg.add(bx(0.085,0.095,0.03,skin,0,-0.048,0));
+    const f1=new T.Group(); f1.position.set(0,-0.095,0); hg.add(f1); f1.add(bx(0.08,0.045,0.022,skin,0,-0.0225,0));
+    const f2=new T.Group(); f2.position.set(0,-0.045,0); f1.add(f2); f2.add(bx(0.078,0.04,0.02,skin,0,-0.02,0));
+    const th=new T.Group(); th.position.set(side*0.045,-0.035,0.012); hg.add(th); th.add(bx(0.022,0.065,0.022,skin,0,-0.03,0));
+    return {side,g:hg,f1,f2,th,ua:seg(0.052,0.043,shirt),fa:seg(0.042,0.032,skin),el:ball(0.044,shirt),
+      goal:V(),track:null,active:false,w:0,dir:DIR_DEF.clone(),dirGoal:DIR_DEF.clone(),curl:0.15,curlGoal:0.15,held:null,qWork:new T.Quaternion(),wl:V(),J:V(),E:V(),
+      pinchWorld(){ this.g.updateWorldMatrix(true,false); return this.g.localToWorld(PINCH.clone()); }};
+  }
+  const o={g,pos:V(),yaw:0,speed:0,phase:0,walk:0,lean:0,torso,head,legs,L:makeHand(1),R:makeHand(-1)};
+  o.hands=[o.L,o.R];
+  const Z_WORK=V(0,0,-1), tmp=V(), S=V(), qi=new T.Quaternion();
+  const shoulder=(side,th,out)=>out.set(side*HD.shx, HD.hip-0.16*th+HD.sh*Math.cos(th), -0.1*th+HD.sh*Math.sin(th));
+  o.update=function(dt){
+    g.position.set(o.pos.x,0,o.pos.z); g.rotation.y=o.yaw; g.updateMatrixWorld(true);
+    o.walk+=(Math.min(1,o.speed/1.2)-o.walk)*Math.min(1,dt*8); o.phase+=o.speed*dt/0.62*Math.PI;
+    const w=o.walk, s=Math.sin(o.phase), c=Math.cos(o.phase);
+    let leanGoal=0;
+    for(const h of o.hands){
+      if(h.track) h.goal.copy(h.track());
+      h.w+=((h.active?1:0)-h.w)*Math.min(1,dt*7); h.dir.lerp(h.dirGoal,Math.min(1,dt*6)).normalize(); h.curl+=(h.curlGoal-h.curl)*Math.min(1,dt*14);
+      basis(h.dir,Z_WORK,h.qWork); g.worldToLocal(h.wl.copy(h.goal)); h.wl.sub(tmp.copy(PINCH).applyQuaternion(h.qWork));
+      if(h.active){ let th=0; for(;th<1.0;th+=0.04){ if(shoulder(h.side,th,S).distanceTo(h.wl)<=0.55) break; } leanGoal=Math.max(leanGoal,th*Math.min(1,h.w*1.5)); }
+    }
+    o.lean+=(leanGoal-o.lean)*Math.min(1,dt*5); const th=o.lean;
+    const hipY=HD.hip-0.012*w-0.022*w*Math.abs(s)-0.16*th, hipZ=-0.1*th;
+    torso.position.set(0,hipY,hipZ); torso.rotation.x=th; head.rotation.x=-th*0.4;
+    for(const l of legs){ const hj=V(l.side*HD.hipx,hipY,hipZ), a=V(l.side*HD.hipx,HD.ank+0.09*w*Math.max(0,l.side*c),l.side*0.3*w*s);
+      ik2(hj,a,HD.thigh,HD.shin,V(0,0,1),l.J,l.E); setSeg(l.thigh,hj,l.J); setSeg(l.shin,l.J,l.E); l.knee.position.copy(l.J); l.foot.position.set(l.E.x,l.E.y-0.047,l.E.z+0.06); }
+    for(const h of o.hands){ shoulder(h.side,th,S);
+      const idle=V(S.x+h.side*0.05,S.y-(HD.ua+HD.fa)*0.985,S.z+0.04-h.side*0.2*w*s), k=ease(clamp(h.w,0,1)); idle.lerp(h.wl,k);
+      ik2(S,idle,HD.ua,HD.fa,V(h.side*0.45,-0.3,-1),h.J,h.E); setSeg(h.ua,S,h.J); setSeg(h.fa,h.J,h.E); h.el.position.copy(h.J);
+      h.g.position.copy(h.E); basis(tmp.copy(h.E).sub(h.J).normalize(),V(-h.side,0,0),qi); h.g.quaternion.copy(qi).slerp(h.qWork,k);
+      h.f1.rotation.x=-h.curl*0.9; h.f2.rotation.x=-h.curl*1.0; h.th.rotation.set(-0.35-h.curl*0.5,0,-h.side*0.35); }
+    g.updateMatrixWorld(true);
+  };
+  o.reset=function(){ o.pos.set(LAYOUT.start.x,0,LAYOUT.start.z); o.yaw=LAYOUT.start.yaw; o.speed=0; o.lean=0; o.walk=0;
+    for(const h of o.hands){ h.track=null; h.active=false; h.w=0; h.held=null; h.curl=h.curlGoal=0.15; h.dir.copy(DIR_DEF); h.dirGoal.copy(DIR_DEF);
+      for(const c of h.g.children.slice()) if(c.userData.carried) h.g.remove(c); } };
+  return o;
+})();
+console.assert(Math.abs((HD.hip+0.62+0.25)-HUMAN_H)<0.01,'operator height');
+
+/* ================= coroutine primitives ================= */
+function* wait(t){ while(t>0) t-=yield; }
+function* tween(dur,fn){ let t=0; fn(0); while(t<dur){ t+=yield; fn(ease(Math.min(1,t/dur))); } }
+function* par(){ let live=Array.prototype.slice.call(arguments).filter(g=>!g.next().done); while(live.length){ const dt=yield; live=live.filter(g=>!g.next(dt).done); } }
+const angDiff=(a,b)=>{let d=(b-a)%(Math.PI*2); if(d>Math.PI) d-=Math.PI*2; if(d<-Math.PI) d+=Math.PI*2; return d;};
+function* walkTo(x,z,yawEnd){
+  const path=findPath({x:H.pos.x,z:H.pos.z},{x,z});
+  for(let i=0;i<path.length;i++){ const p=path[i], last=i===path.length-1;
+    for(;;){ const dt=yield, dx=p.x-H.pos.x, dz=p.z-H.pos.z, d=Math.hypot(dx,dz); if(d<(last?0.012:0.08)) break;
+      const da=angDiff(H.yaw,Math.atan2(dx,dz)); H.yaw+=clamp(da,-6*dt,6*dt);
+      let sp=1.35*Math.max(0.15,Math.cos(clamp(da,-1.4,1.4))); if(last) sp=Math.min(sp,d*4+0.12);
+      const st=Math.min(d,sp*dt); H.pos.x+=dx/d*st; H.pos.z+=dz/d*st; H.speed=sp; } }
+  H.speed=0;
+  if(yawEnd!==undefined) for(;;){ const dt=yield, da=angDiff(H.yaw,yawEnd); if(Math.abs(da)<0.01){H.yaw=yawEnd;break;} H.yaw+=clamp(da,-4*dt,4*dt); }
+}
+function* walkToStand(st){ const p=standPoint(st); yield* walkTo(p.x,p.z,p.yaw); }
+const objPt=(o,p)=>()=>{ o.updateWorldMatrix(true,false); return o.localToWorld(p?p.clone():V()); };
+function* reach(h,fn,dur,lift){ const from=h.pinchWorld(); h.active=true; h.track=null; if(lift===undefined) lift=0.04;
+  yield* tween(dur||0.55,k=>{ h.goal.lerpVectors(from,fn(),k); h.goal.y+=Math.sin(Math.PI*k)*lift; }); h.track=fn; }
+function* grab(h,o,p,curl,dur){ yield* reach(h,objPt(o,p),dur); h.curlGoal=curl===undefined?0.9:curl; yield* wait(0.2); }
+function* letGo(h){ h.curlGoal=0.15; yield* wait(0.16); h.track=null; h.active=false; h.held=null; h.dirGoal.copy(DIR_DEF); }
+function hold(h,o){ h.g.attach(o); h.held=o; }
+function* carryPose(h){ yield* reach(h,()=>{H.g.updateWorldMatrix(true,false); return H.g.localToWorld(V(h.side*0.17,1.03,0.3));},0.55,0.02); }
+function* moveObj(o,h,parent,pos,quat,dur,lift){   // pos/quat are in parent's frame; motion is tweened in world space
+  scene.attach(o); const p0=o.position.clone(), q0=o.quaternion.clone();
+  parent.updateWorldMatrix(true,false); const p1=parent.localToWorld(pos.clone()), q1=parent.getWorldQuaternion(new T.Quaternion()).multiply(quat);
+  if(h){ o.updateWorldMatrix(true,false); const off=o.worldToLocal(h.pinchWorld()); h.track=objPt(o,off); h.active=true; }
+  yield* tween(dur||0.7,k=>{ o.position.lerpVectors(p0,p1,k); o.position.y+=Math.sin(Math.PI*k)*(lift||0); o.quaternion.copy(q0).slerp(q1,k); });
+  parent.attach(o); o.position.copy(pos); o.quaternion.copy(quat);
+}
+function* transfer(o,h,parent,pos,quat,up,dur){    // lift straight up, move across, lower straight down
+  o.updateWorldMatrix(true,false); const a=o.getWorldPosition(V()), qa=o.getWorldQuaternion(new T.Quaternion());
+  parent.updateWorldMatrix(true,false); const b=parent.localToWorld(pos.clone()), qb=parent.getWorldQuaternion(new T.Quaternion()).multiply(quat);
+  const top=Math.max(a.y,b.y)+up;
+  yield* moveObj(o,h,scene,V(a.x,top,a.z),qa,0.4);
+  yield* moveObj(o,h,scene,V(b.x,top,b.z),qb,dur||0.8);
+  yield* moveObj(o,h,parent,pos,quat,0.45);
+}
+
+/* ================= process ================= */
+let statusText='';
+function say(s){ statusText=s; }
+const inA=(o,p)=>{ o.updateWorldMatrix(true,false); const A=Wd.tables.A; A.updateWorldMatrix(true,false); return A.worldToLocal(o.localToWorld(p.clone())); };
+function* takeTool(){ yield* grab(H.R,Wd.tool,V(0,0.15,0),0.95,0.7); }
+function* restTool(){ yield* moveObj(Wd.tool,H.R,Wd.tables.A,P.toolRest,Q_TOOLREST,0.8,0.05); yield* letGo(H.R); }
+function* steady(){ yield* grab(H.L,Wd.motor,V(-0.0215,0.018,0.006),0.55,0.6); }
+const ST_A={t:'A',x:0,d:0.30}, ST_B={t:'B',x:PRX+0.06,d:0.36}, ST_C={t:'C',x:0,d:0.30}, ST_C2={t:'C',x:0.58,d:0.30};
+const jigFocus=()=>Wd.tables.A.localToWorld(V(0.03,TOP+0.07,0.2)), boxFocus=()=>Wd.tables.C.localToWorld(V(0.05,TOP+0.05,0.2));
+const OPS=[
+ {label:'Take spacer print out of the P2S',stand:ST_B,view:{az:-0.85,el:0.42,dist:1.25},focus:()=>Wd.printer.plate.getWorldPosition(V()),
+  *run(){ const pr=Wd.printer, sp=Wd.spacer, L=H.L, R=H.R;
+    say('Opening the printer door'); yield* grab(L,pr.handle,V(),0.8,0.8); yield* tween(1.1,k=>{pr.door.rotation.y=-1.75*k;}); yield* letGo(L);
+    say('Lifting the NEMA17 back spacer off the build plate'); R.dirGoal.copy(DIR_FWD);
+    yield* grab(R,sp,V(0,0.004,0.019),1.0,1.0); yield* wait(0.25); yield* moveObj(sp,R,pr.g,V(0.035,0.135,0.12),qE(0.25,0,0),0.35);
+    hold(R,sp); yield* carryPose(R);
+    say('Closing the printer door'); yield* grab(L,pr.handle,V(),0.8,0.7); yield* tween(1.0,k=>{pr.door.rotation.y=-1.75*(1-k);}); yield* letGo(L); }},
+ {label:'Set spacer down, load motor in jig',stand:ST_A,view:{az:2.5,el:0.6,dist:0.95},focus:jigFocus,
+  *run(){ const A=Wd.tables.A, m=Wd.motor;
+    say('Setting the spacer on the bench'); yield* moveObj(Wd.spacer,H.R,A,P.spacerSpot,QI,0.8,0.05); yield* letGo(H.R);
+    say('Loading a NEMA17 into the jig, back face up'); yield* grab(H.L,m,V(0,0.034,0.02),0.6,0.8); yield* transfer(m,H.L,A,P.jig,QI,0.04,0.8); yield* letGo(H.L); }},
+ {label:'Remove 4 backface screws',stand:ST_A,view:{az:2.5,el:0.6,dist:0.55},focus:jigFocus,
+  *run(){ const A=Wd.tables.A, m=Wd.motor, tool=Wd.tool;
+    say('Picking up the screwdriver'); yield* par(steady(),takeTool());
+    for(let i=0;i<4;i++){ const s=m.screws[i]; say('Removing backface screw '+(i+1)+' of 4');
+      yield* moveObj(tool,H.R,A,inA(s,V(0,0.003,0)),QI,i?0.5:0.9,0.035);
+      const y0=s.position.y, t0=tool.position.y; yield* tween(1.4,k=>{ s.position.y=y0+0.0175*k; s.rotation.y=k*15; tool.spin.rotation.y=k*15; tool.position.y=t0+0.0175*k; });
+      tool.attach(s); yield* moveObj(tool,H.R,A,V(P.dish.x,TOP+0.035,P.dish.z),QI,0.55,0.03);
+      A.attach(s); const p0=s.position.clone(), p1=V(P.dish.x-0.004,TOP+0.0048,P.dish.z+(i-1.5)*0.009), q0=s.quaternion.clone(), q1=qE(0,0,Math.PI/2);
+      yield* tween(0.22,k=>{ s.position.lerpVectors(p0,p1,k); s.quaternion.copy(q0).slerp(q1,k); }); Wd.dishScrews.push(s); }
+    say('Setting the screwdriver down'); yield* restTool(); yield* letGo(H.L); }},
+ {label:'Fit spacer on the backface',stand:ST_A,view:{az:2.5,el:0.6,dist:0.55},focus:jigFocus,
+  *run(){ say('Seating the 4 mm spacer over the screw holes'); yield* grab(H.R,Wd.spacer,V(0,0.003,0.019),1.0,0.7);
+    yield* moveObj(Wd.spacer,H.R,Wd.motor,V(0,0.040,0),QI,1.0,0.07); yield* wait(0.3); yield* letGo(H.R); }},
+ {label:'Fit controller PCB',stand:ST_A,view:{az:2.5,el:0.6,dist:0.55},focus:jigFocus,
+  *run(){ say('Placing the motor controller PCB on the spacer sleeves'); yield* grab(H.L,Wd.pcb,V(0,0.002,0.02),1.0,0.8);
+    yield* moveObj(Wd.pcb,H.L,Wd.motor,V(0,0.044,0),QI,1.1,0.07); yield* wait(0.3); yield* letGo(H.L); }},
+ {label:'Fasten PCB with 4 screws',stand:ST_A,view:{az:2.5,el:0.6,dist:0.55},focus:jigFocus,
+  *run(){ const A=Wd.tables.A, m=Wd.motor, tool=Wd.tool, seat=0.0456;
+    say('Picking up the screwdriver'); yield* par(steady(),takeTool());
+    for(let i=0;i<4;i++){ const s=Wd.dishScrews[i], hp=m.screws[i].userData.h; say('Driving screw '+(i+1)+' of 4');
+      yield* moveObj(tool,H.R,A,inA(s,V(0,0.004,0)),QI,i?0.55:0.9,0.035);
+      tool.attach(s); const p0=s.position.clone(), q0=s.quaternion.clone(); yield* tween(0.18,k=>{ s.position.lerpVectors(p0,V(0,-0.003,0),k); s.quaternion.copy(q0).slerp(QI,k); });
+      yield* moveObj(tool,H.R,A,inA(m,V(hp[0]*0.0155,seat+0.0165+0.003,hp[1]*0.0155)),QI,0.65,0.03);
+      m.attach(s); s.position.set(hp[0]*0.0155,seat+0.0165,hp[1]*0.0155); s.quaternion.identity();
+      const t0=tool.position.y; yield* tween(1.4,k=>{ s.position.y=seat+0.0165*(1-k); s.rotation.y=-k*15; tool.spin.rotation.y=-k*15; tool.position.y=t0-0.0165*k; }); }
+    say('Setting the screwdriver down'); yield* restTool(); yield* letGo(H.L); }},
+ {label:'Pick up motor assembly',stand:ST_A,view:{az:2.5,el:0.6,dist:0.8},focus:jigFocus,
+  *run(){ const m=Wd.motor; say('Lifting the finished motor + PCB assembly out of the jig'); yield* grab(H.R,m,V(0,0.036,0.021),0.6,0.7);
+    yield* moveObj(m,H.R,Wd.tables.A,V(P.jig.x,P.jig.y+0.05,P.jig.z),QI,0.5); hold(H.R,m); yield* carryPose(H.R); }},
+ {label:'Set assembly down, fold a box',stand:ST_C,view:{az:2.5,el:0.6,dist:0.95},focus:boxFocus,
+  *run(){ const C=Wd.tables.C, b=Wd.box, hp=Math.PI/2;
+    say('Setting the assembly on the bench'); yield* moveObj(Wd.motor,H.R,C,P.asmSpot,Q_SIDE,1.0,0.05); yield* letGo(H.R);
+    say('Taking a flat box blank'); yield* grab(H.L,b.wf.tip,V(),0.9,0.8); yield* moveObj(b.g,H.L,C,P.boxSpot,QI,1.0,0.06);
+    say('Folding the side walls up'); yield* par(reach(H.L,objPt(b.wl.tip),0.5),reach(H.R,objPt(b.wr.tip),0.6));
+    yield* tween(1.0,k=>{ b.wl.fold.rotation.z=b.wr.fold.rotation.z=hp*k; });
+    say('Folding the front and back walls up'); yield* par(reach(H.L,objPt(b.wb.tip),0.5),reach(H.R,objPt(b.wf.tip),0.5));
+    yield* tween(1.0,k=>{ b.wf.fold.rotation.z=b.wb.fold.rotation.z=hp*k; }); yield* wait(0.2); yield* par(letGo(H.L),letGo(H.R)); }},
+ {label:'Insert bottom foam',stand:ST_C,view:{az:2.5,el:0.6,dist:0.7},focus:boxFocus,
+  *run(){ say('Dropping the bottom foam insert into the box'); yield* grab(H.R,Wd.foamB,V(0,0.03,0.03),0.8,0.7);
+    yield* transfer(Wd.foamB,H.R,Wd.box.g,V(0,BXT,0),QI,0.05,0.7); yield* letGo(H.R); }},
+ {label:'Place assembly in foam',stand:ST_C,view:{az:2.5,el:0.6,dist:0.7},focus:boxFocus,
+  *run(){ say('Nesting the motor assembly in the foam pocket'); yield* grab(H.R,Wd.motor,V(-0.019,0.02,0.02),0.6,0.7);
+    yield* transfer(Wd.motor,H.R,Wd.box.g,V(-0.0123,BXT+0.008+0.02115,0),Q_SIDE,0.06,0.7); yield* letGo(H.R); }},
+ {label:'Top foam, close the lid',stand:ST_C,view:{az:2.5,el:0.6,dist:0.7},focus:boxFocus,
+  *run(){ const b=Wd.box; say('Capping with the top foam insert'); yield* grab(H.R,Wd.foamT,V(0,0.029,0.03),0.8,0.7);
+    yield* transfer(Wd.foamT,H.R,b.g,V(0,BXT+0.03,0),QI,0.05,0.7); yield* letGo(H.R);
+    say('Closing the lid and tucking the flap'); yield* reach(H.R,objPt(b.lidTip),0.7);
+    yield* tween(1.0,k=>{ b.lid.rotation.z=Math.PI/2*k; b.flap.rotation.z=0.5*k; }); yield* tween(0.5,k=>{ b.flap.rotation.z=0.5+(Math.PI/2-0.5)*k; }); yield* letGo(H.R); }},
+ {label:'Move box to finished goods',stand:ST_C,view:{az:2.5,el:0.6,dist:1.4},focus:boxFocus,
+  *run(){ const b=Wd.box, C=Wd.tables.C; say('Carrying the packed box to finished goods');
+    yield* par(grab(H.L,b.g,V(-0.06,0.04,0.02),0.5,0.6),grab(H.R,b.g,V(0.06,0.04,0.02),0.5,0.6));
+    yield* moveObj(b.g,H.R,C,V(0,TOP+0.25,0.34),QI,0.7); hold(H.R,b.g);
+    yield* walkToStand(ST_C2);
+    yield* moveObj(b.g,H.R,C,P.done,QI,0.9,0.03); yield* par(letGo(H.L),letGo(H.R)); }},
+];
+function* runOp(i){ const op=OPS[i]; Wd.busy=true; Wd.cur=i; Wd.jobActive=true; camForOp(op);
+  yield* op.run(); Wd.cur=-1; Wd.opIdx=i+1; Wd.busy=false;
+  if(Wd.opIdx>=OPS.length){ Wd.jobActive=false; Wd.jobDone=true; say('Unit packed. Cycle time '+fmt(Wd.jobT)); } camAfterOp(); }
+function* pickTool(){ Wd.busy=true; say('Picking up the screwdriver'); camForOp({focus:()=>Wd.tables.A.localToWorld(V(0.3,TOP+0.1,0.2)),view:{az:2.5,el:0.5,dist:1.0},stand:ST_A});
+  yield* takeTool(); H.g.updateWorldMatrix(true,false);
+  const q=H.g.getWorldQuaternion(new T.Quaternion()).multiply(qE(-0.35,0,0)), grip=H.g.localToWorld(V(-0.17,1.12,0.34));
+  yield* moveObj(Wd.tool,H.R,scene,grip.sub(V(0,0.15,0).applyQuaternion(q)),q,0.9,0.03); hold(H.R,Wd.tool); Wd.freeTool=true; Wd.busy=false; say('Holding the screwdriver'); camAfterOp(); }
+function* putTool(){ Wd.busy=true; say('Putting the screwdriver back'); yield* restTool(); Wd.freeTool=false; Wd.busy=false; say('Screwdriver is back on the bench'); }
+
+/* ================= scenarios / modes ================= */
+let mode='sim', task=null, paused=false, speed=1;
+function start(gen){ task=gen; try{ if(task.next().done) task=null; }catch(e){ console.error(e); task=null; } }
+function resetWorld(){ task=null; H.reset(); buildWorld(); buildGrid(); Wd.times=OPS.map(()=>0); curStation=null; renderRows(); setCam('follow'); }
+function* scWalk(){ say('Walking the floor'); let i=0; for(;;){ const p=LAYOUT.patrol[i]; yield* walkTo(p[0],p[1]); yield* wait(0.5); i=(i+1)%LAYOUT.patrol.length; } }
+function* scTool(){ say('Walking to the assembly bench'); yield* walkToStand(ST_A); yield* pickTool(); }
+function* scJob(){ while(Wd.opIdx<OPS.length){ const op=OPS[Wd.opIdx]; Wd.jobActive=true; say('Walking to '+tableOf(op.stand.t).label.toLowerCase());
+    yield* walkToStand(op.stand); yield* runOp(Wd.opIdx); if(mode!=='sim') return; } }
+function setMode(m){ mode=m; $('mSim').setAttribute('aria-pressed',m==='sim'); $('mGame').setAttribute('aria-pressed',m==='game');
+  if(m==='game'){ if(task&&!Wd.busy){ task=null; H.speed=0; } if(cam.mode==='overview') setCam('follow'); canvas.focus(); if(!Wd.busy) say('You have control'); }
+  else if(!task) say('Pick a scenario');
+  const touch=matchMedia('(pointer: coarse)').matches; $('stick').hidden=!(m==='game'&&touch); $('actE').hidden=!(m==='game'&&touch);
+  $('hint').textContent=m==='game'?'WASD or arrows to walk · E to do the next step · F for the screwdriver · drag to orbit · scroll to zoom':'Drag to orbit · scroll or pinch to zoom · right-drag to pan'; }
+$('mSim').onclick=()=>setMode('sim'); $('mGame').onclick=()=>setMode('game');
+$('scWalk').onclick=()=>{ setMode('sim'); resetWorld(); start(scWalk()); };
+$('scTool').onclick=()=>{ setMode('sim'); resetWorld(); start(scTool()); };
+$('scJob').onclick=()=>{ setMode('sim'); if(Wd.busy) return; if(!(Wd.opIdx>0&&!Wd.jobDone&&!Wd.freeTool)) resetWorld(); start(scJob()); };
+$('reset').onclick=()=>{ resetWorld(); if(mode==='sim') start(scWalk()); else say('You have control'); };
+$('pause').onclick=()=>{ paused=!paused; $('pause').setAttribute('aria-pressed',paused); $('pause').textContent=paused?'Resume':'Pause'; };
+$('speed').onchange=e=>{ speed=parseFloat(e.target.value); };
+
+/* ---- game input ---- */
+const keys={}; let stickX=0, stickY=0;
+function nearStand(st,r){ const p=standPoint(st); return Math.hypot(p.x-H.pos.x,p.z-H.pos.z)<(r||0.95); }
+function actions(){ const a={}; if(task||mode!=='game') return a;
+  if(Wd.freeTool){ if(nearStand(ST_A)) a.F={label:'Put the screwdriver back',run:function*(){ yield* walkToStand(ST_A); yield* putTool(); }}; return a; }
+  const op=OPS[Wd.opIdx]; if(op&&nearStand(op.stand)){ const i=Wd.opIdx; a.E={label:op.label,run:function*(){ yield* walkToStand(op.stand); yield* runOp(i); }}; }
+  if(!H.L.held&&!H.R.held&&nearStand(ST_A)) a.F={label:'Pick up the screwdriver',run:function*(){ yield* walkToStand(ST_A); yield* pickTool(); }};
+  return a; }
+function act(k){ const a=actions()[k]; if(a){ say('Stepping up to the bench'); start(a.run()); } }
+addEventListener('keydown',e=>{ if(e.target.tagName==='SELECT'||e.target.tagName==='INPUT') return; const k=e.key.toLowerCase(); keys[k]=true;
+  if(k==='g') setMode(mode==='game'?'sim':'game'); if(mode==='game'){ if(k==='e') act('E'); if(k==='f') act('F'); if(k.startsWith('arrow')||k===' ') e.preventDefault(); }
+  if(k==='1') setCam('overview'); if(k==='2') setCam('follow'); if(k==='3') setCam('close'); });
+addEventListener('keyup',e=>{ keys[e.key.toLowerCase()]=false; });
+addEventListener('blur',()=>{ for(const k in keys) keys[k]=false; });
+(function stick(){ const el=$('stick'), kn=$('knob'); let id=null;
+  const mv=e=>{ const r=el.getBoundingClientRect(); let x=(e.clientX-r.left-52)/40, y=(e.clientY-r.top-52)/40; const l=Math.hypot(x,y); if(l>1){x/=l;y/=l;} stickX=x; stickY=-y; kn.style.transform='translate('+x*32+'px,'+y*32+'px)'; };
+  el.addEventListener('pointerdown',e=>{ id=e.pointerId; el.setPointerCapture(id); mv(e); }); el.addEventListener('pointermove',e=>{ if(e.pointerId===id) mv(e); });
+  const up=()=>{ id=null; stickX=stickY=0; kn.style.transform=''; }; el.addEventListener('pointerup',up); el.addEventListener('pointercancel',up);
+  $('actE').onclick=()=>{ const a=actions(); act(a.E?'E':'F'); }; })();
+function gameStep(dt){
+  let ix=(keys.d||keys.arrowright?1:0)-(keys.a||keys.arrowleft?1:0)+stickX, iy=(keys.w||keys.arrowup?1:0)-(keys.s||keys.arrowdown?1:0)+stickY;
+  const l=Math.hypot(ix,iy); if(l<0.15){ H.speed=0; return; } if(l>1){ix/=l;iy/=l;}
+  const fx=-Math.sin(cam.yaw), fz=-Math.cos(cam.yaw), dx=fx*iy-fz*ix, dz=fz*iy+fx*ix, sp=1.5*Math.min(1,l);
+  H.yaw+=clamp(angDiff(H.yaw,Math.atan2(dx,dz)),-9*dt,9*dt);
+  const nx=H.pos.x+dx*sp*dt, nz=H.pos.z+dz*sp*dt; let moved=false;
+  if(isFree(nx,H.pos.z,0.25)){H.pos.x=nx;moved=true;} if(isFree(H.pos.x,nz,0.25)){H.pos.z=nz;moved=true;} H.speed=moved?sp:0;
+}
+
+/* ================= camera ================= */
+const cam={mode:'follow',yaw:-1.15,pitch:0.5,d:6,t:V(RW/2,1,3),pan:V(),dists:{overview:19,follow:5.2,close:0.9},focus:null,autoSet:false};
+let curStation=null;
+function setCam(m){ cam.mode=m; cam.pan.set(0,0,0); ['Over','Follow','Close'].forEach(n=>$('c'+n).setAttribute('aria-pressed',({Over:'overview',Follow:'follow',Close:'close'})[n]===m));
+  if(m==='overview'){ cam.pitch=0.95; cam.yaw=innerWidth>innerHeight?Math.PI/2:0; } }
+function camForOp(op){ cam.focus=op.focus; if(!$('auto').checked) return; cam.dists.close=op.view.dist;
+  const key=op.stand.t+op.view.az; if(curStation!==key){ curStation=key; cam.yaw=standPoint(op.stand).yaw+Math.PI+op.view.az; cam.pitch=op.view.el; }
+  setCam('close'); cam.autoSet=true; }
+function camAfterOp(){ if(cam.autoSet&&$('auto').checked&&cam.mode==='close'){ const n=OPS[Wd.opIdx]; if(!n||Wd.freeTool||mode==='game'||n.stand.t!==(OPS[Wd.opIdx-1]||{stand:{}}).stand.t){ setCam('follow'); curStation=null; } } cam.autoSet=false; }
+$('cOver').onclick=()=>setCam('overview'); $('cFollow').onclick=()=>setCam('follow'); $('cClose').onclick=()=>{ setCam('close'); };
+function camUpdate(dt){
+  let tg; if(cam.mode==='overview') tg=V(RW/2,0.4,RL/2); else if(cam.mode==='follow') tg=V(H.pos.x,1.05,H.pos.z);
+  else tg=(Wd.cur>=0||Wd.busy)&&cam.focus?cam.focus():H.R.pinchWorld();
+  tg.add(cam.pan); cam.t.lerp(tg,1-Math.exp(-dt*6)); cam.d+=(cam.dists[cam.mode]-cam.d)*(1-Math.exp(-dt*5));
+  const cp=Math.cos(cam.pitch); camera.position.set(cam.t.x+cam.d*Math.sin(cam.yaw)*cp,cam.t.y+cam.d*Math.sin(cam.pitch),cam.t.z+cam.d*Math.cos(cam.yaw)*cp); camera.lookAt(cam.t);
+}
+(function pointer(){ const pts=new Map(); let pinch=0;
+  canvas.addEventListener('pointerdown',e=>{ canvas.setPointerCapture(e.pointerId); pts.set(e.pointerId,{x:e.clientX,y:e.clientY,b:e.button}); canvas.focus(); });
+  canvas.addEventListener('pointermove',e=>{ const p=pts.get(e.pointerId); if(!p) return; const dx=e.clientX-p.x, dy=e.clientY-p.y; p.x=e.clientX; p.y=e.clientY;
+    if(pts.size===2){ const a=[...pts.values()], d=Math.hypot(a[0].x-a[1].x,a[0].y-a[1].y); if(pinch) zoom(pinch/d); pinch=d; return; }
+    if(p.b===2||e.shiftKey){ const k=cam.d*0.0016, rx=Math.cos(cam.yaw), rz=-Math.sin(cam.yaw); cam.pan.x-=rx*dx*k; cam.pan.z-=rz*dx*k; cam.pan.y+=dy*k; }
+    else { cam.yaw-=dx*0.006; cam.pitch=clamp(cam.pitch+dy*0.005,0.03,1.52); } });
+  const up=e=>{ pts.delete(e.pointerId); pinch=0; }; canvas.addEventListener('pointerup',up); canvas.addEventListener('pointercancel',up);
+  canvas.addEventListener('contextmenu',e=>e.preventDefault());
+  function zoom(f){ cam.dists[cam.mode]=clamp(cam.dists[cam.mode]*f,0.14,34); }
+  canvas.addEventListener('wheel',e=>{ e.preventDefault(); zoom(Math.exp(e.deltaY*0.0012)); },{passive:false}); })();
+
+/* ================= HUD ================= */
+const fmt=t=>t>=60?Math.floor(t/60)+':'+(t%60<10?'0':'')+(t%60).toFixed(1):t.toFixed(1)+' s';
+let rowEls=[];
+function renderRows(){ const ol=$('rows'); ol.innerHTML=''; rowEls=OPS.map(op=>{ const li=document.createElement('li'), a=document.createElement('span'), b=document.createElement('span'); a.textContent=op.label; b.className='t'; b.textContent='–'; li.append(a,b); ol.append(li); return {li,b}; }); }
+const ring=new T.Mesh(new T.RingGeometry(0.2,0.26,40),new T.MeshBasicMaterial({color:0xffc533,transparent:true,opacity:0.8,side:T.DoubleSide,depthWrite:false})); ring.rotation.x=-Math.PI/2; scene.add(ring);
+let lastHud='';
+function hud(now){
+  let sum=0; OPS.forEach((op,i)=>{ const t=Wd.times[i]; sum+=t; const r=rowEls[i], cls=i===Wd.cur?'act':(i<Wd.opIdx?'done':''); if(r.li.className!==cls) r.li.className=cls; const s=t>0?fmt(t):'–'; if(r.b.textContent!==s) r.b.textContent=s; });
+  $('tWalk').textContent=fmt(Math.max(0,Wd.jobT-sum)); $('tTotal').textContent=$('totalTop').textContent=fmt(Wd.jobT);
+  const a=actions(), pr=$('prompt'); let html='';
+  if(a.E) html+='<kbd>E</kbd> '+a.E.label+'  '; if(a.F) html+='<kbd>F</kbd> '+a.F.label;
+  let st=statusText; const nxt=OPS[Wd.opIdx];
+  if(mode==='game'&&!task&&!html&&nxt&&!Wd.freeTool) st='Next: '+nxt.label.toLowerCase()+' at the '+tableOf(nxt.stand.t).label.toLowerCase();
+  if(html!==lastHud){ pr.innerHTML=html; pr.hidden=!html; lastHud=html; } if($('now').textContent!==st) $('now').textContent=st;
+  const show=nxt&&!Wd.busy&&!Wd.freeTool&&(mode==='game'||Wd.jobActive); ring.visible=!!show;
+  if(show){ const p=standPoint(nxt.stand); ring.position.set(p.x,0.012,p.z); ring.material.opacity=0.55+0.3*Math.sin(now*0.005); }
+}
+
+/* ================= main loop ================= */
+function resize(){ const w=canvas.clientWidth, h=canvas.clientHeight; if(canvas.width!==Math.round(w*renderer.getPixelRatio())||canvas.height!==Math.round(h*renderer.getPixelRatio())){ renderer.setSize(w,h,false); camera.aspect=w/h; camera.updateProjectionMatrix(); } }
+function simStep(dt){
+  if(task){ try{ if(task.next(dt).done) task=null; }catch(e){ console.error(e); task=null; say('Scenario stopped: '+e.message); } }
+  else if(mode==='game') gameStep(dt); else H.speed=0;
+  if(Wd.jobActive) Wd.jobT+=dt; if(Wd.cur>=0) Wd.times[Wd.cur]+=dt;
+  H.update(dt);
+}
+let last=performance.now();
+function frame(now){ const real=Math.min(0.05,(now-last)/1000); last=now; resize();
+  if(!paused){ const n=Math.max(1,Math.ceil(speed)); for(let i=0;i<n;i++) simStep(real*speed/n); }
+  camUpdate(real); hud(now); renderer.render(scene,camera); requestAnimationFrame(frame); }
+
+applyTheme(); H.reset(); buildWorld(); buildGrid(); Wd.times=OPS.map(()=>0); renderRows(); H.update(0.016);
+if(innerWidth<720){ $('timD').open=false; $('ctlD').open=false; }
+start(scWalk());
+window.__sim={H,OPS,get W(){return Wd;},step:simStep,start,scJob,scTool,setMode,cam,setCam,isFree,resetWorld,get task(){return task;},keys};
+requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

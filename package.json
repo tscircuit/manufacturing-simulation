@@ -1,0 +1,12 @@
+{
+  "name": "manufacturing-simulation",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bunx serve .",
+    "test": "node tests/smoke.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.49.1"
+  }
+}
