@@ -26,10 +26,12 @@ export interface FlexCable {
   radiusM: number
   /** How far the wire runs straight out of each anchor before curving. */
   leadLengthM: number
-  lastSignature: string
+  /** Anchor positions, directions and slack at the last redraw. */
+  lastPose: number[]
 }
 
 const TUBE_SEGMENTS = 40
+const POSE_EPSILON = 1e-5
 const RADIAL_SEGMENTS = 6
 
 export function createFlexCable(params: {
@@ -57,7 +59,7 @@ export function createFlexCable(params: {
     minYM: params.minYM,
     radiusM: params.radiusM,
     leadLengthM: params.leadLengthM ?? 0.03,
-    lastSignature: "",
+    lastPose: [],
   }
 }
 
@@ -80,22 +82,21 @@ export function updateFlexCable(cable: FlexCable): void {
     slack
       .transformDirection(cable.slackFrame.matrixWorld)
       .multiplyScalar(cable.slackOffset.length())
-  const signature = [
+  const pose = [
     start.position,
     end.position,
     start.direction,
     end.direction,
     slack,
-  ]
-    .map((vector) =>
-      vector
-        .toArray()
-        .map((component) => component.toFixed(4))
-        .join(","),
+  ].flatMap((vector) => vector.toArray())
+  const hasMoved =
+    pose.length !== cable.lastPose.length ||
+    pose.some(
+      (component, index) =>
+        Math.abs(component - cable.lastPose[index]) > POSE_EPSILON,
     )
-    .join("|")
-  if (signature === cable.lastSignature) return
-  cable.lastSignature = signature
+  if (!hasMoved) return
+  cable.lastPose = pose
 
   const middle = start.position
     .clone()

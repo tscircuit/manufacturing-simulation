@@ -1,5 +1,9 @@
 import type { Ref } from "react"
-import { FOLDING_TABLE, TABLE_PLACEMENTS } from "lib/layout/station-layout"
+import {
+  BATCH_SIZE,
+  FOLDING_TABLE,
+  TABLE_PLACEMENTS,
+} from "lib/layout/station-layout"
 import type { ScenarioId } from "lib/simulation/scenarios"
 import type { SimulationMode } from "lib/simulation/sim-context"
 
@@ -63,9 +67,15 @@ export function ControlPanel(props: {
             </button>
             <button
               type="button"
-              onClick={() => props.onScenarioStart("assemble_and_pack")}
+              onClick={() => props.onScenarioStart("run_batch")}
             >
-              Assemble and pack a motor
+              Run a batch of {BATCH_SIZE}, start to ship
+            </button>
+            <button
+              type="button"
+              onClick={() => props.onScenarioStart("refill_spacers")}
+            >
+              Collect prints, refill spacers
             </button>
           </div>
           <div className="grp">

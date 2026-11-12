@@ -1,12 +1,7 @@
 import { Vector3 } from "three"
 import { STATIONS } from "lib/layout/station-layout"
-import {
-  getJigFocusPoint,
-  getPointInTableFrame,
-  getSpacerBasketFocusPoint,
-} from "lib/job/bench-frames"
-import { FORWARD_FINGER_DIRECTION } from "lib/operator/operator-body"
-import type { JobStep } from "lib/job/job-step"
+import { getJigFocusPoint, getPointInTableFrame } from "lib/job/bench-frames"
+import type { JobStage, JobStep, UnitParams } from "lib/job/job-step"
 import {
   returnScrewdriver,
   steadyMotor,
@@ -19,7 +14,9 @@ import {
   NEMA17,
   STOCK_SCREW_SHANK_M,
 } from "lib/models/nema17-motor"
+import { FORWARD_FINGER_DIRECTION } from "lib/operator/operator-body"
 import type { SimContext } from "lib/simulation/sim-context"
+import { carryWithBothHands } from "lib/tasks/carry-motions"
 import {
   runInParallel,
   type SimTask,
@@ -27,9 +24,7 @@ import {
   waitSeconds,
 } from "lib/tasks/coroutines"
 import {
-  bringHandToCarryPose,
   grabObject,
-  holdInHand,
   liftAndPlace,
   moveObject,
   releaseHand,
@@ -38,8 +33,14 @@ import { plugIn } from "lib/tasks/plug-motions"
 import {
   ASSEMBLY_BENCH_SPOTS,
   IDENTITY_QUATERNION,
+  QC_BENCH_SPOTS,
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
+import {
+  scatter,
+  setOutLongScrews,
+  setOutMotorCable,
+} from "lib/world/create-world"
 
 const SCREW_TURN_RADIANS = 15
 const SCREW_DRIVE_SECONDS = 1.4
@@ -49,13 +50,11 @@ const PCB_TOP_ABOVE_MOUNT_FACE_M =
   BACKFACE_SPACER.baseHeightM +
   BACKFACE_SPACER.sleeveHeightM +
   CONTROLLER_PCB.thicknessM
-/** Tool tip height above a bin's floor when dropping or picking a screw. */
-const BIN_WORK_HEIGHT_M = 0.035
-
+/** From the operator's side, clear of the window mullions; the operator fades if he's in the way. */
 const ASSEMBLY_CLOSE_UP = {
-  azimuthRadians: 2.5,
-  elevationRadians: 0.6,
-  distanceM: 0.55,
+  azimuthRadians: 0.9,
+  elevationRadians: 0.85,
+  distanceM: 0.6,
 }
 
 function* moveScrewdriverTo(
@@ -80,81 +79,41 @@ function* moveScrewdriverTo(
   )
 }
 
-function* takeSpacerFromBasket(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  const { spacer } = world
-  const hand = operator.rightHand
-  const basket = spacer.parent
-  if (!basket) throw new Error("Spacer must start in the basket")
-  ctx.statusText = "Picking a printed spacer out of the basket"
-  hand.targetFingerDirection.copy(FORWARD_FINGER_DIRECTION)
+function* loadMotorIntoJig(params: UnitParams, ctx: SimContext): SimTask {
+  const { motor } = ctx.world.units[params.unitIndex]
+  const hand = ctx.operator.leftHand
+  ctx.statusText = `Unit ${params.unitIndex + 1}: loading a NEMA17 from the foam stand into the jig`
   yield* grabObject({
     hand,
-    object: spacer,
-    localGripPoint: new Vector3(0, 0.003, 0.019),
-    fingerCurl: 1,
-    durationSeconds: 0.9,
-  })
-  yield* moveObject(
-    {
-      object: spacer,
-      hand,
-      parent: basket,
-      localPosition: spacer.position.clone().add(new Vector3(0, 0.07, 0.03)),
-      localQuaternion: spacer.quaternion.clone(),
-      durationSeconds: 0.45,
-    },
-    ctx,
-  )
-  ctx.statusText = "Setting the spacer down by the jig"
-  yield* moveObject(
-    {
-      object: spacer,
-      hand,
-      parent: world.tables.assembly_bench,
-      localPosition: ASSEMBLY_BENCH_SPOTS.spacerRest,
-      localQuaternion: IDENTITY_QUATERNION,
-      durationSeconds: 0.9,
-      arcHeightM: 0.05,
-    },
-    ctx,
-  )
-  yield* releaseHand(hand)
-}
-
-function* loadMotorIntoJig(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  ctx.statusText = "Loading a NEMA17 into the jig, back face up"
-  yield* grabObject({
-    hand: operator.leftHand,
-    object: world.motor.group,
+    object: motor.group,
     localGripPoint: new Vector3(0, 0.034, 0.02),
     fingerCurl: 0.6,
     durationSeconds: 0.8,
   })
   yield* liftAndPlace(
     {
-      object: world.motor.group,
-      hand: operator.leftHand,
-      parent: world.tables.assembly_bench,
+      object: motor.group,
+      hand,
+      parent: ctx.world.tables.assembly_bench,
       localPosition: ASSEMBLY_BENCH_SPOTS.jigTop,
       localQuaternion: IDENTITY_QUATERNION,
-      liftHeightM: 0.04,
+      liftHeightM: 0.05,
     },
     ctx,
   )
-  yield* releaseHand(operator.leftHand)
+  yield* releaseHand(hand)
 }
 
-function* removeStockScrews(ctx: SimContext): SimTask {
+function* removeStockScrews(params: UnitParams, ctx: SimContext): SimTask {
   const { world } = ctx
-  const { screwdriver, motor, usedScrewBin } = world
+  const { screwdriver, usedScrewBin } = world
+  const { motor } = world.units[params.unitIndex]
   ctx.statusText = "Picking up the screwdriver"
-  yield* runInParallel([steadyMotor(ctx), takeScrewdriver(ctx)])
+  yield* runInParallel([steadyMotor(params, ctx), takeScrewdriver(ctx)])
 
   for (const [index, stockScrew] of motor.stockScrews.entries()) {
     const screw = stockScrew.group
-    ctx.statusText = `Removing stock screw ${index + 1} of 4`
+    ctx.statusText = `Unit ${params.unitIndex + 1}: removing stock screw ${index + 1} of 4`
     yield* moveScrewdriverTo(
       {
         localPosition: getPointInTableFrame(
@@ -183,22 +142,32 @@ function* removeStockScrews(ctx: SimContext): SimTask {
       },
     })
 
-    ctx.statusText = `Dropping stock screw ${index + 1} in the used-screw bin`
+    ctx.statusText = `Unit ${params.unitIndex + 1}: dropping stock screw ${index + 1} in the used-screw bin`
     screwdriver.group.attach(screw)
-    const dropPoint = usedScrewBin.position
-      .clone()
-      .add(new Vector3((index - 1.5) * 0.018, BIN_WORK_HEIGHT_M, 0.01))
+    const removedIndex = world.removedStockScrews.length
+    const restPosition = new Vector3(
+      (scatter(removedIndex + 900) - 0.5) * 0.07,
+      0.0025 + 0.00275 + Math.floor(removedIndex / 16) * 0.004,
+      (scatter(removedIndex + 950) - 0.5) * 0.09,
+    )
     yield* moveScrewdriverTo(
-      { localPosition: dropPoint, durationSeconds: 0.55, arcHeightM: 0.04 },
+      {
+        localPosition: usedScrewBin.position
+          .clone()
+          .add(new Vector3(restPosition.x, 0.035, restPosition.z)),
+        durationSeconds: 0.55,
+        arcHeightM: 0.04,
+      },
       ctx,
     )
     usedScrewBin.attach(screw)
     const fallStartPosition = screw.position.clone()
     const fallStartQuaternion = screw.quaternion.clone()
-    const restPosition = new Vector3(
-      (index - 1.5) * 0.018,
-      0.0025 + 0.00275,
-      0.01 + (index % 2) * 0.012,
+    const restQuaternion = SCREW_LYING_QUATERNION.clone().premultiply(
+      IDENTITY_QUATERNION.clone().setFromAxisAngle(
+        new Vector3(0, 1, 0),
+        scatter(removedIndex + 990) * Math.PI * 2,
+      ),
     )
     yield* tween({
       durationSeconds: 0.25,
@@ -206,7 +175,7 @@ function* removeStockScrews(ctx: SimContext): SimTask {
         screw.position.lerpVectors(fallStartPosition, restPosition, progress)
         screw.quaternion
           .copy(fallStartQuaternion)
-          .slerp(SCREW_LYING_QUATERNION, progress)
+          .slerp(restQuaternion, progress)
       },
     })
     world.removedStockScrews.push(screw)
@@ -216,47 +185,55 @@ function* removeStockScrews(ctx: SimContext): SimTask {
   yield* releaseHand(ctx.operator.leftHand)
 }
 
-function* fitSpacer(ctx: SimContext): SimTask {
+function* fitSpacerFromBasket(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  ctx.statusText = "Seating the 4 mm spacer over the screw holes"
+  const unit = world.units[params.unitIndex]
+  const spacer = world.spacerStock.pop()
+  if (!spacer) throw new Error("The spacer basket is empty")
+  unit.spacer = spacer
+  const hand = operator.rightHand
+  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a spacer from the basket`
+  hand.targetFingerDirection.copy(FORWARD_FINGER_DIRECTION)
   yield* grabObject({
-    hand: operator.rightHand,
-    object: world.spacer,
+    hand,
+    object: spacer,
     localGripPoint: new Vector3(0, 0.003, 0.019),
     fingerCurl: 1,
     durationSeconds: 0.7,
   })
+  ctx.statusText = `Unit ${params.unitIndex + 1}: seating the 4 mm spacer over the screw holes`
   yield* moveObject(
     {
-      object: world.spacer,
-      hand: operator.rightHand,
-      parent: world.motor.group,
+      object: spacer,
+      hand,
+      parent: unit.motor.group,
       localPosition: new Vector3(0, NEMA17.backfaceHeightM, 0),
       localQuaternion: IDENTITY_QUATERNION,
       durationSeconds: 1,
-      arcHeightM: 0.07,
+      arcHeightM: 0.08,
     },
     ctx,
   )
-  yield* waitSeconds(0.3)
-  yield* releaseHand(operator.rightHand)
+  yield* waitSeconds(0.25)
+  yield* releaseHand(hand)
 }
 
-function* fitControllerPcb(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  ctx.statusText = "Placing the motor controller PCB on the spacer sleeves"
+function* fitControllerPcb(params: UnitParams, ctx: SimContext): SimTask {
+  const unit = ctx.world.units[params.unitIndex]
+  const hand = ctx.operator.leftHand
+  ctx.statusText = `Unit ${params.unitIndex + 1}: placing the controller PCB on the spacer sleeves`
   yield* grabObject({
-    hand: operator.leftHand,
-    object: world.pcb.group,
+    hand,
+    object: unit.pcb.group,
     localGripPoint: new Vector3(0, 0.002, 0.02),
     fingerCurl: 1,
     durationSeconds: 0.8,
   })
   yield* moveObject(
     {
-      object: world.pcb.group,
-      hand: operator.leftHand,
-      parent: world.motor.group,
+      object: unit.pcb.group,
+      hand,
+      parent: unit.motor.group,
       localPosition: new Vector3(
         0,
         PCB_TOP_ABOVE_MOUNT_FACE_M - CONTROLLER_PCB.thicknessM,
@@ -268,20 +245,26 @@ function* fitControllerPcb(ctx: SimContext): SimTask {
     },
     ctx,
   )
-  yield* waitSeconds(0.3)
-  yield* releaseHand(operator.leftHand)
+  yield* waitSeconds(0.25)
+  yield* releaseHand(hand)
 }
 
-function* driveLongScrews(ctx: SimContext): SimTask {
+function* driveLongScrews(params: UnitParams, ctx: SimContext): SimTask {
   const { world } = ctx
-  const { screwdriver, motor, longScrews } = world
+  const { screwdriver } = world
+  const unit = world.units[params.unitIndex]
+  const { motor } = unit
+  unit.longScrews = setOutLongScrews({
+    bin: world.longScrewBin,
+    unitIndex: params.unitIndex,
+  })
   const halfPitchM = NEMA17.screwPitchM / 2
   ctx.statusText = "Picking up the screwdriver"
-  yield* runInParallel([steadyMotor(ctx), takeScrewdriver(ctx)])
+  yield* runInParallel([steadyMotor(params, ctx), takeScrewdriver(ctx)])
 
-  for (const [index, screw] of longScrews.entries()) {
+  for (const [index, screw] of unit.longScrews.entries()) {
     const { corner } = motor.stockScrews[index]
-    ctx.statusText = `Taking long screw ${index + 1} of 4 from the bin`
+    ctx.statusText = `Unit ${params.unitIndex + 1}: taking long screw ${index + 1} of 4 from the bin`
     yield* moveScrewdriverTo(
       {
         localPosition: getPointInTableFrame(
@@ -312,7 +295,7 @@ function* driveLongScrews(ctx: SimContext): SimTask {
       },
     })
 
-    ctx.statusText = `Driving long screw ${index + 1} of 4 through the PCB and spacer`
+    ctx.statusText = `Unit ${params.unitIndex + 1}: driving long screw ${index + 1} of 4 through the PCB and spacer`
     const holeX = corner.xSign * halfPitchM
     const holeZ = corner.zSign * halfPitchM
     const screwStartYM = PCB_TOP_ABOVE_MOUNT_FACE_M + LONG_SCREW_SHANK_M
@@ -351,13 +334,16 @@ function* driveLongScrews(ctx: SimContext): SimTask {
   yield* releaseHand(ctx.operator.leftHand)
 }
 
-function* plugInMotorCable(ctx: SimContext): SimTask {
+function* plugInMotorCable(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  const { motorCable, motor, pcb } = world
+  const unit = world.units[params.unitIndex]
+  const { motor, pcb } = unit
+  const motorCable = setOutMotorCable({ world })
+  unit.motorCable = motorCable
   const bench = world.tables.assembly_bench
   const { jigTop } = ASSEMBLY_BENCH_SPOTS
   const plugGrip = new Vector3(0, 0.005, 0)
-  ctx.statusText = "Taking a pre-crimped cable out of the cable bin"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a pre-crimped cable out of the cable bin`
   yield* runInParallel([
     grabObject({
       hand: operator.rightHand,
@@ -405,7 +391,7 @@ function* plugInMotorCable(ctx: SimContext): SimTask {
       ctx,
     ),
   ])
-  ctx.statusText = "Plugging the cable into the side of the motor"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: plugging the cable into the side of the motor`
   yield* plugIn(
     {
       plug: motorCable.motorPlug,
@@ -414,7 +400,7 @@ function* plugInMotorCable(ctx: SimContext): SimTask {
     },
     ctx,
   )
-  ctx.statusText = "Plugging the other end into the PCB motor header"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: plugging the other end into the PCB motor header`
   yield* plugIn(
     {
       plug: motorCable.boardPlug,
@@ -428,73 +414,88 @@ function* plugInMotorCable(ctx: SimContext): SimTask {
   motorCable.cable.slackOffset.set(0, 0.014, 0)
 }
 
-function* pickUpMotorAssembly(ctx: SimContext): SimTask {
+function* rackFinishedAssembly(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  const { jigTop } = ASSEMBLY_BENCH_SPOTS
-  ctx.statusText = "Lifting the finished motor assembly out of the jig"
+  const { motor } = world.units[params.unitIndex]
+  const hand = operator.rightHand
+  ctx.statusText = `Unit ${params.unitIndex + 1}: setting the finished assembly in the rack`
   yield* grabObject({
-    hand: operator.rightHand,
-    object: world.motor.group,
+    hand,
+    object: motor.group,
     localGripPoint: new Vector3(0, 0.03, 0.021),
     fingerCurl: 0.6,
-    durationSeconds: 0.7,
+    durationSeconds: 0.6,
   })
-  yield* moveObject(
+  yield* liftAndPlace(
     {
-      object: world.motor.group,
-      hand: operator.rightHand,
-      parent: world.tables.assembly_bench,
-      localPosition: new Vector3(jigTop.x, jigTop.y + 0.05, jigTop.z),
+      object: motor.group,
+      hand,
+      parent: world.finishedRack.group,
+      localPosition: world.finishedRack.slots[params.unitIndex].position,
       localQuaternion: IDENTITY_QUATERNION,
-      durationSeconds: 0.5,
+      liftHeightM: 0.06,
+      travelSeconds: 0.9,
     },
     ctx,
   )
-  holdInHand({ hand: operator.rightHand, object: world.motor.group })
-  yield* bringHandToCarryPose(operator.rightHand, ctx)
+  yield* releaseHand(hand)
 }
 
-export const ASSEMBLY_BENCH_STEPS: JobStep[] = [
-  {
-    label: "Take a spacer from the basket",
-    station: STATIONS.spacers,
-    closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.9 },
-    getFocusPoint: getSpacerBasketFocusPoint,
-    run: takeSpacerFromBasket,
-  },
+function* carryFinishedRackToQc(_params: UnitParams, ctx: SimContext): SimTask {
+  const { world } = ctx
+  ctx.statusText = "Carrying the rack of assemblies to the QC bench"
+  yield* carryWithBothHands(
+    {
+      item: world.finishedRack.group,
+      leftHandle: world.finishedRack.leftHandle,
+      rightHandle: world.finishedRack.rightHandle,
+      liftHeightM: 0.2,
+      toStation: STATIONS.qc,
+      toParent: world.tables.qc_bench,
+      toPosition: QC_BENCH_SPOTS.incomingRack,
+    },
+    ctx,
+  )
+}
+
+const ASSEMBLY_STEPS: JobStep[] = [
   {
     label: "Load a motor in the jig",
     station: STATIONS.assembly,
     closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.95 },
-    getFocusPoint: getJigFocusPoint,
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
     run: loadMotorIntoJig,
   },
   {
     label: "Remove 4 stock screws to the used bin",
     station: STATIONS.assembly,
     closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.65 },
-    getFocusPoint: getJigFocusPoint,
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
     run: removeStockScrews,
   },
   {
-    label: "Fit spacer on the back face",
+    label: "Fit a spacer from the basket",
     station: STATIONS.assembly,
-    closeUpView: ASSEMBLY_CLOSE_UP,
-    getFocusPoint: getJigFocusPoint,
-    run: fitSpacer,
+    closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.65 },
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
+    run: fitSpacerFromBasket,
+    getBlocker: (_params, ctx) =>
+      ctx.world.spacerStock.length > 0
+        ? null
+        : "The spacer basket is empty. Collect prints from the 3D printers and refill it.",
   },
   {
     label: "Fit controller PCB",
     station: STATIONS.assembly,
     closeUpView: ASSEMBLY_CLOSE_UP,
-    getFocusPoint: getJigFocusPoint,
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
     run: fitControllerPcb,
   },
   {
     label: "Drive 4 long screws from the bin",
     station: STATIONS.assembly,
     closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.65 },
-    getFocusPoint: getJigFocusPoint,
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
     run: driveLongScrews,
   },
   {
@@ -505,14 +506,35 @@ export const ASSEMBLY_BENCH_STEPS: JobStep[] = [
       elevationRadians: 0.4,
       distanceM: 0.45,
     },
-    getFocusPoint: getJigFocusPoint,
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
     run: plugInMotorCable,
   },
   {
-    label: "Pick up the motor assembly",
+    label: "Rack the finished assembly",
     station: STATIONS.assembly,
-    closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.8 },
-    getFocusPoint: getJigFocusPoint,
-    run: pickUpMotorAssembly,
+    closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 0.95 },
+    getFocusPoint: (_params, ctx) => getJigFocusPoint(ctx),
+    run: rackFinishedAssembly,
   },
 ]
+
+export const ASSEMBLY_STAGE: JobStage = {
+  label: "Assembly",
+  isPerUnit: true,
+  steps: ASSEMBLY_STEPS,
+}
+
+export const CARRY_FINISHED_RACK_STAGE: JobStage = {
+  label: "Carry the rack to QC",
+  isPerUnit: false,
+  steps: [
+    {
+      label: "Carry the rack to QC",
+      station: STATIONS.assembly,
+      closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 1.6 },
+      getFocusPoint: (_params, ctx) =>
+        ctx.world.finishedRack.group.getWorldPosition(new Vector3()),
+      run: carryFinishedRackToQc,
+    },
+  ],
+}

@@ -1,10 +1,16 @@
 import { Group, type Object3D, Vector3 } from "three"
 import {
+  BATCH_SIZE,
   FOLDING_TABLE,
   TABLE_PLACEMENTS,
   type TableId,
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
+import {
+  type BambuPrinter,
+  createBambuPrinter,
+  populatePlate,
+} from "lib/models/bambu-printer"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
   COILED_USB_CABLE,
@@ -16,20 +22,39 @@ import {
 } from "lib/models/controller-pcb"
 import { createFlexCable, type FlexCable } from "lib/models/flex-cable"
 import { createFoldingTable } from "lib/models/folding-table"
+import { createInkjetPrinter } from "lib/models/inkjet-printer"
+import {
+  createLabelSheet,
+  LABEL_SHEET,
+  type LabelSheet,
+} from "lib/models/label-sheet"
+import {
+  createMotorFoamStand,
+  createMotorRack,
+  type MotorRack,
+} from "lib/models/motor-rack"
 import {
   createM3Screw,
   createNema17Motor,
   LONG_SCREW_SHANK_M,
   type Nema17Motor,
 } from "lib/models/nema17-motor"
+import { createPackingTote, type PackingTote } from "lib/models/packing-tote"
 import { createPartsBin, PARTS_BIN } from "lib/models/parts-bin"
 import { type CablePlug, createJstPlug, createUsbCPlug } from "lib/models/plugs"
 import { createQcCradle } from "lib/models/qc-cradle"
 import { createQcLaptop, type QcLaptop } from "lib/models/qc-laptop"
 import { createScrewdriver, type Screwdriver } from "lib/models/screwdriver"
-import { createSpacerBasket } from "lib/models/spacer-basket"
-import { createInkjetPrinter } from "lib/models/inkjet-printer"
-import { createLabelSheet } from "lib/models/label-sheet"
+import {
+  createShippingCarton,
+  type ShippingCarton,
+} from "lib/models/shipping-carton"
+import {
+  ASSEMBLY_SPACER_BASKET,
+  createSpacerBasket,
+  getSpacerPilePosition,
+  SPACER_TUB,
+} from "lib/models/spacer-basket"
 import {
   createGanChargingStation,
   createUsbCharger,
@@ -50,8 +75,10 @@ import {
 import { BLACK_PLASTIC_MATERIAL } from "lib/scene/shared-materials"
 import {
   ASSEMBLY_BENCH_SPOTS,
+  LABEL_BENCH_SPOTS,
   PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
+  PRINTER_BENCH_SPOTS,
   QC_BENCH_SPOTS,
   SCREW_LYING_QUATERNION,
   SCREWDRIVER_REST_QUATERNION,
@@ -71,54 +98,86 @@ export interface QcCable {
   plug: CablePlug
 }
 
-/**
- * Everything movable on the line. Single-object fields are the units used by
- * the current job; the rest of each stack is scenery.
- */
+/** Everything that goes into one finished, packed unit. */
+export interface AssemblyUnit {
+  motor: Nema17Motor
+  pcb: ControllerPcb
+  /** Taken from the basket when the spacer is fitted. */
+  spacer: Group | null
+  /** Taken from the long-screw bin when they are driven. */
+  longScrews: Group[]
+  /** Taken from the cable bin when it is plugged in. */
+  motorCable: MotorCable | null
+  box: WhiteMailerBox
+  usbCables: Group[]
+  charger: Group
+  label: Group
+}
+
+/** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
+export interface LabelPrinterState {
+  group: Group
+  outputStack: Group
+  printedSheets: Group[]
+  secondsSinceLastSheet: number
+}
+
+/** Everything movable on the floor. */
 export interface ManufacturingWorld {
   root: Group
   tables: Record<TableId, Group>
-  spacer: Group
-  motor: Nema17Motor
-  pcb: ControllerPcb
+  units: AssemblyUnit[]
+  motorFoamStand: MotorRack
+  /** Rack the assembled units go into; carried from assembly to QC. */
+  finishedRack: MotorRack
+  /** Rack the tested units go into; carried from QC to pack-out. */
+  readyRack: MotorRack
+  spacerBasket: Group
+  /** Spacers in the basket, in pile order; the last one is on top. */
+  spacerStock: Group[]
   screwdriver: Screwdriver
   longScrewBin: Group
   usedScrewBin: Group
-  /** Bin of pre-crimped JST-PH motor cables. */
   cableBin: Group
-  /** Four long screws for this unit, in the long-screw bin. */
-  longScrews: Group[]
-  /** Stock screws taken out of the motor, in the used-screw bin. */
+  /** Stock screws taken out of the motors, in the used-screw bin. */
   removedStockScrews: Group[]
-  motorCable: MotorCable
   laptop: QcLaptop
   qcDataCable: QcCable
   qcPowerCable: QcCable
-  box: WhiteMailerBox
-  packedUsbCables: Group[]
-  packedCharger: Group
-  labelSheet: Group
-  /** The label for this unit, still on the sheet. */
-  sticker: Group
+  /** Label sheets on the pack-out bench, top sheet first. */
+  labelSheets: LabelSheet[]
+  packingTote: PackingTote
+  carton: ShippingCarton
+  printers: BambuPrinter[]
+  /** Empty tubs on the printer bench; the last one is used next. */
+  emptyTubs: Group[]
+  /** Tubs emptied into the basket, stacked on the assembly bench. */
+  usedTubs: Group[]
+  /** The tub being carried, and the spacers in it. */
+  carriedTub: Group | null
+  tubSpacers: Group[]
+  labelPrinter: LabelPrinterState
   /** Every cable whose wire must be redrawn as its ends move. */
   cables: FlexCable[]
 }
 
 const TOP = FOLDING_TABLE.topHeightM
-const MOTOR_TRAY_COLUMNS = 4
-const MOTOR_TRAY_ROWS = 3
-const PCBS_PER_STACK = 5
+const PCBS_PER_STACK = 10
 const JIG_HEIGHT_M = 0.03
-const SPARE_SPACER_COUNT = 16
+/** Enough for one batch plus a few; the printers refill the basket. */
+const STARTING_SPACER_COUNT = 34
 const SPARE_LONG_SCREW_COUNT = 18
-const SPARE_MOTOR_CABLE_COUNT = 4
-const BOXES_IN_STACK = 3
-const COILS_IN_STACK = 4
-const CHARGERS_IN_STACK = 3
+const SPARE_MOTOR_CABLE_COUNT = 6
+const BOXES_PER_STACK = 6
+const COILS_PER_STACK = 20
+const CHARGERS_PER_STACK = 10
+const LABEL_SHEET_COUNT = 3
+const EMPTY_TUB_COUNT = 3
+const TUB_NESTING_M = 0.012
 const CABLE_RADIUS_M = 0.0018
 
 /** Deterministic pseudo-random 0..1 so scenery is the same on every run. */
-function scatter(seed: number): number {
+export function scatter(seed: number): number {
   const x = Math.sin(seed * 127.1) * 43758.5453
   return x - Math.floor(x)
 }
@@ -132,25 +191,18 @@ function createPlacedTable(tableId: TableId): Group {
   return table
 }
 
-function addSpacerBasket(table: Group): Group {
-  const basket = createSpacerBasket()
-  basket.position.copy(ASSEMBLY_BENCH_SPOTS.spacerBasket)
-  table.add(basket)
-  for (let index = 0; index < SPARE_SPACER_COUNT; index++) {
-    const spacer = createBackfaceSpacer()
-    spacer.position.set(
-      (scatter(index + 1) - 0.5) * 0.15,
-      0.003 + Math.floor(index / 6) * 0.0042,
-      (scatter(index + 40) - 0.5) * 0.09,
-    )
-    spacer.rotation.y = scatter(index + 80) * Math.PI
-    basket.add(spacer)
-  }
-  const spacer = createBackfaceSpacer()
-  spacer.position.set(-0.04, 0.0175, 0.035)
-  spacer.rotation.y = 0.3
-  basket.add(spacer)
-  return spacer
+/** Put a spacer at the next pile position in a basket or tub. */
+export function addSpacerToPile(params: {
+  container: Group
+  size: typeof ASSEMBLY_SPACER_BASKET
+  spacer: Group
+  index: number
+}): void {
+  params.container.add(params.spacer)
+  params.spacer.position.copy(
+    getSpacerPilePosition({ index: params.index, container: params.size }),
+  )
+  params.spacer.rotation.set(0, (scatter(params.index + 80) - 0.5) * 0.8, 0)
 }
 
 function addScrewsToBin(params: {
@@ -179,95 +231,31 @@ function addScrewsToBin(params: {
   return screws
 }
 
-function addMotorTray(table: Group): Nema17Motor {
-  const spots = ASSEMBLY_BENCH_SPOTS
-  const pitchM = spots.motorTraySpacingM
-  const tray = createRectangleShape({
-    widthM: MOTOR_TRAY_COLUMNS * pitchM + 0.03,
-    depthM: MOTOR_TRAY_ROWS * pitchM + 0.015,
+/** Lay out four long screws for the next unit on top, near the bin's scoop. */
+export function setOutLongScrews(params: {
+  bin: Group
+  unitIndex: number
+}): Group[] {
+  const screws = addScrewsToBin({
+    bin: params.bin,
+    count: 4,
+    seedOffset: 300 + params.unitIndex * 7,
   })
-  const slotOffsets: Array<{ x: number; z: number }> = []
-  for (let row = 0; row < MOTOR_TRAY_ROWS; row++) {
-    for (let column = 0; column < MOTOR_TRAY_COLUMNS; column++) {
-      const offset = {
-        x: (column - (MOTOR_TRAY_COLUMNS - 1) / 2) * pitchM,
-        z: (row - (MOTOR_TRAY_ROWS - 1) / 2) * pitchM,
-      }
-      slotOffsets.push(offset)
-      // Shape Y maps to -Z after extrusion.
-      tray.holes.push(
-        createCircleHole({ x: offset.x, y: -offset.z, radiusM: 0.012 }),
-      )
-    }
-  }
-  const trayMesh = createExtrudedMesh({
-    shape: tray,
-    depthM: JIG_HEIGHT_M,
-    material: createStandardMaterial({ color: 0x39424b }),
-    baseYM: TOP,
-  })
-  trayMesh.position.x = spots.motorTrayCenter.x
-  trayMesh.position.z = spots.motorTrayCenter.z
-  table.add(trayMesh)
-  const motors = slotOffsets.map((offset) => {
-    const motor = createNema17Motor()
-    motor.group.position.set(
-      spots.motorTrayCenter.x + offset.x,
-      TOP + JIG_HEIGHT_M,
-      spots.motorTrayCenter.z + offset.z,
-    )
-    table.add(motor.group)
-    return motor
-  })
-  // Take from the front row, nearest the jig.
-  return motors[(MOTOR_TRAY_ROWS - 1) * MOTOR_TRAY_COLUMNS]
+  for (const [index, screw] of screws.entries())
+    screw.position.set((index - 1.5) * 0.02, 0.0125, 0.035)
+  return screws
 }
 
-function addPcbStacks(table: Group): ControllerPcb {
-  const spots = ASSEMBLY_BENCH_SPOTS
-  const stacks = spots.pcbStackBases.map((base) => {
-    table.add(
-      createBoxMesh({
-        size: [0.06, 0.004, 0.06],
-        material: BLACK_PLASTIC_MATERIAL,
-        position: [base.x, base.y - 0.002, base.z],
-      }),
-    )
-    const pcbs: ControllerPcb[] = []
-    for (let level = 0; level < PCBS_PER_STACK; level++) {
-      const pcb = createControllerPcb()
-      pcb.group.position.copy(base)
-      pcb.group.position.y += level * spots.pcbStackSpacingM
-      table.add(pcb.group)
-      pcbs.push(pcb)
-    }
-    return pcbs
-  })
-  return stacks[0][PCBS_PER_STACK - 1]
-}
-
-/** Cable bin with spare coiled cables and, on top, the cable for this unit with both plugs at the scoop. */
-function addCableBin(table: Group): {
-  cableBin: Group
-  motorCable: MotorCable
-} {
-  const cableBin = createPartsBin({ labelColor: 0xf2c230 })
-  cableBin.position.copy(ASSEMBLY_BENCH_SPOTS.cableBin)
-  table.add(cableBin)
-  for (let index = 0; index < SPARE_MOTOR_CABLE_COUNT; index++) {
-    const coil = createCoiledJstCable()
-    coil.position.set(
-      (scatter(index + 500) - 0.5) * 0.03,
-      0.0025 + index * 0.0028,
-      -0.02 + (scatter(index + 520) - 0.5) * 0.03,
-    )
-    coil.rotation.y = scatter(index + 540) * Math.PI * 2
-    cableBin.add(coil)
-  }
+/** Lay out the next pre-crimped cable with both plugs at the cable bin's scoop. */
+export function setOutMotorCable(params: {
+  world: ManufacturingWorld
+}): MotorCable {
+  const { world } = params
+  const { cableBin } = world
   const motorPlug = createJstPlug()
   const boardPlug = createJstPlug()
   for (const [index, plug] of [motorPlug, boardPlug].entries()) {
-    plug.group.position.set(-0.015 + index * 0.03, 0.016, 0.035)
+    plug.group.position.set(-0.015 + index * 0.03, 0.022, 0.035)
     plug.group.quaternion.copy(PLUG_LYING_QUATERNION)
     cableBin.add(plug.group)
   }
@@ -281,27 +269,39 @@ function addCableBin(table: Group): {
     leadLengthM: 0.012,
   })
   cable.slackFrame = cableBin
-  return { cableBin, motorCable: { cable, motorPlug, boardPlug } }
+  world.root.add(cable.wire)
+  world.cables.push(cable)
+  return { cable, motorPlug, boardPlug }
 }
 
-function populateAssemblyBench(
-  table: Group,
-): Pick<
-  ManufacturingWorld,
-  | "spacer"
-  | "motor"
-  | "pcb"
-  | "screwdriver"
-  | "longScrewBin"
-  | "usedScrewBin"
-  | "cableBin"
-  | "longScrews"
-  | "motorCable"
-> {
+function populateAssemblyBench(table: Group) {
   const spots = ASSEMBLY_BENCH_SPOTS
-  const spacer = addSpacerBasket(table)
-  const motor = addMotorTray(table)
-  const pcb = addPcbStacks(table)
+  const spacerBasket = createSpacerBasket(ASSEMBLY_SPACER_BASKET)
+  spacerBasket.position.copy(spots.spacerBasket)
+  table.add(spacerBasket)
+  const spacerStock: Group[] = []
+  for (let index = 0; index < STARTING_SPACER_COUNT; index++) {
+    const spacer = createBackfaceSpacer()
+    addSpacerToPile({
+      container: spacerBasket,
+      size: ASSEMBLY_SPACER_BASKET,
+      spacer,
+      index,
+    })
+    spacerStock.push(spacer)
+  }
+
+  const motorFoamStand = createMotorFoamStand()
+  motorFoamStand.group.position.copy(spots.motorFoamStand)
+  const motors = motorFoamStand.slots.map((slot) => {
+    const motor = createNema17Motor()
+    motor.group.position.copy(slot.position)
+    motorFoamStand.group.add(motor.group)
+    return motor
+  })
+  const finishedRack = createMotorRack()
+  finishedRack.group.position.copy(spots.finishedRack)
+  table.add(motorFoamStand.group, finishedRack.group)
 
   const jig = createRectangleShape({ widthM: 0.07, depthM: 0.07 })
   jig.holes.push(createCircleHole({ x: 0, y: 0, radiusM: 0.012 }))
@@ -319,22 +319,45 @@ function populateAssemblyBench(
   longScrewBin.position.copy(spots.longScrewBin)
   const usedScrewBin = createPartsBin({ labelColor: 0xd04a3c })
   usedScrewBin.position.copy(spots.usedScrewBin)
-  table.add(longScrewBin, usedScrewBin)
+  const cableBin = createPartsBin({ labelColor: 0xf2c230 })
+  cableBin.position.copy(spots.cableBin)
+  table.add(longScrewBin, usedScrewBin, cableBin)
   addScrewsToBin({
     bin: longScrewBin,
     count: SPARE_LONG_SCREW_COUNT,
     seedOffset: 1,
   })
-  const longScrews = addScrewsToBin({
-    bin: longScrewBin,
-    count: 4,
-    seedOffset: 300,
-  })
-  for (const [index, screw] of longScrews.entries()) {
-    // The four for this unit sit on top, near the scoop.
-    screw.position.set((index - 1.5) * 0.02, 0.0125, 0.035)
+  for (let index = 0; index < SPARE_MOTOR_CABLE_COUNT; index++) {
+    const coil = createCoiledJstCable()
+    coil.position.set(
+      (scatter(index + 500) - 0.5) * 0.03,
+      0.0025 + index * 0.0028,
+      -0.02 + (scatter(index + 520) - 0.5) * 0.03,
+    )
+    coil.rotation.y = scatter(index + 540) * Math.PI * 2
+    cableBin.add(coil)
   }
-  const { cableBin, motorCable } = addCableBin(table)
+
+  const pcbs: ControllerPcb[] = []
+  for (const base of spots.pcbStackBases) {
+    table.add(
+      createBoxMesh({
+        size: [0.06, 0.004, 0.06],
+        material: BLACK_PLASTIC_MATERIAL,
+        position: [base.x, base.y - 0.002, base.z],
+      }),
+    )
+    const stack: ControllerPcb[] = []
+    for (let level = 0; level < PCBS_PER_STACK; level++) {
+      const pcb = createControllerPcb()
+      pcb.group.position.copy(base)
+      pcb.group.position.y += level * spots.pcbStackSpacingM
+      table.add(pcb.group)
+      stack.push(pcb)
+    }
+    // Take from the top of each stack, nearest stack first.
+    pcbs.push(...stack.reverse())
+  }
 
   const screwdriver = createScrewdriver()
   screwdriver.group.position.copy(spots.screwdriverRest)
@@ -342,15 +365,16 @@ function populateAssemblyBench(
   table.add(screwdriver.group)
 
   return {
-    spacer,
-    motor,
-    pcb,
+    spacerBasket,
+    spacerStock,
+    motorFoamStand,
+    finishedRack,
+    motors,
+    pcbs,
     screwdriver,
     longScrewBin,
     usedScrewBin,
     cableBin,
-    longScrews,
-    motorCable,
   }
 }
 
@@ -378,9 +402,7 @@ function createQcCable(params: {
   return { cable, plug }
 }
 
-function populateQcBench(
-  table: Group,
-): Pick<ManufacturingWorld, "laptop" | "qcDataCable" | "qcPowerCable"> {
+function populateQcBench(table: Group) {
   const spots = QC_BENCH_SPOTS
   const laptop = createQcLaptop()
   laptop.group.position.copy(spots.laptop)
@@ -388,9 +410,12 @@ function populateQcBench(
   cradle.position.copy(spots.cradle)
   const chargingStation = createGanChargingStation()
   chargingStation.group.position.copy(spots.chargingStation)
-  table.add(laptop.group, cradle, chargingStation.group)
+  const readyRack = createMotorRack()
+  readyRack.group.position.copy(spots.readyRack)
+  table.add(laptop.group, cradle, chargingStation.group, readyRack.group)
   return {
     laptop,
+    readyRack,
     qcDataCable: createQcCable({
       table,
       startAnchor: laptop.usbPortAnchor,
@@ -406,93 +431,196 @@ function populateQcBench(
   }
 }
 
-function populatePackOutBench(
-  table: Group,
-): Pick<
-  ManufacturingWorld,
-  "box" | "packedUsbCables" | "packedCharger" | "labelSheet" | "sticker"
-> {
+function addStacks<T extends Object3D>(params: {
+  table: Group
+  bases: Vector3[]
+  perStack: number
+  heightM: number
+  create: (index: number) => T
+}): T[] {
+  const items: T[] = []
+  for (const base of params.bases) {
+    const stack: T[] = []
+    for (let level = 0; level < params.perStack; level++) {
+      const item = params.create(items.length + stack.length)
+      item.position.copy(base)
+      item.position.y += level * params.heightM
+      params.table.add(item)
+      stack.push(item)
+    }
+    // Take from the top of each stack, first stack first.
+    items.push(...stack.reverse())
+  }
+  return items
+}
+
+function populatePackOutBench(table: Group) {
   const spots = PACK_OUT_BENCH_SPOTS
   const boxes: WhiteMailerBox[] = []
-  for (let level = 0; level < BOXES_IN_STACK; level++) {
-    const box = createWhiteMailerBox()
-    box.group.position.copy(spots.boxStack)
-    box.group.position.y += level * (WHITE_MAILER_BOX.heightM + 0.004)
-    table.add(box.group)
-    boxes.push(box)
+  addStacks({
+    table,
+    bases: spots.boxStacks,
+    perStack: BOXES_PER_STACK,
+    heightM: WHITE_MAILER_BOX.heightM + 0.004,
+    create: () => {
+      const box = createWhiteMailerBox()
+      boxes.push(box)
+      return box.group
+    },
+  })
+  const boxesTopFirst = spots.boxStacks.flatMap((_, stackIndex) =>
+    boxes
+      .slice(stackIndex * BOXES_PER_STACK, (stackIndex + 1) * BOXES_PER_STACK)
+      .reverse(),
+  )
+  const coils = addStacks({
+    table,
+    bases: spots.cableCoilStacks,
+    perStack: COILS_PER_STACK,
+    heightM: COILED_USB_CABLE.heightM,
+    create: (index) => {
+      const coil = createCoiledUsbCable()
+      coil.rotation.y = index * 0.7
+      return coil
+    },
+  })
+  const chargers = addStacks({
+    table,
+    bases: spots.chargerStacks,
+    perStack: CHARGERS_PER_STACK,
+    heightM: USB_CHARGER.heightM,
+    create: () => createUsbCharger().group,
+  })
+  const labelSheets: LabelSheet[] = []
+  for (let level = 0; level < LABEL_SHEET_COUNT; level++) {
+    const sheet = createLabelSheet()
+    sheet.group.position.copy(spots.labelSheets)
+    sheet.group.position.y += (LABEL_SHEET_COUNT - 1 - level) * 0.0006
+    table.add(sheet.group)
+    labelSheets.push(sheet)
   }
-  const coils: Group[] = []
-  for (let level = 0; level < COILS_IN_STACK; level++) {
-    const coil = createCoiledUsbCable()
-    coil.position.copy(spots.cableCoilStack)
-    coil.position.y += level * COILED_USB_CABLE.heightM
-    coil.rotation.y = level * 0.7
-    table.add(coil)
-    coils.push(coil)
+  // Peel from the front row of the top sheet, then the next sheet.
+  const labels = labelSheets.flatMap((sheet) => [...sheet.labels].reverse())
+  const packingTote = createPackingTote()
+  packingTote.group.position.copy(spots.tote)
+  table.add(packingTote.group)
+  return {
+    boxes: boxesTopFirst,
+    coils,
+    chargers,
+    labels,
+    labelSheets,
+    packingTote,
   }
-  const chargers: Group[] = []
-  for (let level = 0; level < CHARGERS_IN_STACK; level++) {
-    const charger = createUsbCharger().group
-    charger.position.copy(spots.chargerStack)
-    charger.position.y += level * USB_CHARGER.heightM
-    table.add(charger)
-    chargers.push(charger)
+}
+
+function populateShipReadyBench(table: Group): ShippingCarton {
+  const carton = createShippingCarton()
+  carton.group.position.copy(SHIP_READY_BENCH_SPOTS.carton)
+  table.add(carton.group)
+  return carton
+}
+
+function populatePrinterBench(table: Group) {
+  const spots = PRINTER_BENCH_SPOTS
+  const p2s = createBambuPrinter("P2S")
+  p2s.group.position.copy(spots.p2s)
+  const h2s = createBambuPrinter("H2S")
+  h2s.group.position.copy(spots.h2s)
+  table.add(p2s.group, h2s.group)
+  // Both printers have just finished a full plate.
+  for (const printer of [p2s, h2s]) populatePlate(printer)
+  const emptyTubs: Group[] = []
+  for (let level = 0; level < EMPTY_TUB_COUNT; level++) {
+    const tub = createSpacerBasket(SPACER_TUB)
+    tub.position.copy(spots.emptyTubs)
+    tub.position.y += level * TUB_NESTING_M
+    table.add(tub)
+    emptyTubs.push(tub)
   }
+  return { printers: [p2s, h2s], emptyTubs }
+}
+
+function populateLabelBench(table: Group): LabelPrinterState {
+  const spots = LABEL_BENCH_SPOTS
   const printer = createInkjetPrinter()
   printer.position.copy(spots.inkjetPrinter)
-  const labelSheet = createLabelSheet()
-  labelSheet.group.position.copy(spots.labelSheet)
-  table.add(printer, labelSheet.group)
-  // Take labels from the front row, nearest the operator.
-  const sticker = labelSheet.labels[labelSheet.labels.length - 1]
+  const outputStack = new Group()
+  outputStack.position.copy(spots.printedSheets)
+  const blankSheets = createBoxMesh({
+    size: [LABEL_SHEET.widthM + 0.01, 0.05, LABEL_SHEET.lengthM + 0.01],
+    material: createStandardMaterial({ color: 0xe8e2d4, roughness: 0.9 }),
+    position: [spots.blankSheets.x, TOP + 0.025, spots.blankSheets.z],
+  })
+  table.add(printer, outputStack, blankSheets)
   return {
-    box: boxes[BOXES_IN_STACK - 1],
-    packedUsbCables: [coils[COILS_IN_STACK - 1], coils[COILS_IN_STACK - 2]],
-    packedCharger: chargers[CHARGERS_IN_STACK - 1],
-    labelSheet: labelSheet.group,
-    sticker,
+    group: printer,
+    outputStack,
+    printedSheets: [],
+    secondsSinceLastSheet: 0,
   }
 }
 
-function populateShipReadyBench(table: Group): void {
-  const { outgoing } = SHIP_READY_BENCH_SPOTS
-  table.add(
-    createBoxMesh({
-      size: [0.62, 0.002, 0.36],
-      material: createStandardMaterial({ color: 0x2e7d5b, roughness: 0.9 }),
-      position: [outgoing.x + 0.12, TOP + 0.001, outgoing.z + 0.02],
-    }),
-  )
-}
-
-/** Build the four line benches and every part on them, in their starting state. */
+/** Build every bench and every part on it, in its starting state. */
 export function createWorld(): ManufacturingWorld {
   const root = new Group()
-  const tables: Record<TableId, Group> = {
-    assembly_bench: createPlacedTable("assembly_bench"),
-    qc_bench: createPlacedTable("qc_bench"),
-    pack_out_bench: createPlacedTable("pack_out_bench"),
-    ship_ready_bench: createPlacedTable("ship_ready_bench"),
-  }
+  const tableIds = Object.keys(TABLE_PLACEMENTS) as TableId[]
+  const tables = Object.fromEntries(
+    tableIds.map((tableId) => [tableId, createPlacedTable(tableId)]),
+  ) as Record<TableId, Group>
   for (const table of Object.values(tables)) root.add(table)
   const assemblyBench = populateAssemblyBench(tables.assembly_bench)
   const qcBench = populateQcBench(tables.qc_bench)
   const packOutBench = populatePackOutBench(tables.pack_out_bench)
-  populateShipReadyBench(tables.ship_ready_bench)
-  const cables = [
-    assemblyBench.motorCable.cable,
-    qcBench.qcDataCable.cable,
-    qcBench.qcPowerCable.cable,
-  ]
+  const carton = populateShipReadyBench(tables.ship_ready_bench)
+  const printerBench = populatePrinterBench(tables.printer_bench)
+  const labelPrinter = populateLabelBench(tables.label_bench)
+  const units: AssemblyUnit[] = []
+  for (let unitIndex = 0; unitIndex < BATCH_SIZE; unitIndex++) {
+    units.push({
+      motor: assemblyBench.motors[unitIndex],
+      pcb: assemblyBench.pcbs[unitIndex],
+      spacer: null,
+      longScrews: [],
+      motorCable: null,
+      box: packOutBench.boxes[unitIndex],
+      usbCables: [
+        packOutBench.coils[unitIndex * 2],
+        packOutBench.coils[unitIndex * 2 + 1],
+      ],
+      charger: packOutBench.chargers[unitIndex],
+      label: packOutBench.labels[unitIndex],
+    })
+  }
+  const cables = [qcBench.qcDataCable.cable, qcBench.qcPowerCable.cable]
   for (const cable of cables) root.add(cable.wire)
   root.updateMatrixWorld(true)
   return {
     root,
     tables,
-    ...assemblyBench,
-    ...qcBench,
-    ...packOutBench,
+    units,
+    motorFoamStand: assemblyBench.motorFoamStand,
+    finishedRack: assemblyBench.finishedRack,
+    readyRack: qcBench.readyRack,
+    spacerBasket: assemblyBench.spacerBasket,
+    spacerStock: assemblyBench.spacerStock,
+    screwdriver: assemblyBench.screwdriver,
+    longScrewBin: assemblyBench.longScrewBin,
+    usedScrewBin: assemblyBench.usedScrewBin,
+    cableBin: assemblyBench.cableBin,
     removedStockScrews: [],
+    laptop: qcBench.laptop,
+    qcDataCable: qcBench.qcDataCable,
+    qcPowerCable: qcBench.qcPowerCable,
+    labelSheets: packOutBench.labelSheets,
+    packingTote: packOutBench.packingTote,
+    carton,
+    printers: printerBench.printers,
+    emptyTubs: printerBench.emptyTubs,
+    usedTubs: [],
+    carriedTub: null,
+    tubSpacers: [],
+    labelPrinter,
     cables,
   }
 }

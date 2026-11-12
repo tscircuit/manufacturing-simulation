@@ -96,6 +96,7 @@ interface OperatorMaterials {
   shoe: Material
   hair: Material
   belt: Material
+  lips: Material
   eyeWhite: Material
   iris: Material
 }
@@ -149,6 +150,102 @@ function createLathe(params: {
   return mesh
 }
 
+/** Hair cap: the top of a sphere, tilted back so it frames the forehead and covers the crown and nape. */
+function createHairCap(params: {
+  radii: [number, number, number]
+  position: [number, number, number]
+  thetaLength: number
+  backwardTiltRadians: number
+  material: Material
+}): Mesh {
+  const cap = new Mesh(
+    new SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, params.thetaLength),
+    params.material,
+  )
+  cap.scale.set(...params.radii)
+  cap.position.set(...params.position)
+  cap.rotation.x = -params.backwardTiltRadians
+  cap.castShadow = true
+  return cap
+}
+
+function createHead(materials: OperatorMaterials): Group {
+  const head = new Group()
+  head.position.set(0, OPERATOR_BODY.neckAboveHipM, 0)
+  head.add(
+    // Cranium, cheeks and jaw
+    createScaledSphere({
+      radii: [0.079, 0.098, 0.092],
+      material: materials.skin,
+      position: [0, 0.142, 0.002],
+    }),
+    createScaledSphere({
+      radii: [0.066, 0.06, 0.07],
+      material: materials.skin,
+      position: [0, 0.09, 0.02],
+    }),
+    createScaledSphere({
+      radii: [0.03, 0.022, 0.03],
+      material: materials.skin,
+      position: [0, 0.058, 0.05],
+    }),
+    // Hair: a full cap over the crown, a fuller back, and short sides above the ears
+    createHairCap({
+      radii: [0.086, 0.104, 0.099],
+      position: [0, 0.146, -0.004],
+      thetaLength: Math.PI * 0.56,
+      backwardTiltRadians: 0.42,
+      material: materials.hair,
+    }),
+    createScaledSphere({
+      radii: [0.074, 0.072, 0.05],
+      material: materials.hair,
+      position: [0, 0.135, -0.052],
+    }),
+    // Nose and mouth
+    createScaledSphere({
+      radii: [0.0105, 0.019, 0.016],
+      material: materials.skin,
+      position: [0, 0.126, 0.091],
+    }),
+    createScaledSphere({
+      radii: [0.017, 0.0032, 0.004],
+      material: materials.lips,
+      position: [0, 0.093, 0.085],
+    }),
+  )
+  for (const sideX of [-1, 1]) {
+    head.add(
+      createScaledSphere({
+        radii: [0.011, 0.022, 0.015],
+        material: materials.skin,
+        position: [sideX * 0.08, 0.133, 0.004],
+      }),
+      createScaledSphere({
+        radii: [0.012, 0.035, 0.03],
+        material: materials.hair,
+        position: [sideX * 0.074, 0.165, -0.012],
+      }),
+      createSphereMesh({
+        radiusM: 0.0098,
+        material: materials.eyeWhite,
+        position: [sideX * 0.03, 0.146, 0.08],
+      }),
+      createSphereMesh({
+        radiusM: 0.0052,
+        material: materials.iris,
+        position: [sideX * 0.03, 0.146, 0.0885],
+      }),
+      createScaledSphere({
+        radii: [0.015, 0.0032, 0.005],
+        material: materials.hair,
+        position: [sideX * 0.031, 0.165, 0.086],
+      }),
+    )
+  }
+  return head
+}
+
 function createTorso(materials: OperatorMaterials): {
   torso: Group
   head: Group
@@ -166,22 +263,33 @@ function createTorso(materials: OperatorMaterials): {
       material: materials.pants,
       depthScale: 0.66,
     }),
+    // Chest widens into the shoulders so the arms join the body.
     createLathe({
       profile: [
         [0.15, 0.07],
         [0.143, 0.15],
-        [0.142, 0.22],
-        [0.156, 0.31],
-        [0.172, 0.41],
-        [0.176, 0.47],
-        [0.152, 0.525],
-        [0.085, 0.56],
-        [0, 0.565],
+        [0.143, 0.22],
+        [0.158, 0.31],
+        [0.182, 0.4],
+        [0.198, 0.46],
+        [0.196, 0.5],
+        [0.165, 0.54],
+        [0.09, 0.572],
+        [0, 0.578],
       ],
       material: materials.shirt,
       depthScale: 0.6,
     }),
   )
+  // Shoulder line: trapezius and deltoids, from one shoulder joint to the other.
+  const shoulderLine = new Mesh(
+    new CapsuleGeometry(0.056, 2 * OPERATOR_BODY.shoulderHalfWidthM, 8, 18),
+    materials.shirt,
+  )
+  shoulderLine.rotation.z = Math.PI / 2
+  shoulderLine.scale.set(1, 1, 0.78)
+  shoulderLine.position.set(0, OPERATOR_BODY.shoulderAboveHipM - 0.012, -0.006)
+  shoulderLine.castShadow = true
   const belt = createCylinderMesh({
     radiusTopM: 0.156,
     radiusBottomM: 0.157,
@@ -192,69 +300,19 @@ function createTorso(materials: OperatorMaterials): {
   })
   belt.scale.z = 0.66
   torso.add(
+    shoulderLine,
     belt,
     createCylinderMesh({
-      radiusTopM: 0.04,
-      radiusBottomM: 0.046,
-      heightM: 0.1,
+      radiusTopM: 0.047,
+      radiusBottomM: 0.056,
+      heightM: 0.13,
       material: materials.skin,
-      position: [0, 0.59, 0.005],
-      radialSegments: 14,
+      position: [0, 0.6, 0.006],
+      radialSegments: 16,
     }),
   )
-
-  const head = new Group()
-  head.position.set(0, OPERATOR_BODY.neckAboveHipM, 0)
+  const head = createHead(materials)
   torso.add(head)
-  const hairCap = new Mesh(
-    new SphereGeometry(1, 24, 14, 0, Math.PI * 2, 0, Math.PI * 0.5),
-    materials.hair,
-  )
-  hairCap.scale.set(0.09, 0.11, 0.104)
-  hairCap.position.set(0, 0.142, -0.008)
-  hairCap.castShadow = true
-  head.add(
-    createScaledSphere({
-      radii: [0.084, 0.106, 0.097],
-      material: materials.skin,
-      position: [0, 0.137, 0.006],
-    }),
-    createScaledSphere({
-      radii: [0.068, 0.058, 0.074],
-      material: materials.skin,
-      position: [0, 0.082, 0.02],
-    }),
-    hairCap,
-    createScaledSphere({
-      radii: [0.011, 0.02, 0.015],
-      material: materials.skin,
-      position: [0, 0.12, 0.101],
-    }),
-  )
-  for (const sideX of [-1, 1]) {
-    head.add(
-      createScaledSphere({
-        radii: [0.011, 0.024, 0.017],
-        material: materials.skin,
-        position: [sideX * 0.085, 0.128, 0],
-      }),
-      createSphereMesh({
-        radiusM: 0.0105,
-        material: materials.eyeWhite,
-        position: [sideX * 0.031, 0.143, 0.086],
-      }),
-      createSphereMesh({
-        radiusM: 0.0058,
-        material: materials.iris,
-        position: [sideX * 0.031, 0.143, 0.095],
-      }),
-      createScaledSphere({
-        radii: [0.015, 0.0028, 0.005],
-        material: materials.hair,
-        position: [sideX * 0.032, 0.163, 0.091],
-      }),
-    )
-  }
   return { torso, head }
 }
 
@@ -376,9 +434,9 @@ function createHand(
     hand,
     fingers,
     thumb,
-    shoulder: createSphereMesh({ radiusM: 0.054, material: materials.shirt }),
+    shoulder: createSphereMesh({ radiusM: 0.051, material: materials.shirt }),
     upperArm: createLimbSegment({
-      radiusTopM: 0.047,
+      radiusTopM: 0.05,
       radiusBottomM: 0.036,
       material: materials.shirt,
     }),
@@ -422,6 +480,7 @@ export function createOperator(): Operator {
     shoe: createStandardMaterial({ color: 0x2b2b2d, roughness: 0.55 }),
     hair: createStandardMaterial({ color: 0x3b2b20, roughness: 0.95 }),
     belt: createStandardMaterial({ color: 0x3a2a20, roughness: 0.6 }),
+    lips: createStandardMaterial({ color: 0xa8625a, roughness: 0.6 }),
     eyeWhite: createStandardMaterial({ color: 0xf2efe9, roughness: 0.3 }),
     iris: createStandardMaterial({ color: 0x2f241c, roughness: 0.3 }),
   }

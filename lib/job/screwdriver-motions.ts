@@ -44,10 +44,13 @@ export function* returnScrewdriver(ctx: SimContext): SimTask {
 }
 
 /** Left hand braces the motor body while the right hand drives screws. */
-export function* steadyMotor(ctx: SimContext): SimTask {
+export function* steadyMotor(
+  params: { unitIndex: number },
+  ctx: SimContext,
+): SimTask {
   yield* grabObject({
     hand: ctx.operator.leftHand,
-    object: ctx.world.motor.group,
+    object: ctx.world.units[params.unitIndex].motor.group,
     localGripPoint: new Vector3(-0.0215, 0.018, 0.006),
     fingerCurl: 0.55,
     durationSeconds: 0.6,
@@ -81,7 +84,7 @@ export function* pickUpLooseScrewdriver(ctx: SimContext): SimTask {
     {
       object: world.screwdriver.group,
       hand: operator.rightHand,
-      parent: ctx.scene,
+      parent: ctx.world.root,
       localPosition: tipPosition,
       localQuaternion: holdQuaternion,
       durationSeconds: 0.9,

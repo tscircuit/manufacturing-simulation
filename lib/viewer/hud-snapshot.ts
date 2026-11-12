@@ -11,12 +11,19 @@ export interface HudSnapshot {
   speed: number
   cameraMode: CameraMode
   isAutoCloseUp: boolean
-  steps: Array<{ label: string; seconds: number; state: StepRowState }>
+  steps: Array<{
+    label: string
+    seconds: number
+    completedCount: number
+    runCount: number
+    state: StepRowState
+  }>
   walkingSeconds: number
   cycleSeconds: number
-  /** E: the next step, or Pause / Resume while something runs. */
-  stepPromptLabel: string | null
-  /** C: run the rest of this bench. */
+  /** E: run this bench, collect prints or refill; Pause / Resume while something runs. */
   benchPromptLabel: string | null
   screwdriverPromptLabel: string | null
+  spacersInBasket: number
+  /** One status line per 3D printer. */
+  printerLines: string[]
 }

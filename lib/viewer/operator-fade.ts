@@ -48,6 +48,13 @@ export function getOperatorObstruction(params: {
   })
   if (cameraDistanceM < CAMERA_CLEARANCE_M) return "camera_inside"
   if (!params.checkSightLine) return "none"
+  // Looking at the operator himself is not being blocked by him.
+  const targetDistanceM = getDistanceToSegment({
+    point: lookTarget,
+    segmentStart: bodyBottom,
+    segmentEnd: bodyTop,
+  })
+  if (targetDistanceM < BODY_RADIUS_M) return "none"
   for (let sample = 1; sample < SIGHT_LINE_SAMPLES; sample++) {
     const point = cameraPosition
       .clone()

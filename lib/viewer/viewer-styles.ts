@@ -59,6 +59,8 @@ export const VIEWER_STYLES = `
 .msim .t { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 12px; }
 .msim .tot { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 12px 11px; border-top: 1px solid var(--line); margin-top: 2px; }
 .msim .tot b { font-weight: 600; }
+.msim .tot .printer-line { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.msim ol.rows .count { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 400; }
 .msim .bottom { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; pointer-events: none; }
 .msim .bottom > * { pointer-events: auto; }
 .msim .status { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px; min-width: 0; max-width: 520px; flex: 1 1 240px; }
@@ -71,7 +73,6 @@ export const VIEWER_STYLES = `
 .msim .stick { position: absolute; left: max(20px, env(safe-area-inset-left, 0px)); bottom: calc(120px + env(safe-area-inset-bottom, 0px)); width: 104px; height: 104px; border-radius: 50%; background: var(--panel); border: 1px solid var(--line); touch-action: none; }
 .msim .knob { position: absolute; left: 32px; top: 32px; width: 40px; height: 40px; border-radius: 50%; background: var(--accent); }
 .msim .act { position: absolute; right: max(20px, env(safe-area-inset-right, 0px)); bottom: calc(130px + env(safe-area-inset-bottom, 0px)); width: 72px; height: 72px; border-radius: 50%; font-weight: 600; background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
-.msim .act.run-bench { bottom: calc(214px + env(safe-area-inset-bottom, 0px)); font-size: 12px; line-height: 1.1; }
 @media (max-width: 720px) {
   .msim .timing { top: auto; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); max-height: 45%; }
   .msim .panel { max-height: 55%; }

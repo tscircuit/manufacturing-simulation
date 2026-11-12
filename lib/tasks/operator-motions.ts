@@ -213,7 +213,8 @@ export function* moveObject(
   ctx: SimContext,
 ): SimTask {
   const { object, hand, parent, localPosition, localQuaternion } = params
-  ctx.scene.attach(object)
+  // In transit, parts hang off the world root (identity transform) so a reset clears them.
+  ctx.world.root.attach(object)
   object.userData.isCarried = false
   const startPosition = object.position.clone()
   const startQuaternion = object.quaternion.clone()
@@ -270,7 +271,7 @@ export function* liftAndPlace(
     {
       object,
       hand,
-      parent: ctx.scene,
+      parent: ctx.world.root,
       localPosition: new Vector3(
         startPosition.x,
         carryHeightM,
@@ -285,7 +286,7 @@ export function* liftAndPlace(
     {
       object,
       hand,
-      parent: ctx.scene,
+      parent: ctx.world.root,
       localPosition: new Vector3(endPosition.x, carryHeightM, endPosition.z),
       localQuaternion: endQuaternion,
       durationSeconds: params.travelSeconds ?? 0.8,

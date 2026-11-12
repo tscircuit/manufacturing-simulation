@@ -1,11 +1,12 @@
 import { Vector3 } from "three"
 import { STATIONS } from "lib/layout/station-layout"
 import { getQcFocusPoint } from "lib/job/bench-frames"
-import type { JobStep } from "lib/job/job-step"
+import type { JobStage, UnitParams } from "lib/job/job-step"
 import { STATUS_LED_COLORS } from "lib/models/controller-pcb"
 import { QC_CRADLE } from "lib/models/qc-cradle"
 import { QC_DISPLAY_COLORS, type QcDisplayState } from "lib/models/qc-laptop"
 import type { SimContext } from "lib/simulation/sim-context"
+import { carryWithBothHands } from "lib/tasks/carry-motions"
 import {
   runInParallel,
   type SimTask,
@@ -13,9 +14,8 @@ import {
   waitSeconds,
 } from "lib/tasks/coroutines"
 import {
-  bringHandToCarryPose,
   grabObject,
-  holdInHand,
+  liftAndPlace,
   moveObject,
   reachHand,
   releaseHand,
@@ -23,7 +23,9 @@ import {
 } from "lib/tasks/operator-motions"
 import { plugIn, unplug } from "lib/tasks/plug-motions"
 import {
+  IDENTITY_QUATERNION,
   MOTOR_ON_SIDE_QUATERNION,
+  PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
   QC_BENCH_SPOTS,
 } from "lib/world/bench-spots"
@@ -32,7 +34,7 @@ import {
 const QC_CLOSE_UP = {
   azimuthRadians: 1.25,
   elevationRadians: 0.9,
-  distanceM: 0.6,
+  distanceM: 0.65,
 }
 const SPIN_TEST_SECONDS = 3
 const SPIN_TEST_REVOLUTIONS = 9
@@ -47,48 +49,57 @@ function setQcDisplay(state: QcDisplayState, ctx: SimContext): void {
   ctx.world.laptop.display.material.color.setHex(QC_DISPLAY_COLORS[state])
 }
 
-function* seatMotorAndPlugIn(ctx: SimContext): SimTask {
+function* seatMotorAndPlugIn(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  ctx.statusText = "Setting the motor in the QC cradle"
+  const unit = world.units[params.unitIndex]
+  ctx.statusText = `Unit ${params.unitIndex + 1}: taking it from the rack into the QC cradle`
+  yield* grabObject({
+    hand: operator.rightHand,
+    object: unit.motor.group,
+    localGripPoint: new Vector3(0, 0.03, 0.021),
+    fingerCurl: 0.6,
+    durationSeconds: 0.7,
+  })
   yield* moveObject(
     {
-      object: world.motor.group,
+      object: unit.motor.group,
       hand: operator.rightHand,
       parent: world.tables.qc_bench,
       localPosition: MOTOR_IN_CRADLE_POSITION,
       localQuaternion: MOTOR_ON_SIDE_QUATERNION,
-      durationSeconds: 1,
-      arcHeightM: 0.05,
+      durationSeconds: 1.1,
+      arcHeightM: 0.08,
     },
     ctx,
   )
   yield* releaseHand(operator.rightHand)
 
-  ctx.statusText = "Plugging the laptop's USB-C into the data port"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: plugging the laptop's USB-C into the data port`
   yield* plugIn(
     {
       plug: world.qcDataCable.plug,
       hand: operator.leftHand,
-      port: world.pcb.dataPort,
+      port: unit.pcb.dataPort,
     },
     ctx,
   )
-  ctx.statusText = "Plugging the PD charger's USB-C into the power port"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: plugging the charging station's USB-C into the power port`
   yield* plugIn(
     {
       plug: world.qcPowerCable.plug,
       hand: operator.rightHand,
-      port: world.pcb.powerPort,
+      port: unit.pcb.powerPort,
     },
     ctx,
   )
-  world.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.idle)
+  unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.idle)
 }
 
-function* runSpinTest(ctx: SimContext): SimTask {
+function* runSpinTest(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
   const hand = operator.rightHand
-  ctx.statusText = "Starting the spin test on the laptop"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: starting the spin test on the laptop`
   yield* reachHand({
     hand,
     getTarget: trackObjectPoint({ object: world.laptop.trackpad }),
@@ -98,10 +109,10 @@ function* runSpinTest(ctx: SimContext): SimTask {
   yield* waitSeconds(0.25)
   yield* releaseHand(hand)
 
-  ctx.statusText = "Spinning the motor"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: spinning the motor`
   setQcDisplay("testing", ctx)
-  world.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.running)
-  const { rotor } = world.motor
+  unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.running)
+  const { rotor } = unit.motor
   const startRadians = rotor.rotation.y
   yield* tween({
     durationSeconds: SPIN_TEST_SECONDS,
@@ -111,15 +122,16 @@ function* runSpinTest(ctx: SimContext): SimTask {
     },
   })
   setQcDisplay("pass", ctx)
-  world.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.idle)
-  ctx.statusText = "Spin test passed"
-  yield* waitSeconds(0.6)
+  unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.idle)
+  ctx.statusText = `Unit ${params.unitIndex + 1}: spin test passed`
+  yield* waitSeconds(0.5)
 }
 
-function* unplugAndPickUp(ctx: SimContext): SimTask {
+function* unplugAndRack(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
   const bench = world.tables.qc_bench
-  ctx.statusText = "Unplugging both USB-C cables"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: unplugging both USB-C cables`
   yield* runInParallel([
     unplug(
       {
@@ -142,54 +154,91 @@ function* unplugAndPickUp(ctx: SimContext): SimTask {
       ctx,
     ),
   ])
-  world.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.off)
+  unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.off)
   setQcDisplay("idle", ctx)
 
-  ctx.statusText = "Taking the tested motor out of the cradle"
+  ctx.statusText = `Unit ${params.unitIndex + 1}: tested, into the ready rack`
   yield* grabObject({
     hand: operator.rightHand,
-    object: world.motor.group,
+    object: unit.motor.group,
     localGripPoint: new Vector3(0.02, 0.022, 0.02),
     fingerCurl: 0.6,
-    durationSeconds: 0.7,
+    durationSeconds: 0.6,
   })
-  yield* moveObject(
+  yield* liftAndPlace(
     {
-      object: world.motor.group,
+      object: unit.motor.group,
       hand: operator.rightHand,
-      parent: bench,
-      localPosition: MOTOR_IN_CRADLE_POSITION.clone().add(
-        new Vector3(0, 0.05, 0),
-      ),
-      localQuaternion: MOTOR_ON_SIDE_QUATERNION,
-      durationSeconds: 0.5,
+      parent: world.readyRack.group,
+      localPosition: world.readyRack.slots[params.unitIndex].position,
+      localQuaternion: IDENTITY_QUATERNION,
+      liftHeightM: 0.07,
+      travelSeconds: 0.9,
     },
     ctx,
   )
-  holdInHand({ hand: operator.rightHand, object: world.motor.group })
-  yield* bringHandToCarryPose(operator.rightHand, ctx)
+  yield* releaseHand(operator.rightHand)
 }
 
-export const QC_BENCH_STEPS: JobStep[] = [
-  {
-    label: "Seat motor, plug in 2 USB-C",
-    station: STATIONS.qc,
-    closeUpView: QC_CLOSE_UP,
-    getFocusPoint: getQcFocusPoint,
-    run: seatMotorAndPlugIn,
-  },
-  {
-    label: "Run the spin test",
-    station: STATIONS.qc,
-    closeUpView: { ...QC_CLOSE_UP, distanceM: 0.75 },
-    getFocusPoint: getQcFocusPoint,
-    run: runSpinTest,
-  },
-  {
-    label: "Unplug, take the motor",
-    station: STATIONS.qc,
-    closeUpView: QC_CLOSE_UP,
-    getFocusPoint: getQcFocusPoint,
-    run: unplugAndPickUp,
-  },
-]
+function* carryReadyRackToPackOut(
+  _params: UnitParams,
+  ctx: SimContext,
+): SimTask {
+  const { world } = ctx
+  ctx.statusText = "Carrying the rack of tested motors to pack-out"
+  yield* carryWithBothHands(
+    {
+      item: world.readyRack.group,
+      leftHandle: world.readyRack.leftHandle,
+      rightHandle: world.readyRack.rightHandle,
+      liftHeightM: 0.2,
+      toStation: STATIONS.packOut,
+      toParent: world.tables.pack_out_bench,
+      toPosition: PACK_OUT_BENCH_SPOTS.incomingRack,
+    },
+    ctx,
+  )
+}
+
+export const QC_STAGE: JobStage = {
+  label: "QC",
+  isPerUnit: true,
+  steps: [
+    {
+      label: "Seat motor, plug in 2 USB-C",
+      station: STATIONS.qc,
+      closeUpView: QC_CLOSE_UP,
+      getFocusPoint: (_params, ctx) => getQcFocusPoint(ctx),
+      run: seatMotorAndPlugIn,
+    },
+    {
+      label: "Run the spin test",
+      station: STATIONS.qc,
+      closeUpView: { ...QC_CLOSE_UP, distanceM: 0.8 },
+      getFocusPoint: (_params, ctx) => getQcFocusPoint(ctx),
+      run: runSpinTest,
+    },
+    {
+      label: "Unplug, into the ready rack",
+      station: STATIONS.qc,
+      closeUpView: { ...QC_CLOSE_UP, distanceM: 0.9 },
+      getFocusPoint: (_params, ctx) => getQcFocusPoint(ctx),
+      run: unplugAndRack,
+    },
+  ],
+}
+
+export const CARRY_READY_RACK_STAGE: JobStage = {
+  label: "Carry the ready rack to pack-out",
+  isPerUnit: false,
+  steps: [
+    {
+      label: "Carry the ready rack to pack-out",
+      station: STATIONS.qc,
+      closeUpView: { ...QC_CLOSE_UP, distanceM: 1.6 },
+      getFocusPoint: (_params, ctx) =>
+        ctx.world.readyRack.group.getWorldPosition(new Vector3()),
+      run: carryReadyRackToPackOut,
+    },
+  ],
+}

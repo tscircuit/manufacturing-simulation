@@ -157,11 +157,22 @@ function poseLegs(
   }
 }
 
+/** Shoulder joint fixed to the torso as posed this frame, including the walking bob. */
+function getPosedShoulderPosition(
+  hand: OperatorHand,
+  operator: Operator,
+): Vector3 {
+  const bend = operator.hipBendRadians
+  const { shoulderHalfWidthM, shoulderAboveHipM } = OPERATOR_BODY
+  return new Vector3(
+    hand.side * shoulderHalfWidthM,
+    operator.torso.position.y + shoulderAboveHipM * Math.cos(bend),
+    operator.torso.position.z + shoulderAboveHipM * Math.sin(bend),
+  )
+}
+
 function poseArm(hand: OperatorHand, operator: Operator): void {
-  const shoulder = getShoulderPosition({
-    side: hand.side,
-    hipBendRadians: operator.hipBendRadians,
-  })
+  const shoulder = getPosedShoulderPosition(hand, operator)
   const armLengthM =
     OPERATOR_BODY.upperArmLengthM + OPERATOR_BODY.forearmLengthM
   const armSwingM =

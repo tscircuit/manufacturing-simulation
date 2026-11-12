@@ -1,10 +1,17 @@
 import { Scene } from "three"
-import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
+import { JOB_ROWS, WORK_ITEMS } from "lib/job/job-plan"
+import { advancePrinters } from "lib/job/printer-steps"
 import { OPERATOR_START } from "lib/layout/station-layout"
-import { createRoomShell, type RoomShell } from "lib/models/room-shell"
+import { populatePlate } from "lib/models/bambu-printer"
 import { updateFlexCable } from "lib/models/flex-cable"
+import { createLabelSheet } from "lib/models/label-sheet"
+import { createRoomShell, type RoomShell } from "lib/models/room-shell"
 import { createNavGrid } from "lib/navigation/nav-grid"
-import { createOperator, resetOperator } from "lib/operator/create-operator"
+import {
+  createOperator,
+  type OperatorHand,
+  resetOperator,
+} from "lib/operator/create-operator"
 import { updateOperatorPose } from "lib/operator/update-operator-pose"
 import {
   applyWalkInput,
@@ -13,8 +20,9 @@ import {
   type WalkInput,
 } from "lib/simulation/game-actions"
 import {
-  assembleAndPackScenario,
   pickUpScrewdriverScenario,
+  refillSpacersScenario,
+  runBatchScenario,
   type ScenarioId,
   walkFloorScenario,
 } from "lib/simulation/scenarios"
@@ -24,16 +32,33 @@ import type {
   SimulationMode,
 } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
+import { walkTo } from "lib/tasks/operator-motions"
 import { createWorld } from "lib/world/create-world"
 
 const NAV_GRID_CELL_SIZE_M = 0.1
 const NAV_GRID_CLEARANCE_M = 0.27
+const LABEL_SHEET_PRINT_SECONDS = 45
+const MAX_PRINTED_LABEL_SHEETS = 6
+const MOVED_WHILE_PAUSED_M = 0.02
+
+/** E runs the bench (or pauses a running task); F handles the screwdriver. */
+export type GameActionKind = "bench" | "screwdriver"
+
+/** Where the operator was and what each hand was doing when the task was paused. */
+interface PausePose {
+  x: number
+  z: number
+  ccwYawRadians: number
+  hands: Array<{ hand: OperatorHand; isReaching: boolean }>
+  hasWalkedAway: boolean
+}
 
 function createJobProgress(): JobProgress {
   return {
-    completedStepCount: 0,
-    activeStepIndex: null,
-    stepSeconds: ASSEMBLY_JOB_STEPS.map(() => 0),
+    completedWorkCount: 0,
+    activeWorkIndex: null,
+    rowSeconds: JOB_ROWS.map(() => 0),
+    rowCompletedCounts: JOB_ROWS.map(() => 0),
     cycleSeconds: 0,
     isJobActive: false,
     isJobComplete: false,
@@ -42,8 +67,30 @@ function createJobProgress(): JobProgress {
   }
 }
 
-/** E runs the next step (or pauses a running one), C runs the rest of the bench, F handles the screwdriver. */
-export type GameActionKind = "step" | "bench" | "screwdriver"
+/** After walking away from a paused task, walk back to where it stopped, then carry on from exactly there. */
+function* resumeWhereLeftOff(
+  params: { task: SimTask; pausePose: PausePose },
+  ctx: SimContext,
+): SimTask {
+  const { pausePose } = params
+  const statusText = ctx.statusText
+  ctx.statusText = "Walking back to where you paused"
+  yield* walkTo(
+    {
+      x: pausePose.x,
+      z: pausePose.z,
+      finalCcwYawRadians: pausePose.ccwYawRadians,
+    },
+    ctx,
+  )
+  for (const { hand, isReaching } of pausePose.hands)
+    hand.isReaching = isReaching
+  ctx.statusText = statusText
+  for (;;) {
+    const dtSeconds = yield
+    if (params.task.next(dtSeconds).done) return
+  }
+}
 
 /**
  * The unit 322 floor, its benches and the operator, advanced in fixed steps.
@@ -53,8 +100,7 @@ export class ManufacturingSimulation {
   readonly ctx: SimContext
   readonly roomShell: RoomShell
   private activeTask: SimTask | null = null
-  /** A paused task keeps its place and resumes from the same point. */
-  private isTaskPausedFlag = false
+  private pausePose: PausePose | null = null
   private walkInput: WalkInput = {
     forward: 0,
     right: 0,
@@ -88,19 +134,16 @@ export class ManufacturingSimulation {
   }
 
   get isTaskPaused(): boolean {
-    return this.activeTask !== null && this.isTaskPausedFlag
+    return this.activeTask !== null && this.pausePose !== null
   }
 
-  /** Freeze the running task where it is, or carry on from there. */
-  setTaskPaused(isPaused: boolean): void {
-    if (!this.activeTask) return
-    this.isTaskPausedFlag = isPaused
-    if (isPaused) this.ctx.operator.walkSpeedMps = 0
-  }
-
-  /** Put every part back in its starting place and the operator at the door. */
+  /**
+   * Put every part back in its starting place and the operator at the door.
+   * Anything mid-move or in a hand belongs to the old world and goes with it.
+   */
   reset(): void {
     this.activeTask = null
+    this.pausePose = null
     const { ctx } = this
     ctx.scene.remove(ctx.world.root)
     ctx.world = createWorld()
@@ -119,7 +162,7 @@ export class ManufacturingSimulation {
 
   startTask(task: SimTask): void {
     this.activeTask = task
-    this.isTaskPausedFlag = false
+    this.pausePose = null
     // Run up to the first yield so the task sets its status immediately.
     if (task.next().done) this.activeTask = null
   }
@@ -137,12 +180,16 @@ export class ManufacturingSimulation {
       return
     }
     if (progress.isOperatorBusy) return
-    const canResumeJob =
-      progress.completedStepCount > 0 &&
+    if (scenarioId === "refill_spacers") {
+      this.startTask(refillSpacersScenario(this.ctx))
+      return
+    }
+    const canResumeBatch =
+      progress.completedWorkCount > 0 &&
       !progress.isJobComplete &&
       !progress.isHoldingLooseScrewdriver
-    if (!canResumeJob) this.reset()
-    this.startTask(assembleAndPackScenario(this.ctx))
+    if (!canResumeBatch) this.reset()
+    this.startTask(runBatchScenario(this.ctx))
   }
 
   /** Switching to game mode stops any scenario that isn't mid-step. */
@@ -152,12 +199,39 @@ export class ManufacturingSimulation {
     if (mode === "game") {
       if (this.activeTask && !ctx.progress.isOperatorBusy) {
         this.activeTask = null
+        this.pausePose = null
         ctx.operator.walkSpeedMps = 0
       }
-      if (!ctx.progress.isOperatorBusy) ctx.statusText = "You have control"
+      if (!this.activeTask) ctx.statusText = "You have control"
       return
     }
     if (!this.activeTask) ctx.statusText = "Pick a scenario"
+  }
+
+  /** Freeze the running task where it is, or carry on from there. */
+  setTaskPaused(isPaused: boolean): void {
+    const task = this.activeTask
+    if (!task) return
+    const { operator } = this.ctx
+    if (isPaused && !this.pausePose) {
+      operator.walkSpeedMps = 0
+      this.pausePose = {
+        x: operator.position.x,
+        z: operator.position.z,
+        ccwYawRadians: operator.ccwYawRadians,
+        hands: operator.hands.map((hand) => ({
+          hand,
+          isReaching: hand.isReaching,
+        })),
+        hasWalkedAway: false,
+      }
+      return
+    }
+    if (isPaused || !this.pausePose) return
+    const pausePose = this.pausePose
+    this.pausePose = null
+    if (pausePose.hasWalkedAway)
+      this.activeTask = resumeWhereLeftOff({ task, pausePose }, this.ctx)
   }
 
   setWalkInput(walkInput: WalkInput): void {
@@ -171,21 +245,16 @@ export class ManufacturingSimulation {
     )
   }
 
-  /** Run the action bound to E ("step") or F ("screwdriver"), if available. */
+  /** E ("bench") runs the bench or pauses/resumes; F ("screwdriver") handles the screwdriver. */
   runGameAction(actionKind: GameActionKind): boolean {
     if (this.activeTask && this.ctx.mode === "game") {
-      // While something is running, E pauses and resumes it.
-      if (actionKind !== "step") return false
-      this.setTaskPaused(!this.isTaskPausedFlag)
+      if (actionKind !== "bench") return false
+      this.setTaskPaused(!this.isTaskPaused)
       return true
     }
     const actions = this.getGameActions()
     const action =
-      actionKind === "step"
-        ? actions.stepAction
-        : actionKind === "bench"
-          ? actions.benchAction
-          : actions.screwdriverAction
+      actionKind === "bench" ? actions.benchAction : actions.screwdriverAction
     if (!action) return false
     this.startTask(action.createTask())
     return true
@@ -194,9 +263,9 @@ export class ManufacturingSimulation {
   /** Advance the simulation by `dtSeconds` of simulated time. */
   step(dtSeconds: number): void {
     const { ctx } = this
-    if (this.activeTask && this.isTaskPausedFlag) {
-      ctx.operator.walkSpeedMps = 0
-      updateOperatorPose(ctx.operator, dtSeconds)
+    this.advanceEquipment(dtSeconds)
+    if (this.activeTask && this.pausePose) {
+      this.stepWhilePaused(dtSeconds)
       return
     }
     if (this.activeTask) {
@@ -208,10 +277,50 @@ export class ManufacturingSimulation {
     }
     const { progress } = ctx
     if (progress.isJobActive) progress.cycleSeconds += dtSeconds
-    if (progress.activeStepIndex !== null)
-      progress.stepSeconds[progress.activeStepIndex] += dtSeconds
+    if (progress.activeWorkIndex !== null)
+      progress.rowSeconds[WORK_ITEMS[progress.activeWorkIndex].row.rowIndex] +=
+        dtSeconds
     updateOperatorPose(ctx.operator, dtSeconds)
     for (const cable of ctx.world.cables) updateFlexCable(cable)
+  }
+
+  /** Paused: nothing in the task moves and no time is counted, but in game mode the player can walk around. */
+  private stepWhilePaused(dtSeconds: number): void {
+    const { ctx } = this
+    const pausePose = this.pausePose
+    if (!pausePose) return
+    if (ctx.mode === "game")
+      applyWalkInput({ walkInput: this.walkInput, dtSeconds }, ctx)
+    else ctx.operator.walkSpeedMps = 0
+    const distanceM = Math.hypot(
+      ctx.operator.position.x - pausePose.x,
+      ctx.operator.position.z - pausePose.z,
+    )
+    if (!pausePose.hasWalkedAway && distanceM > MOVED_WHILE_PAUSED_M) {
+      // Let the arms relax while walking; anything held in a hand comes along.
+      pausePose.hasWalkedAway = true
+      for (const hand of ctx.operator.hands)
+        if (!hand.heldObject) hand.isReaching = false
+    }
+    updateOperatorPose(ctx.operator, dtSeconds)
+    for (const cable of ctx.world.cables) updateFlexCable(cable)
+  }
+
+  /** Printers and the label printer keep working whatever the operator is doing. */
+  private advanceEquipment(dtSeconds: number): void {
+    const { ctx } = this
+    advancePrinters({ dtSeconds, populate: populatePlate }, ctx)
+    const labelPrinter = ctx.world.labelPrinter
+    labelPrinter.secondsSinceLastSheet += dtSeconds
+    if (labelPrinter.secondsSinceLastSheet < LABEL_SHEET_PRINT_SECONDS) return
+    labelPrinter.secondsSinceLastSheet = 0
+    if (labelPrinter.printedSheets.length >= MAX_PRINTED_LABEL_SHEETS) return
+    const sheet = createLabelSheet()
+    sheet.group.position.y = labelPrinter.printedSheets.length * 0.0006
+    sheet.group.rotation.y =
+      (labelPrinter.printedSheets.length % 2 === 0 ? 1 : -1) * 0.03
+    labelPrinter.outputStack.add(sheet.group)
+    labelPrinter.printedSheets.push(sheet.group)
   }
 
   /** Step until the running task finishes or `maxSeconds` of simulated time pass. */

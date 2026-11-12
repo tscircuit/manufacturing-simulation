@@ -76,11 +76,9 @@ export function ManufacturingSimulationViewer() {
               }
               onAct={() =>
                 runtimeRef.current?.runGameAction(
-                  hud.stepPromptLabel ? "step" : "screwdriver",
+                  hud.benchPromptLabel ? "bench" : "screwdriver",
                 )
               }
-              benchLabel={hud.benchPromptLabel ? "Run bench" : null}
-              onRunBench={() => runtimeRef.current?.runGameAction("bench")}
             />
           )}
           <div className="bottom">

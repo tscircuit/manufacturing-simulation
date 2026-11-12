@@ -1,8 +1,9 @@
-export { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
-export type { JobStep } from "lib/job/job-step"
-export { formatSeconds } from "lib/job/run-job-step"
+export { JOB_ROWS, JOB_STAGES, WORK_ITEMS } from "lib/job/job-plan"
+export type { JobStage, JobStep } from "lib/job/job-step"
+export { formatSeconds } from "lib/job/run-work-item"
 export { FLOOR_PLAN } from "lib/layout/floor-plan"
 export {
+  BATCH_SIZE,
   FOLDING_TABLE,
   OPERATOR_START,
   PATROL_ROUTE,
@@ -18,6 +19,10 @@ export type {
   WalkInput,
 } from "lib/simulation/game-actions"
 export { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
+export {
+  SHIPPING_CARTON,
+  SHIPPING_CARTON_CAPACITY,
+} from "lib/models/shipping-carton"
 export type { ScenarioId } from "lib/simulation/scenarios"
 export type {
   JobProgress,

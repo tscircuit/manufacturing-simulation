@@ -17,25 +17,36 @@ The simulation also runs headless, which is how the tests time the job:
 import { ManufacturingSimulation } from "@tscircuit/manufacturing-simulation"
 
 const simulation = new ManufacturingSimulation()
-simulation.startScenario("assemble_and_pack")
-simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 300 })
-simulation.ctx.progress.stepSeconds // seconds spent in each of the 15 steps
+simulation.startScenario("run_batch")
+simulation.runUntilIdle({ dtSeconds: 0.05, maxSeconds: 6000 })
+simulation.ctx.progress.rowSeconds // seconds per step, summed over the batch
 simulation.ctx.progress.cycleSeconds // total including walking
 ```
 
-## What it simulates (v2 line)
+## What it simulates (v2 batch line)
 
 - **Floor:** unit 322 at 2325, 18'3½" × 47'5¼" (46'0¼" on the window side), with the washroom on the east wall, the entry door in the NE corner and the window wall on the west.
 - **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK and bends at the hips for 29" tables.
-- **Line:** four 6' folding tables end to end along the window wall:
-  1. **Assembly bench:** a basket of printed NEMA17 backface spacers, three rows of NEMA17 motors, a jig, three stacks of controller PCBs, a screwdriver, and three black Akro-Mils 30210 AkroBins. The blue-tagged bin holds the long M3 screws; the red-tagged bin starts empty and collects the motor's stock screws, which are too short once the 4 mm spacer and PCB are added; the yellow-tagged bin holds pre-crimped JST-PH 2.0 6-pin motor cables.
-  2. **QC bench:** a cradle, a laptop running the motor-bench page, and a 10-port USB-C GaN charging station. One USB-C goes to the PCB data port, one to its PD power port. The motor spins and the screen shows the result.
-  3. **Pack-out bench:** a stack of The Boxery 7×4×3" white tuck mailers with pink anti-static foam pre-cut top and bottom, coiled LISEN USB-C cables, 45 W USB-C chargers, an Epson EcoTank ET-2400, and a printed AveneMark 2×4" label sheet (10-up).
-  4. **Ship-ready bench.**
-- **Job:** 15 timed steps. Take a spacer, load the motor, swap the 4 stock screws for long ones through the spacer and PCB, lift a cable out of its bin and plug both ends, run the USB-C spin test, pack the motor with 2 USB-C cables and a charger, close the box, apply the label, and move it to ship-ready.
-- **Timing:** each step and walking time are clocked, at 0.5× to 8×. A cycle is about 1:32. Gesture durations are placeholders, not measured.
+- **Batch:** 30 units travel the line together, one rack or tote per bench, and ship in one Amazon carton.
+- **Line:** four 6' folding tables along the window wall.
+  1. **Assembly bench:** a foam stand of 30 NEMA17 motors, the spacer basket, three stacks of controller PCBs, a screwdriver, a jig, an empty 30-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 6-pin motor cables (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The full rack is then carried to QC.
+  2. **QC bench:** each unit goes into a cradle with two USB-C cables (laptop data and the 10-port GaN charging station for power), spins, and moves to a second rack, which is carried to pack-out.
+  3. **Pack-out bench:** each unit goes into a 7×4×3" white mailer with pink anti-static foam, with 2 coiled USB-C cables, a 45 W charger and a 2×4" label peeled from a stack of AveneMark sheets, then into a 30-box tote that is carried to ship-ready.
+  4. **Ship-ready bench:** all 30 boxes go into the Amazon carton, which is folded, taped and set out by the door.
+- **East wall:**
+  - **3D printers:** a Bambu Lab P2S (25 spacers per plate) and an H2S (49 per plate). Finished plates are emptied into a tub, carried to the assembly bench, and poured into the spacer basket; then the next print starts.
+  - **Label printer:** an Epson EcoTank ET-2400 that keeps printing AveneMark label sheets.
+- **Timing:** every step is clocked per unit and summed over the batch, with walking time separate. A batch of 30 takes about 46½ minutes of simulated time. Gesture durations are placeholders, not measured.
 
-The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The label artwork is `label-preview.png` from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging) (2" wide × 4" tall when applied). Parts are from the lab inventory where it lists them; the PCB, laptop and charging station are simplified models. Table positions are placeholders until the real layout is measured.
+### Amazon carton for 30
+
+The packed mailer is about 7.25 × 4.25 × 3.1 in. Thirty stack 2 × 3 × 5 into 14.5 × 12.75 × 15.6 in, so a **15 × 13 × 17 in (inside) carton** fits them with a little room for void fill. Each packed unit weighs roughly 0.56 kg (motor, PCB, spacer and cable ~0.31 kg; two USB-C cables ~0.10 kg; 45 W charger ~0.09 kg; mailer and foam ~0.06 kg), so the carton is about 37 lb. That is under the 50 lb FBA limit, and every side is under 25 in. Weigh and measure a packed unit to confirm before ordering cartons.
+
+### Printer estimates
+
+Spacers per plate is how many 42 × 42 mm spacers fit on the bed at a 46–48 mm pitch: 5 × 5 on the P2S (256 × 256 mm) and 7 × 7 on the H2S (340 × 320 mm). Plate times (2 h 10 m and 4 h) are estimates for ~2.6 g PLA parts, not slicer output.
+
+The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The label artwork is `label-preview.png` from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging). Parts follow the lab inventory where it lists them; the PCB, laptop, charging station and printers are simplified models. Table positions are placeholders until the real layout is measured.
 
 ## Controls
 
@@ -47,11 +58,10 @@ The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. T
 | 1 / 2 / 3 | Overview / Follow / Close-up camera |
 | G | Toggle game mode |
 | WASD or arrows | Walk (game mode) |
-| E | Do the next job step at this station; while anything runs, pause or resume it in place (game mode) |
-| C | Run every remaining step at this bench without stopping (game mode) |
+| E | At a bench, run all of its remaining work without stopping. At the printers, collect finished plates into a tub; at the assembly bench with a tub, refill the spacer basket. While anything runs, E pauses it in place; walk away if you like, and E again walks back and carries on (game mode) |
 | F | Pick up or put back the screwdriver (game mode) |
 
-Touch screens get an on-screen stick, an Act button and a Run bench button in game mode.
+Touch screens get an on-screen stick and an Act button (E) in game mode.
 
 When the operator stands between the camera and the work, or the camera is zoomed inside him, his body fades out so the work stays visible.
 
@@ -65,11 +75,11 @@ When the operator stands between the camera and the work, or the camera is zoome
 | `lib/navigation` | Walkable-floor test, nav grid and A* path finding. |
 | `lib/operator` | 6'2" operator rig, two-bone IK and per-frame pose. |
 | `lib/tasks` | Generator-based coroutines and operator motions (walk, reach, grab, move, place, plug in, unplug). |
-| `lib/job` | The 15 job steps, grouped by station. |
+| `lib/job` | The batch plan (`job-plan.ts`): stages per bench, per-unit steps, carries, and printer refills. |
 | `lib/simulation` | `ManufacturingSimulation`, scenarios and game-mode actions. No DOM dependencies. |
 | `lib/viewer` | React viewer: renderer, camera, HUD and input. |
 
-Each job step is a `JobStep` whose `run` is a generator, so its gestures advance one simulation step at a time and are timed automatically. Add a step by writing a generator from the motions in `lib/tasks/operator-motions.ts` and listing it in `lib/job/assembly-job-steps.ts`.
+Each job step is a `JobStep` whose `run` is a generator, so its gestures advance one simulation step at a time and are timed automatically. Add a step by writing a generator from the motions in `lib/tasks/operator-motions.ts` and adding it to a stage in `lib/job/job-plan.ts`. `BATCH_SIZE` in `lib/layout/station-layout.ts` sets the batch.
 
 ## Development
 

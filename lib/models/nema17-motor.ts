@@ -53,8 +53,21 @@ export interface Nema17Motor {
   cableSocket: Object3D
 }
 
+/** Screw shank length in metres, used to key the shared screw models. */
+type ScrewShankLengthM = number
+const screwTemplates = new Map<ScrewShankLengthM, Group>()
+
 /** M3 socket-head screw. Origin is the underside of the head; the shank points down. */
 export function createM3Screw(params: { shankLengthM: number }): Group {
+  let template = screwTemplates.get(params.shankLengthM)
+  if (!template) {
+    template = buildM3Screw(params)
+    screwTemplates.set(params.shankLengthM, template)
+  }
+  return template.clone()
+}
+
+function buildM3Screw(params: { shankLengthM: number }): Group {
   const screw = new Group()
   screw.add(
     createCylinderMesh({

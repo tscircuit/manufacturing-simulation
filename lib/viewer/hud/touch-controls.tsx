@@ -20,8 +20,6 @@ function getStickDeflection(event: PointerEvent<HTMLDivElement>): {
 export function TouchControls(props: {
   onStickChange: (stickInput: { forward: number; right: number }) => void
   onAct: () => void
-  benchLabel: string | null
-  onRunBench: () => void
 }) {
   const activePointerId = useRef<number | null>(null)
   const [knobOffset, setKnobOffset] = useState({ xPx: 0, yPx: 0 })
@@ -66,15 +64,6 @@ export function TouchControls(props: {
       <button type="button" className="act" onClick={props.onAct}>
         Act
       </button>
-      {props.benchLabel && (
-        <button
-          type="button"
-          className="act run-bench"
-          onClick={props.onRunBench}
-        >
-          {props.benchLabel}
-        </button>
-      )}
     </>
   )
 }

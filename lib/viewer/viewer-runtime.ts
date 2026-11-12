@@ -4,12 +4,14 @@ import {
   type MeshStandardMaterial,
   PCFSoftShadowMap,
   PerspectiveCamera,
+  type Sprite,
   SRGBColorSpace,
   type Texture,
   TextureLoader,
   WebGLRenderer,
 } from "three"
-import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
+import { JOB_ROWS, WORK_ITEMS } from "lib/job/job-plan"
+import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { type TableId, TABLE_PLACEMENTS } from "lib/layout/station-layout"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
@@ -43,6 +45,32 @@ interface PointerTrack {
   xPx: number
   yPx: number
   button: number
+}
+
+declare global {
+  interface Window {
+    /** Set when the page is opened with `?inspect`. */
+    manufacturingViewer?: ViewerRuntime
+  }
+}
+
+/** Short status for a printer's sign and the HUD. */
+function getPrinterStatusText(printer: BambuPrinter): string {
+  if (!printer.isPrinting) {
+    return printer.plateSpacers.length > 0
+      ? `${printer.model}: ${printer.plateSpacers.length} spacers ready`
+      : `${printer.model}: idle`
+  }
+  const totalSeconds = BAMBU_PRINTERS[printer.model].estimatedPlateSeconds
+  const percent = Math.floor((100 * printer.printedSeconds) / totalSeconds)
+  const remainingMinutes = Math.ceil(
+    (totalSeconds - printer.printedSeconds) / 60,
+  )
+  const remaining =
+    remainingMinutes >= 60
+      ? `${Math.floor(remainingMinutes / 60)} h ${remainingMinutes % 60} m`
+      : `${remainingMinutes} m`
+  return `${printer.model}: printing ${percent}%, ${remaining} left`
 }
 
 function loadLabelTexture(): Texture {
@@ -93,6 +121,9 @@ export class ViewerRuntime {
     pass: createQcScreenTexture("pass"),
   }
   private shownQcDisplayState: QcDisplayState | null = null
+  private texturedLabelSheetCount = -1
+  private printerSigns: Array<{ text: string; sprite: Sprite }> = []
+  private stationSigns: Sprite[] = []
   private operatorBodyOpacity = 1
   private operatorHandOpacity = 1
   private animationFrameId = 0
@@ -136,6 +167,10 @@ export class ViewerRuntime {
     window.addEventListener("keyup", this.handleKeyUp)
     window.addEventListener("blur", this.clearKeys)
     this.simulation.startScenario("walk_floor")
+    // `?inspect` exposes the runtime for debugging and automated checks.
+    if (new URLSearchParams(window.location.search).has("inspect")) {
+      window.manufacturingViewer = this
+    }
     this.animationFrameId = requestAnimationFrame(this.renderFrame)
   }
 
@@ -163,7 +198,8 @@ export class ViewerRuntime {
   startScenario(scenarioId: ScenarioId): void {
     this.setMode("simulation")
     this.simulation.startScenario(scenarioId)
-    if (scenarioId !== "assemble_and_pack") this.setCameraMode("follow")
+    if (scenarioId !== "run_batch" && scenarioId !== "refill_spacers")
+      this.setCameraMode("follow")
     this.emitHud()
   }
 
@@ -286,29 +322,64 @@ export class ViewerRuntime {
     if (world !== this.decoratedWorld) {
       this.decoratedWorld = world
       this.shownQcDisplayState = null
+      this.texturedLabelSheetCount = -1
+      this.printerSigns = []
+      this.stationSigns = []
       for (const tableId of Object.keys(world.tables) as TableId[]) {
         const placement = TABLE_PLACEMENTS[tableId]
-        const label = createLabelSprite({
-          text: `${placement.lineOrder} · ${placement.label}`,
-          widthM: 0.72,
-        })
+        const text =
+          placement.lineOrder > 0
+            ? `${placement.lineOrder} · ${placement.label}`
+            : placement.label
+        const label = createLabelSprite({ text, widthM: 0.72 })
         label.position.set(0, LABEL_HEIGHT_M, -0.3)
         world.tables[tableId].add(label)
+        this.stationSigns.push(label)
       }
+    }
+    // Label sheets keep coming out of the label printer; give new ones the artwork.
+    if (
+      world.labelPrinter.printedSheets.length !== this.texturedLabelSheetCount
+    ) {
+      this.texturedLabelSheetCount = world.labelPrinter.printedSheets.length
       world.root.traverse((object) => {
         if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
         const material = object.material as MeshStandardMaterial
+        if (material.map === this.stickerTexture) return
         material.map = this.stickerTexture
         material.color.set(0xffffff)
         material.needsUpdate = true
       })
     }
+    this.updatePrinterSigns(world)
+    // Signs would sit in front of the work in a close-up.
+    const showSigns = this.cameraRig.mode !== "close_up"
+    for (const sign of this.stationSigns) sign.visible = showSigns
+    for (const { sprite } of this.printerSigns) sprite.visible = showSigns
     const { laptop } = world
     if (laptop.displayState === this.shownQcDisplayState) return
     this.shownQcDisplayState = laptop.displayState
     laptop.display.material.map = this.qcScreenTextures[laptop.displayState]
     laptop.display.material.color.set(0xffffff)
     laptop.display.material.needsUpdate = true
+  }
+
+  /** A floating sign over each 3D printer with its plate status or print progress. */
+  private updatePrinterSigns(world: ManufacturingWorld): void {
+    for (const [index, printer] of world.printers.entries()) {
+      const text = getPrinterStatusText(printer)
+      const sign = this.printerSigns[index]
+      if (sign?.text === text) continue
+      if (sign) {
+        sign.sprite.removeFromParent()
+        sign.sprite.material.map?.dispose()
+        sign.sprite.material.dispose()
+      }
+      const sprite = createLabelSprite({ text, widthM: 0.62 })
+      sprite.position.set(0, BAMBU_PRINTERS[printer.model].heightM + 0.12, 0)
+      printer.group.add(sprite)
+      this.printerSigns[index] = { text, sprite }
+    }
   }
 
   private updateWalkInput(): void {
@@ -360,7 +431,7 @@ export class ViewerRuntime {
     )
       return
     this.didAutoCloseUp = false
-    const nextStep = ASSEMBLY_JOB_STEPS[ctx.progress.completedStepCount]
+    const nextStep = WORK_ITEMS[ctx.progress.completedWorkCount]?.row.step
     const isStayingAtStation =
       nextStep &&
       previousHint &&
@@ -375,7 +446,7 @@ export class ViewerRuntime {
 
   private updateStationRing(nowMs: number): void {
     const { progress, mode } = this.simulation.ctx
-    const nextStep = ASSEMBLY_JOB_STEPS[progress.completedStepCount]
+    const nextStep = WORK_ITEMS[progress.completedWorkCount]?.row.step
     const isVisible =
       nextStep &&
       !progress.isOperatorBusy &&
@@ -393,33 +464,43 @@ export class ViewerRuntime {
     const { ctx } = this.simulation
     const { progress } = ctx
     const actions = this.simulation.getGameActions()
-    const steps = ASSEMBLY_JOB_STEPS.map((step, index) => ({
-      label: step.label,
-      seconds: progress.stepSeconds[index],
-      state:
-        index === progress.activeStepIndex
-          ? ("active" as const)
-          : index < progress.completedStepCount
-            ? ("done" as const)
-            : ("pending" as const),
-    }))
-    const stepSeconds = progress.stepSeconds.reduce(
+    const activeRowIndex =
+      progress.activeWorkIndex === null
+        ? null
+        : WORK_ITEMS[progress.activeWorkIndex].row.rowIndex
+    const steps = JOB_ROWS.map((row) => {
+      const completedCount = progress.rowCompletedCounts[row.rowIndex]
+      return {
+        label: row.step.label,
+        seconds: progress.rowSeconds[row.rowIndex],
+        completedCount,
+        runCount: row.runCount,
+        state:
+          row.rowIndex === activeRowIndex
+            ? ("active" as const)
+            : completedCount >= row.runCount
+              ? ("done" as const)
+              : ("pending" as const),
+      }
+    })
+    const stepSeconds = progress.rowSeconds.reduce(
       (sum, seconds) => sum + seconds,
       0,
     )
     let statusText = ctx.statusText
-    const nextStep = ASSEMBLY_JOB_STEPS[progress.completedStepCount]
-    const hasPrompt =
-      actions.stepAction || actions.benchAction || actions.screwdriverAction
-    if (
+    const nextItem = WORK_ITEMS[progress.completedWorkCount]
+    const hasPrompt = actions.benchAction || actions.screwdriverAction
+    if (ctx.mode === "game" && actions.blockedReason)
+      statusText = actions.blockedReason
+    else if (
       ctx.mode === "game" &&
       !this.simulation.isTaskRunning &&
       !hasPrompt &&
-      nextStep &&
-      !progress.isHoldingLooseScrewdriver
+      nextItem &&
+      !ctx.world.carriedTub
     ) {
-      const tableLabel = TABLE_PLACEMENTS[nextStep.station.tableId].label
-      statusText = `Next: ${nextStep.label.toLowerCase()} at the ${tableLabel}`
+      const tableLabel = TABLE_PLACEMENTS[nextItem.tableId].label
+      statusText = `Next: ${nextItem.row.step.label.toLowerCase()} at the ${tableLabel}`
     }
     if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
     this.options.onHudChange({
@@ -432,9 +513,13 @@ export class ViewerRuntime {
       steps,
       walkingSeconds: Math.max(0, progress.cycleSeconds - stepSeconds),
       cycleSeconds: progress.cycleSeconds,
-      stepPromptLabel: actions.pauseLabel ?? actions.stepAction?.label ?? null,
-      benchPromptLabel: actions.benchAction?.label ?? null,
+      benchPromptLabel:
+        actions.pauseLabel ?? actions.benchAction?.label ?? null,
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
+      spacersInBasket: ctx.world.spacerStock.length,
+      printerLines: ctx.world.printers.map((printer) =>
+        getPrinterStatusText(printer),
+      ),
     })
   }
 
@@ -478,9 +563,8 @@ export class ViewerRuntime {
     const { mode } = this.simulation.ctx
     if (key === "g") this.setMode(mode === "game" ? "simulation" : "game")
     if (mode === "game") {
-      if (key === "e") this.runGameAction("step")
+      if (key === "e") this.runGameAction("bench")
       if (key === "f") this.runGameAction("screwdriver")
-      if (key === "c") this.runGameAction("bench")
       if (key.startsWith("arrow") || key === " ") event.preventDefault()
     }
     if (key === "1") this.setCameraMode("overview")

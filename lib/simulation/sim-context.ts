@@ -22,11 +22,14 @@ export interface CameraHint {
 }
 
 export interface JobProgress {
-  completedStepCount: number
-  activeStepIndex: number | null
-  /** Time spent inside each job step, excluding walking between stations. */
-  stepSeconds: number[]
-  /** Time since the job started, including walking. */
+  /** Work items done so far, in line order (see WORK_ITEMS). */
+  completedWorkCount: number
+  activeWorkIndex: number | null
+  /** Time spent in each timing row, summed over every unit, excluding walking between stations. */
+  rowSeconds: number[]
+  /** How many times each timing row has finished. */
+  rowCompletedCounts: number[]
+  /** Time since the batch started, including walking. */
   cycleSeconds: number
   isJobActive: boolean
   isJobComplete: boolean
