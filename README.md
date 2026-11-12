@@ -2,32 +2,39 @@
 
 Browser simulation of a 6'2" operator assembling and packing NEMA17 motor controller units on the unit 322 floor, with per-step cycle timing and a playable game mode.
 
-It is a single static page (`index.html`, three.js r128 from cdnjs) with no build step.
-
-## Run locally
+## Usage
 
 ```sh
-npx serve .
+bun install
+bun run start
 ```
 
-Or open `index.html` directly in a browser.
+`bun run start` opens React Cosmos; pick **pages / manufacturing-simulation**.
 
-## Deploy
+The simulation also runs headless, which is how the tests time the job:
 
-Import the repository in Vercel with the **Other** framework preset, no build command and the repository root as the output directory. `vercel.json` only turns on clean URLs.
+```ts
+import { ManufacturingSimulation } from "@tscircuit/manufacturing-simulation"
+
+const simulation = new ManufacturingSimulation()
+simulation.startScenario("assemble_and_pack")
+simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 300 })
+simulation.ctx.progress.stepSeconds // seconds spent in each of the 12 steps
+simulation.ctx.progress.cycleSeconds // total including walking
+```
 
 ## What it simulates
 
 - **Floor:** unit 322 at 2325, 18'3½" × 47'5¼" (46'0¼" on the window side), with the washroom on the east wall, the entry door in the NE corner and the window wall on the west.
-- **Operator:** 6'2" (1.88 m). Walks with A* path finding around walls and tables and reaches with two-bone arm IK, bending at the hips for 29" tables.
+- **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK and bends at the hips for 29" tables.
 - **Stations:** three 6' folding tables.
   - Assembly bench: screwdriver, NEMA17 motors, motor controller PCBs, a jig and a screw dish.
-  - Printer bench: a P2S with the backface spacer prints on the plate.
+  - Printer bench: a P2S with backface spacer prints on the plate.
   - Pack-out bench: mailer box blanks, foam inserts and a finished-goods area.
 - **Job:** 12 timed steps. Pull the spacer print, remove the 4 backface screws, fit the spacer and PCB, drive the screws, fold the box, add foam, nest the assembly, close the lid and move the box to finished goods.
-- **Timing:** each step and walking time are clocked. Speeds run from 0.5× to 8×. A cycle is about 75 s, but gesture durations are placeholders, not measured.
+- **Timing:** each step and walking time are clocked, at 0.5× to 8×. A cycle is about 75 s. Gesture durations are placeholders, not measured.
 
-The spacer geometry follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com: 42 mm face, 31 mm pitch, 1 mm base, 3 mm sleeves, 22.6 mm rotor hole and a 5 mm corner clip. The PCB, P2S, box and foam are simplified stand-ins.
+The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com: 42 mm face, 31 mm pitch, 1 mm base, 3 mm sleeves, 22.6 mm rotor hole and a 5 mm corner clip. The PCB, P2S, box and foam are simplified stand-ins.
 
 ## Controls
 
@@ -42,18 +49,36 @@ The spacer geometry follows `backface-spacer-4mm.scad` from motorcontrol.tscircu
 | E | Do the next job step at this station (game mode) |
 | F | Pick up or put back the screwdriver (game mode) |
 
-Touch devices get an on-screen stick and an Act button in game mode.
+Touch screens get an on-screen stick and an Act button in game mode.
 
-## Editing the layout
+## Code layout
 
-Table positions, the operator's start point and the patrol route are in the `LAYOUT` block near the top of the script in `index.html`. Each job step is an entry in `OPS`, written as a generator so its gestures run frame by frame and are timed automatically.
+| Path | Contents |
+| --- | --- |
+| `lib/layout` | Floor plan, table placements and stations. Table positions are placeholders; change them in `station-layout.ts`. |
+| `lib/models` | Three.js models: table, NEMA17, spacer, PCB, screwdriver, P2S, mailer box, foam, room. |
+| `lib/world` | Builds the benches and remembers where each part sits. |
+| `lib/navigation` | Walkable-floor test, nav grid and A* path finding. |
+| `lib/operator` | 6'2" operator rig, two-bone IK and per-frame pose. |
+| `lib/tasks` | Generator-based coroutines and operator motions (walk, reach, grab, move, place). |
+| `lib/job` | The 12 job steps, grouped by station. |
+| `lib/simulation` | `ManufacturingSimulation`, scenarios and game-mode actions. No DOM dependencies. |
+| `lib/viewer` | React viewer: renderer, camera, HUD and input. |
 
-## Tests
+Each job step is a `JobStep` whose `run` is a generator, so its gestures advance one simulation step at a time and are timed automatically. Add a step by writing a generator from the motions in `lib/tasks/operator-motions.ts` and listing it in `lib/job/assembly-job-steps.ts`.
+
+## Development
 
 ```sh
-npm install
-npx playwright install chromium
-npm test
+bun test
+bun run typecheck
+bun run format
 ```
 
-`tests/smoke.mjs` loads the page in headless Chromium, runs the full job at a fixed time step and fails on any page error or if the job does not finish.
+## Deploy
+
+Vercel builds the Cosmos export with `bun run build:site` and serves `cosmos-export/` (see `vercel.json`). The simulation alone, without the Cosmos sidebar, is at:
+
+```
+/renderer.html?fixtureId=%7B%22path%22%3A%22pages%2Fmanufacturing-simulation.page.tsx%22%7D&locked=true
+```
