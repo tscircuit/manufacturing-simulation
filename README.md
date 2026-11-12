@@ -19,7 +19,7 @@ import { ManufacturingSimulation } from "@tscircuit/manufacturing-simulation"
 const simulation = new ManufacturingSimulation()
 simulation.startScenario("assemble_and_pack")
 simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 300 })
-simulation.ctx.progress.stepSeconds // seconds spent in each of the 12 steps
+simulation.ctx.progress.stepSeconds // seconds spent in each of the 13 steps
 simulation.ctx.progress.cycleSeconds // total including walking
 ```
 
@@ -27,12 +27,13 @@ simulation.ctx.progress.cycleSeconds // total including walking
 
 - **Floor:** unit 322 at 2325, 18'3½" × 47'5¼" (46'0¼" on the window side), with the washroom on the east wall, the entry door in the NE corner and the window wall on the west.
 - **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK and bends at the hips for 29" tables.
-- **Stations:** three 6' folding tables.
+- **Stations:** four 6' folding tables.
   - Assembly bench: screwdriver, NEMA17 motors, motor controller PCBs, a jig and a screw dish.
   - Printer bench: a P2S with backface spacer prints on the plate.
-  - Pack-out bench: mailer box blanks, foam inserts and a finished-goods area.
-- **Job:** 12 timed steps. Pull the spacer print, remove the 4 backface screws, fit the spacer and PCB, drive the screws, fold the box, add foam, nest the assembly, close the lid and move the box to finished goods.
-- **Timing:** each step and walking time are clocked, at 0.5× to 8×. A cycle is about 75 s. Gesture durations are placeholders, not measured.
+  - Foam cutting bench: a cutter and a stack of 1.2 × 0.6 m foam sheets. The cutter produces two 110 × 70 mm inserts sized to the mailer's interior.
+  - Pack-out bench: mailer box blanks and a finished-goods area.
+- **Job:** 13 timed steps. Pull the spacer print, remove the 4 backface screws, fit the spacer and PCB, drive the screws, cut the foam, carry the inserts and motor assembly to pack-out, fold the box, add foam, nest the assembly, close the lid and move the box to finished goods.
+- **Timing:** each step and walking time are clocked, at 0.5× to 8×. A cycle is about 95 s using estimated gesture and cutting durations.
 
 The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com: 42 mm face, 31 mm pitch, 1 mm base, 3 mm sleeves, 22.6 mm rotor hole and a 5 mm corner clip. The PCB, P2S, box and foam are simplified stand-ins.
 
@@ -56,12 +57,12 @@ Touch screens get an on-screen stick and an Act button in game mode.
 | Path | Contents |
 | --- | --- |
 | `lib/layout` | Floor plan, table placements and stations. Table positions are placeholders; change them in `station-layout.ts`. |
-| `lib/models` | Three.js models: table, NEMA17, spacer, PCB, screwdriver, P2S, mailer box, foam, room. |
+| `lib/models` | Three.js models: table, NEMA17, spacer, PCB, screwdriver, P2S, foam cutter and stock, mailer box, foam inserts, room. |
 | `lib/world` | Builds the benches and remembers where each part sits. |
 | `lib/navigation` | Walkable-floor test, nav grid and A* path finding. |
 | `lib/operator` | 6'2" operator rig, two-bone IK and per-frame pose. |
 | `lib/tasks` | Generator-based coroutines and operator motions (walk, reach, grab, move, place). |
-| `lib/job` | The 12 job steps, grouped by station. |
+| `lib/job` | The 13 job steps, grouped by station. |
 | `lib/simulation` | `ManufacturingSimulation`, scenarios and game-mode actions. No DOM dependencies. |
 | `lib/viewer` | React viewer: renderer, camera, HUD and input. |
 

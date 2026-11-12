@@ -25,7 +25,7 @@ test("assemble-and-pack runs every step and ends with the box on finished goods"
   expect(simulation.isTaskRunning).toBe(false)
   expect(progress.isJobComplete).toBe(true)
   expect(progress.completedStepCount).toBe(ASSEMBLY_JOB_STEPS.length)
-  expect(ASSEMBLY_JOB_STEPS).toHaveLength(12)
+  expect(ASSEMBLY_JOB_STEPS).toHaveLength(13)
   for (const stepSeconds of progress.stepSeconds)
     expect(stepSeconds).toBeGreaterThan(0.5)
   const stepTotalSeconds = progress.stepSeconds.reduce(
@@ -48,6 +48,8 @@ test("assemble-and-pack runs every step and ends with the box on finished goods"
   expect(isDescendantOf({ child: motor, ancestor: world.box.group })).toBe(true)
   expect(world.bottomFoam.parent).toBe(world.box.group)
   expect(world.topFoam.parent).toBe(world.box.group)
+  expect(world.foamCutting.uncutSheet.visible).toBe(false)
+  expect(world.foamCutting.cutSheet.visible).toBe(true)
 
   const packOutBench = world.tables.pack_out_bench
   expect(world.box.group.parent).toBe(packOutBench)

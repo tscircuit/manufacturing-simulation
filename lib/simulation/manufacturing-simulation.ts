@@ -85,6 +85,10 @@ export class ManufacturingSimulation {
   reset(): void {
     this.activeTask = null
     const { ctx } = this
+    // A foam insert or its carrier can be under the hand or scene during a move.
+    ctx.world.foamInsertPair.removeFromParent()
+    ctx.world.bottomFoam.removeFromParent()
+    ctx.world.topFoam.removeFromParent()
     ctx.scene.remove(ctx.world.root)
     ctx.world = createWorld()
     ctx.scene.add(ctx.world.root)

@@ -64,6 +64,21 @@ function* foldBox(ctx: SimContext): SimTask {
   )
   yield* releaseHand(rightHand)
 
+  ctx.statusText = "Setting the cut foam inserts beside the box"
+  yield* moveObject(
+    {
+      object: world.foamInsertPair,
+      hand: leftHand,
+      parent: bench,
+      localPosition: PACK_OUT_BENCH_SPOTS.foamInserts,
+      localQuaternion: IDENTITY_QUATERNION,
+      durationSeconds: 0.7,
+      arcHeightM: 0.04,
+    },
+    ctx,
+  )
+  yield* releaseHand(leftHand)
+
   ctx.statusText = "Taking a flat box blank"
   yield* grabObject({
     hand: leftHand,
@@ -284,7 +299,7 @@ function* moveBoxToFinishedGoods(ctx: SimContext): SimTask {
 
 export const PACK_OUT_STEPS: JobStep[] = [
   {
-    label: "Set assembly down, fold a box",
+    label: "Set assembly and foam down, fold a box",
     station: STATIONS.packOut,
     closeUpView: { ...PACK_OUT_CLOSE_UP, distanceM: 0.95 },
     getFocusPoint: getBoxFocusPoint,

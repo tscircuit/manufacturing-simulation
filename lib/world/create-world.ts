@@ -8,7 +8,8 @@ import {
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
 import { createControllerPcb } from "lib/models/controller-pcb"
 import { createFilamentSpool } from "lib/models/filament-spool"
-import { createFoamInsert, FOAM_INSERT_HEIGHT_M } from "lib/models/foam-insert"
+import { createFoamCuttingStation } from "lib/models/foam-cutting-station"
+import { createFoamInsert } from "lib/models/foam-insert"
 import { createFoldingTable } from "lib/models/folding-table"
 import { createMailerBox, type MailerBox } from "lib/models/mailer-box"
 import { createNema17Motor, type Nema17Motor } from "lib/models/nema17-motor"
@@ -47,6 +48,8 @@ export interface ManufacturingWorld {
   pcb: Group
   screwdriver: Screwdriver
   box: MailerBox
+  foamCutting: ReturnType<typeof createFoamCuttingStation>
+  foamInsertPair: Group
   bottomFoam: Group
   topFoam: Group
   /** Backface screws set aside in the dish, in removal order. */
@@ -56,7 +59,6 @@ export interface ManufacturingWorld {
 const MOTORS_IN_TRAY = 4
 const PCBS_IN_STACK = 5
 const BOX_BLANKS_IN_STACK = 4
-const FOAM_INSERTS_PER_STACK = 3
 const JIG_HEIGHT_M = 0.03
 
 const SPACER_PRINT_POSITIONS: Array<[number, number]> = [
@@ -200,11 +202,7 @@ function populatePrinterBench(table: Group): {
   return { printer, spacer: spacers[0] }
 }
 
-function populatePackOutBench(table: Group): {
-  box: MailerBox
-  bottomFoam: Group
-  topFoam: Group
-} {
+function populatePackOutBench(table: Group): MailerBox {
   const spots = PACK_OUT_BENCH_SPOTS
   const boxes: MailerBox[] = []
   for (let level = 0; level < BOX_BLANKS_IN_STACK; level++) {
@@ -213,19 +211,6 @@ function populatePackOutBench(table: Group): {
     box.group.position.y += level * spots.boxBlankSpacingM
     table.add(box.group)
     boxes.push(box)
-  }
-  const bottomFoams: Group[] = []
-  const topFoams: Group[] = []
-  for (let level = 0; level < FOAM_INSERTS_PER_STACK; level++) {
-    const bottomFoam = createFoamInsert({ isTopInsert: false })
-    bottomFoam.position.copy(spots.bottomFoamStack)
-    bottomFoam.position.y += level * FOAM_INSERT_HEIGHT_M
-    const topFoam = createFoamInsert({ isTopInsert: true })
-    topFoam.position.copy(spots.topFoamStack)
-    topFoam.position.y += level * FOAM_INSERT_HEIGHT_M
-    table.add(bottomFoam, topFoam)
-    bottomFoams.push(bottomFoam)
-    topFoams.push(topFoam)
   }
   table.add(
     createBoxMesh({
@@ -238,11 +223,7 @@ function populatePackOutBench(table: Group): {
       ],
     }),
   )
-  return {
-    box: boxes[BOX_BLANKS_IN_STACK - 1],
-    bottomFoam: bottomFoams[FOAM_INSERTS_PER_STACK - 1],
-    topFoam: topFoams[FOAM_INSERTS_PER_STACK - 1],
-  }
+  return boxes[BOX_BLANKS_IN_STACK - 1]
 }
 
 function createPlacedTable(tableId: TableId): Group {
@@ -254,25 +235,35 @@ function createPlacedTable(tableId: TableId): Group {
   return table
 }
 
-/** Build the three benches and every part on them, in their starting state. */
+/** Build the benches and every part on them, in their starting state. */
 export function createWorld(): ManufacturingWorld {
   const root = new Group()
   const tables: Record<TableId, Group> = {
     assembly_bench: createPlacedTable("assembly_bench"),
     printer_bench: createPlacedTable("printer_bench"),
+    foam_cutting_bench: createPlacedTable("foam_cutting_bench"),
     pack_out_bench: createPlacedTable("pack_out_bench"),
   }
-  root.add(tables.assembly_bench, tables.printer_bench, tables.pack_out_bench)
+  root.add(...Object.values(tables))
   const assemblyBench = populateAssemblyBench(tables.assembly_bench)
   const printerBench = populatePrinterBench(tables.printer_bench)
-  const packOutBench = populatePackOutBench(tables.pack_out_bench)
+  const box = populatePackOutBench(tables.pack_out_bench)
+  const foamCutting = createFoamCuttingStation()
+  foamCutting.group.position.y = FOLDING_TABLE.topHeightM
+  tables.foam_cutting_bench.add(foamCutting.group)
+  const foamInsertPair = new Group()
+  foamInsertPair.name = "foam-insert-pair"
   root.updateMatrixWorld(true)
   return {
     root,
     tables,
     ...assemblyBench,
     ...printerBench,
-    ...packOutBench,
+    box,
+    foamCutting,
+    foamInsertPair,
+    bottomFoam: createFoamInsert({ isTopInsert: false }),
+    topFoam: createFoamInsert({ isTopInsert: true }),
     screwsInDish: [],
   }
 }

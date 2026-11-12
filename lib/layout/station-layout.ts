@@ -1,6 +1,10 @@
 import { FLOOR_PLAN } from "lib/layout/floor-plan"
 
-export type TableId = "assembly_bench" | "printer_bench" | "pack_out_bench"
+export type TableId =
+  | "assembly_bench"
+  | "printer_bench"
+  | "foam_cutting_bench"
+  | "pack_out_bench"
 
 /** A 6' plastic folding table: 72" x 30", 29" high. */
 export const FOLDING_TABLE = {
@@ -36,6 +40,12 @@ export const TABLE_PLACEMENTS: Record<TableId, TablePlacement> = {
     ccwYawRadians: -Math.PI / 2,
     label: "P2S printer",
   },
+  foam_cutting_bench: {
+    centerXM: FLOOR_PLAN.widthM - 0.45,
+    centerZM: 11.9,
+    ccwYawRadians: -Math.PI / 2,
+    label: "Foam cutting",
+  },
   pack_out_bench: {
     centerXM: FLOOR_PLAN.widthM - 0.45,
     centerZM: 9.2,
@@ -63,6 +73,11 @@ export const STATIONS = {
   assembly: {
     tableId: "assembly_bench",
     alongTableM: 0,
+    standoffFromEdgeM: 0.3,
+  },
+  foamCutting: {
+    tableId: "foam_cutting_bench",
+    alongTableM: 0.13,
     standoffFromEdgeM: 0.3,
   },
   packOut: {

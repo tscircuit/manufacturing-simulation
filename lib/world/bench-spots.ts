@@ -24,8 +24,7 @@ export const PACK_OUT_BENCH_SPOTS = {
   boxFolding: new Vector3(0, TOP, 0.2),
   /** Motor assembly lying on its side, waiting to be packed. */
   assemblyRest: new Vector3(0.19, TOP + 0.02115, 0.27),
-  bottomFoamStack: new Vector3(0.36, TOP, 0.115),
-  topFoamStack: new Vector3(0.36, TOP, 0.275),
+  foamInserts: new Vector3(0.36, TOP, 0.24),
   finishedGoods: new Vector3(0.62, TOP, 0.2),
 }
 
