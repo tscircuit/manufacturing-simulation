@@ -1,4 +1,5 @@
 import { Group } from "three"
+import { MAILER_BOX } from "lib/models/mailer-box"
 import {
   createBoxMesh,
   createExtrudedMesh,
@@ -7,13 +8,18 @@ import {
 } from "lib/scene/primitives"
 
 export const FOAM_INSERT = {
-  widthM: 0.11,
-  depthM: 0.07,
+  widthM: MAILER_BOX.lengthM - 2 * MAILER_BOX.boardThicknessM,
+  depthM: MAILER_BOX.widthM - 2 * MAILER_BOX.boardThicknessM,
   slabThicknessM: 0.008,
   frameHeightM: 0.022,
   pocketWidthM: 0.078,
   pocketDepthM: 0.046,
 } as const
+
+export const FOAM_MATERIAL = createStandardMaterial({
+  color: 0x3b3f45,
+  roughness: 1,
+})
 
 /** Total stack height of one insert. */
 export const FOAM_INSERT_HEIGHT_M =
@@ -26,7 +32,6 @@ export const FOAM_INSERT_HEIGHT_M =
  */
 export function createFoamInsert(params: { isTopInsert: boolean }): Group {
   const insert = new Group()
-  const foamMaterial = createStandardMaterial({ color: 0x3b3f45, roughness: 1 })
   const f = FOAM_INSERT
   const frame = createRectangleShape({ widthM: f.widthM, depthM: f.depthM })
   frame.holes.push(
@@ -40,12 +45,12 @@ export function createFoamInsert(params: { isTopInsert: boolean }): Group {
     createExtrudedMesh({
       shape: frame,
       depthM: f.frameHeightM,
-      material: foamMaterial,
+      material: FOAM_MATERIAL,
       baseYM: frameBaseYM,
     }),
     createBoxMesh({
       size: [f.widthM, f.slabThicknessM, f.depthM],
-      material: foamMaterial,
+      material: FOAM_MATERIAL,
       position: [0, slabCenterYM, 0],
     }),
   )

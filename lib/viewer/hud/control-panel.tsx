@@ -1,5 +1,5 @@
 import type { Ref } from "react"
-import { FOLDING_TABLE } from "lib/layout/station-layout"
+import { FOLDING_TABLE, TABLE_PLACEMENTS } from "lib/layout/station-layout"
 import type { ScenarioId } from "lib/simulation/scenarios"
 import type { SimulationMode } from "lib/simulation/sim-context"
 
@@ -102,7 +102,10 @@ export function ControlPanel(props: {
             <dt>Floor</dt>
             <dd>18′3½″ × 47′5¼″</dd>
             <dt>Tables</dt>
-            <dd>3 × 6′ folding, {tableHeightInches}″ high</dd>
+            <dd>
+              {Object.keys(TABLE_PLACEMENTS).length} × 6′ folding,{" "}
+              {tableHeightInches}″ high
+            </dd>
           </dl>
         </div>
       </details>
