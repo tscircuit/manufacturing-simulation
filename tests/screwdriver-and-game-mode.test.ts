@@ -27,11 +27,11 @@ test("game mode walks with input and offers the next step near its station", () 
   expect(operator.position.distanceTo(start)).toBeGreaterThan(1)
   expect(simulation.getGameActions().stepAction).toBeNull()
 
-  const printerPose = getStationStandPose(STATIONS.printer)
-  operator.position.set(printerPose.x + 0.3, 0, printerPose.z)
+  const spacerPose = getStationStandPose(STATIONS.spacers)
+  operator.position.set(spacerPose.x + 0.3, 0, spacerPose.z)
   simulation.setWalkInput({ forward: 0, right: 0, cameraCcwYawRadians: 0 })
   expect(simulation.getGameActions().stepAction?.label).toBe(
-    "Take spacer print out of the P2S",
+    "Pick a spacer from the basket",
   )
   expect(simulation.runGameAction("step")).toBe(true)
   simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 60 })

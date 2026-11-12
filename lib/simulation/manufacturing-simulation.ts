@@ -2,6 +2,7 @@ import { Scene } from "three"
 import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
 import { OPERATOR_START } from "lib/layout/station-layout"
 import { createRoomShell, type RoomShell } from "lib/models/room-shell"
+import { updateFlexCable } from "lib/models/flex-cable"
 import { createNavGrid } from "lib/navigation/nav-grid"
 import { createOperator, resetOperator } from "lib/operator/create-operator"
 import { updateOperatorPose } from "lib/operator/update-operator-pose"
@@ -97,6 +98,7 @@ export class ManufacturingSimulation {
       ccwYawRadians: OPERATOR_START.ccwYawRadians,
     })
     updateOperatorPose(ctx.operator, 1 / 60)
+    for (const cable of ctx.world.cables) updateFlexCable(cable)
   }
 
   startTask(task: SimTask): void {
@@ -174,6 +176,7 @@ export class ManufacturingSimulation {
     if (progress.activeStepIndex !== null)
       progress.stepSeconds[progress.activeStepIndex] += dtSeconds
     updateOperatorPose(ctx.operator, dtSeconds)
+    for (const cable of ctx.world.cables) updateFlexCable(cable)
   }
 
   /** Step until the running task finishes or `maxSeconds` of simulated time pass. */

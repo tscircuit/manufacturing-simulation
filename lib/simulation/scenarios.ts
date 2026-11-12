@@ -43,7 +43,7 @@ export function* assembleAndPackScenario(ctx: SimContext): SimTask {
     const stepIndex = progress.completedStepCount
     const step = ASSEMBLY_JOB_STEPS[stepIndex]
     progress.isJobActive = true
-    ctx.statusText = `Walking to the ${TABLE_PLACEMENTS[step.station.tableId].label.toLowerCase()}`
+    ctx.statusText = `Walking to the ${TABLE_PLACEMENTS[step.station.tableId].label}`
     yield* walkToStation(step.station, ctx)
     yield* runJobStep({ stepIndex }, ctx)
     if (ctx.mode !== "simulation") return

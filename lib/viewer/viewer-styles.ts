@@ -1,6 +1,6 @@
 /** Styles for the viewer, scoped under `.msim`. Colors are theme tokens. */
 export const VIEWER_STYLES = `
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;700&family=Montserrat:wght@500;700;800&display=swap");
 
 .msim {
   --bg: #e7ebee; --panel: rgba(255,255,255,.9); --fg: #18212b; --muted: #5a6876; --line: #c9d1d9;
@@ -12,13 +12,19 @@ export const VIEWER_STYLES = `
   background: var(--bg); color: var(--fg); font-family: var(--sans); font-size: 13px; line-height: 1.4;
 }
 @media (prefers-color-scheme: dark) {
-  .msim {
+  :root:not([data-theme="light"]) .msim {
     --bg: #0c1116; --panel: rgba(17,24,31,.9); --fg: #e4eaf0; --muted: #8a98a7; --line: #2a3541;
     --accent: #ffc533; --accent-fg: #1a1400; --ok: #58d39a; --btn: #1b2530;
     --scene-bg: #0c1116; --floor: #262e36; --floor-line: #35404b; --wall: #3a4550;
     color-scheme: dark;
   }
 }
+:root[data-theme="dark"] .msim {
+    --bg: #0c1116; --panel: rgba(17,24,31,.9); --fg: #e4eaf0; --muted: #8a98a7; --line: #2a3541;
+    --accent: #ffc533; --accent-fg: #1a1400; --ok: #58d39a; --btn: #1b2530;
+    --scene-bg: #0c1116; --floor: #262e36; --floor-line: #35404b; --wall: #3a4550;
+    color-scheme: dark;
+  }
 .msim * { box-sizing: border-box; }
 .msim canvas.msim-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
 .msim .panel { position: absolute; top: 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; backdrop-filter: blur(6px); max-height: calc(100% - 120px); overflow: auto; }

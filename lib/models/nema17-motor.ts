@@ -1,4 +1,4 @@
-import { Group } from "three"
+import { Group, Object3D } from "three"
 import {
   createBoxMesh,
   createCylinderMesh,
@@ -14,27 +14,20 @@ import {
 
 export const NEMA17 = {
   faceSizeM: 0.0423,
-  bodyLengthM: 0.04,
   screwPitchM: 0.031,
   /** Height of the back face above the mounting face. */
   backfaceHeightM: 0.04,
 } as const
 
+/** M3 screws that ship in the motor's back face. */
+export const STOCK_SCREW_SHANK_M = 0.01
+/** Longer M3 screws that reach through the 4 mm spacer and the PCB. */
+export const LONG_SCREW_SHANK_M = 0.016
+
 /** Which corner of the bolt pattern a screw sits in (±1 on X and Z). */
 export interface BoltHoleCorner {
   xSign: number
   zSign: number
-}
-
-export interface BackfaceScrew {
-  group: Group
-  corner: BoltHoleCorner
-}
-
-/** Origin is the centre of the mounting face; +Y points toward the back face. */
-export interface Nema17Motor {
-  group: Group
-  backfaceScrews: BackfaceScrew[]
 }
 
 export const BOLT_HOLE_CORNERS: BoltHoleCorner[] = [
@@ -44,8 +37,24 @@ export const BOLT_HOLE_CORNERS: BoltHoleCorner[] = [
   { xSign: -1, zSign: 1 },
 ]
 
+export interface BackfaceScrew {
+  group: Group
+  corner: BoltHoleCorner
+}
+
+/** Origin is the centre of the mounting face; +Y points toward the back face. */
+export interface Nema17Motor {
+  group: Group
+  /** Shaft; spin it about +Y. */
+  rotor: Group
+  /** Stock screws in the back face, removed during assembly. */
+  stockScrews: BackfaceScrew[]
+  /** Where the motor cable plugs in, on the side of the motor. Plug +Y points out. */
+  cableSocket: Object3D
+}
+
 /** M3 socket-head screw. Origin is the underside of the head; the shank points down. */
-export function createM3Screw(): Group {
+export function createM3Screw(params: { shankLengthM: number }): Group {
   const screw = new Group()
   screw.add(
     createCylinderMesh({
@@ -59,9 +68,9 @@ export function createM3Screw(): Group {
     createCylinderMesh({
       radiusTopM: 0.0015,
       radiusBottomM: 0.0015,
-      heightM: 0.016,
+      heightM: params.shankLengthM,
       material: STEEL_MATERIAL,
-      position: [0, -0.008, 0],
+      position: [0, -params.shankLengthM / 2, 0],
       radialSegments: 10,
     }),
     createCylinderMesh({
@@ -114,6 +123,15 @@ export function createNema17Motor(): Nema17Motor {
       material: endCapMaterial,
       position: [0, -0.001, 0],
     }),
+    // JST-PH socket on the side of the motor
+    createBoxMesh({
+      size: [0.016, 0.006, 0.005],
+      material: createStandardMaterial({ color: 0xf2f2ee }),
+      position: [0, 0.035, -0.0235],
+    }),
+  )
+  const rotor = new Group()
+  rotor.add(
     createCylinderMesh({
       radiusTopM: 0.0025,
       radiusBottomM: 0.0025,
@@ -122,15 +140,23 @@ export function createNema17Motor(): Nema17Motor {
       position: [0, -0.012, 0],
       radialSegments: 14,
     }),
+    // D-flat on the shaft, so the spin is visible
     createBoxMesh({
-      size: [0.016, 0.006, 0.005],
-      material: createStandardMaterial({ color: 0xf2f2ee }),
-      position: [0, 0.035, -0.0235],
+      size: [0.0012, 0.015, 0.0042],
+      material: DARK_METAL_MATERIAL,
+      position: [0.0021, -0.0155, 0],
     }),
   )
+  group.add(rotor)
+
+  const cableSocket = new Object3D()
+  cableSocket.position.set(0, 0.035, -0.026)
+  cableSocket.rotation.x = -Math.PI / 2
+  group.add(cableSocket)
+
   const halfPitchM = NEMA17.screwPitchM / 2
-  const backfaceScrews = BOLT_HOLE_CORNERS.map((corner) => {
-    const screw = createM3Screw()
+  const stockScrews = BOLT_HOLE_CORNERS.map((corner) => {
+    const screw = createM3Screw({ shankLengthM: STOCK_SCREW_SHANK_M })
     screw.position.set(
       corner.xSign * halfPitchM,
       NEMA17.backfaceHeightM,
@@ -139,5 +165,5 @@ export function createNema17Motor(): Nema17Motor {
     group.add(screw)
     return { group: screw, corner }
   })
-  return { group, backfaceScrews }
+  return { group, rotor, stockScrews, cableSocket }
 }

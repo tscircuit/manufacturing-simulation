@@ -18,6 +18,16 @@ test("tables, walls and the washroom are not walkable", () => {
   ).toBe(false)
   expect(isFloorPointFree({ x: -0.1, z: 3, clearanceM: 0.25 })).toBe(false)
   expect(isFloorPointFree({ x: 5.3, z: 2.6, clearanceM: 0.25 })).toBe(false)
+  // The line runs along the window wall.
+  for (const table of Object.values(TABLE_PLACEMENTS)) {
+    expect(
+      isFloorPointFree({
+        x: table.centerXM,
+        z: table.centerZM,
+        clearanceM: 0.25,
+      }),
+    ).toBe(false)
+  }
   expect(isFloorPointFree({ x: 2.8, z: 3, clearanceM: 0.25 })).toBe(true)
 })
 
@@ -31,8 +41,8 @@ test("every station is reachable", () => {
 })
 
 test("paths between stations never cut through an obstacle", () => {
-  const from = getStationStandPose(STATIONS.printer)
-  const to = getStationStandPose(STATIONS.assembly)
+  const from = getStationStandPose(STATIONS.spacers)
+  const to = getStationStandPose(STATIONS.shipReady)
   const path = findPath(
     { from: { x: from.x, z: from.z }, to: { x: to.x, z: to.z } },
     navGrid,

@@ -1,8 +1,12 @@
 import {
   Color,
+  Mesh,
+  type MeshStandardMaterial,
   PCFSoftShadowMap,
   PerspectiveCamera,
+  SRGBColorSpace,
   type Texture,
+  TextureLoader,
   WebGLRenderer,
 } from "three"
 import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
@@ -16,8 +20,11 @@ import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
+import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
+import { NEMA17_LABEL_DATA_URL } from "lib/viewer/nema17-label-artwork"
 import type { HudSnapshot } from "lib/viewer/hud-snapshot"
 import { createStationRing } from "lib/viewer/station-ring"
+import type { QcDisplayState } from "lib/models/qc-laptop"
 import type { ManufacturingWorld } from "lib/world/create-world"
 
 const MAX_FRAME_SECONDS = 0.05
@@ -29,6 +36,13 @@ interface PointerTrack {
   xPx: number
   yPx: number
   button: number
+}
+
+function loadLabelTexture(): Texture {
+  const texture = new TextureLoader().load(NEMA17_LABEL_DATA_URL)
+  texture.colorSpace = SRGBColorSpace
+  texture.anisotropy = 8
+  return texture
 }
 
 function readThemeToken(params: {
@@ -64,11 +78,22 @@ export class ViewerRuntime {
   private didAutoCloseUp = false
   private closeUpStationKey: string | null = null
   private floorTexture: Texture | null = null
+  /** The approved NEMA17 label artwork from tscircuit/product-packaging. */
+  private readonly stickerTexture = loadLabelTexture()
+  private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
+    idle: createQcScreenTexture("idle"),
+    testing: createQcScreenTexture("testing"),
+    pass: createQcScreenTexture("pass"),
+  }
+  private shownQcDisplayState: QcDisplayState | null = null
   private animationFrameId = 0
   private previousFrameMs = 0
   private previousHudMs = 0
   private readonly darkModeQuery = window.matchMedia(
     "(prefers-color-scheme: dark)",
+  )
+  private readonly themeAttributeObserver = new MutationObserver(() =>
+    this.applyTheme(),
   )
 
   constructor(
@@ -88,6 +113,10 @@ export class ViewerRuntime {
     scene.add(this.stationRing)
     this.applyTheme()
     this.darkModeQuery.addEventListener("change", this.applyTheme)
+    this.themeAttributeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    })
     canvas.addEventListener("pointerdown", this.handlePointerDown)
     canvas.addEventListener("pointermove", this.handlePointerMove)
     canvas.addEventListener("pointerup", this.handlePointerUp)
@@ -105,6 +134,7 @@ export class ViewerRuntime {
     cancelAnimationFrame(this.animationFrameId)
     const { canvas } = this.options
     this.darkModeQuery.removeEventListener("change", this.applyTheme)
+    this.themeAttributeObserver.disconnect()
     canvas.removeEventListener("pointerdown", this.handlePointerDown)
     canvas.removeEventListener("pointermove", this.handlePointerMove)
     canvas.removeEventListener("pointerup", this.handlePointerUp)
@@ -115,6 +145,9 @@ export class ViewerRuntime {
     window.removeEventListener("keyup", this.handleKeyUp)
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
+    this.stickerTexture.dispose()
+    for (const texture of Object.values(this.qcScreenTextures))
+      texture.dispose()
     this.renderer.dispose()
   }
 
@@ -220,19 +253,35 @@ export class ViewerRuntime {
     this.camera.updateProjectionMatrix()
   }
 
-  /** Add station labels whenever the simulation rebuilds its world. */
+  /** Add station signs and printed artwork whenever the simulation rebuilds its world. */
   private decorateWorld(): void {
     const { world } = this.simulation.ctx
-    if (world === this.decoratedWorld) return
-    this.decoratedWorld = world
-    for (const tableId of Object.keys(world.tables) as TableId[]) {
-      const label = createLabelSprite({
-        text: TABLE_PLACEMENTS[tableId].label,
-        widthM: 0.62,
+    if (world !== this.decoratedWorld) {
+      this.decoratedWorld = world
+      this.shownQcDisplayState = null
+      for (const tableId of Object.keys(world.tables) as TableId[]) {
+        const placement = TABLE_PLACEMENTS[tableId]
+        const label = createLabelSprite({
+          text: `${placement.lineOrder} · ${placement.label}`,
+          widthM: 0.72,
+        })
+        label.position.set(0, LABEL_HEIGHT_M, -0.3)
+        world.tables[tableId].add(label)
+      }
+      world.root.traverse((object) => {
+        if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
+        const material = object.material as MeshStandardMaterial
+        material.map = this.stickerTexture
+        material.color.set(0xffffff)
+        material.needsUpdate = true
       })
-      label.position.set(0, LABEL_HEIGHT_M, -0.3)
-      world.tables[tableId].add(label)
     }
+    const { laptop } = world
+    if (laptop.displayState === this.shownQcDisplayState) return
+    this.shownQcDisplayState = laptop.displayState
+    laptop.display.material.map = this.qcScreenTextures[laptop.displayState]
+    laptop.display.material.color.set(0xffffff)
+    laptop.display.material.needsUpdate = true
   }
 
   private updateWalkInput(): void {

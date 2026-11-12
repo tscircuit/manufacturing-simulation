@@ -1,31 +1,37 @@
 import { expect, test } from "bun:test"
-import { Box3, Vector3 } from "three"
+import { Box3, type Object3D, Vector3 } from "three"
 import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
+import {
+  LONG_SCREW_SHANK_M,
+  STOCK_SCREW_SHANK_M,
+} from "lib/models/nema17-motor"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
-import { PACK_OUT_BENCH_SPOTS } from "lib/world/bench-spots"
+import { QC_BENCH_SPOTS, SHIP_READY_BENCH_SPOTS } from "lib/world/bench-spots"
 
 function isDescendantOf(params: {
-  child: { parent: unknown }
-  ancestor: unknown
+  child: Object3D
+  ancestor: Object3D
 }): boolean {
-  let node = params.child.parent as { parent: unknown } | null
-  while (node) {
+  for (let node = params.child.parent; node; node = node.parent) {
     if (node === params.ancestor) return true
-    node = node.parent as { parent: unknown } | null
   }
   return false
 }
 
-test("assemble-and-pack runs every step and ends with the box on finished goods", () => {
+function runFullJob(): ManufacturingSimulation {
   const simulation = new ManufacturingSimulation()
   simulation.startScenario("assemble_and_pack")
-  simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 300 })
+  simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 400 })
+  return simulation
+}
 
-  const { progress, world } = simulation.ctx
+test("the line job runs all 15 steps and leaves a labelled box on ship-ready", () => {
+  const simulation = runFullJob()
+  const { progress, world, operator } = simulation.ctx
   expect(simulation.isTaskRunning).toBe(false)
+  expect(ASSEMBLY_JOB_STEPS).toHaveLength(15)
   expect(progress.isJobComplete).toBe(true)
-  expect(progress.completedStepCount).toBe(ASSEMBLY_JOB_STEPS.length)
-  expect(ASSEMBLY_JOB_STEPS).toHaveLength(12)
+  expect(progress.completedStepCount).toBe(15)
   for (const stepSeconds of progress.stepSeconds)
     expect(stepSeconds).toBeGreaterThan(0.5)
   const stepTotalSeconds = progress.stepSeconds.reduce(
@@ -33,49 +39,59 @@ test("assemble-and-pack runs every step and ends with the box on finished goods"
     0,
   )
   expect(progress.cycleSeconds).toBeGreaterThan(stepTotalSeconds)
-  expect(progress.cycleSeconds).toBeLessThan(150)
+  expect(progress.cycleSeconds).toBeLessThan(240)
 
-  // The assembly is spacer + PCB + 4 screws on the motor, packed in foam in the box.
+  // Spacer and PCB on the motor, held by four long screws.
   const motor = world.motor.group
   expect(world.spacer.parent).toBe(motor)
-  expect(world.pcb.parent).toBe(motor)
+  expect(world.pcb.group.parent).toBe(motor)
+  expect(world.longScrews.every((screw) => screw.parent === motor)).toBe(true)
+
+  // The four stock screws ended up in the used-screw bin, not on the motor.
+  expect(world.removedStockScrews).toHaveLength(4)
   expect(
-    motor.children.filter((child) =>
-      world.motor.backfaceScrews.some((screw) => screw.group === child),
+    world.removedStockScrews.every(
+      (screw) => screw.parent === world.usedScrewBin,
     ),
-  ).toHaveLength(4)
-  expect(world.screwsInDish).toHaveLength(0)
-  expect(isDescendantOf({ child: motor, ancestor: world.box.group })).toBe(true)
-  expect(world.bottomFoam.parent).toBe(world.box.group)
-  expect(world.topFoam.parent).toBe(world.box.group)
+  ).toBe(true)
+  expect(STOCK_SCREW_SHANK_M).toBeLessThan(LONG_SCREW_SHANK_M)
 
-  const packOutBench = world.tables.pack_out_bench
-  expect(world.box.group.parent).toBe(packOutBench)
+  // The motor cable stays plugged in at both ends.
+  expect(world.motorCable.motorPlug.group.parent).toBe(motor)
+  expect(world.motorCable.boardPlug.group.parent).toBe(world.pcb.group)
+
+  // The QC cables are back on the QC bench and the test passed.
+  const qcBench = world.tables.qc_bench
+  expect(world.qcDataCable.plug.group.parent).toBe(qcBench)
   expect(
-    world.box.group.position.distanceTo(PACK_OUT_BENCH_SPOTS.finishedGoods),
+    world.qcPowerCable.plug.group.position.distanceTo(
+      QC_BENCH_SPOTS.powerPlugRest,
+    ),
   ).toBeLessThan(1e-6)
-  expect(world.box.lid.rotation.z).toBeCloseTo(Math.PI / 2, 5)
+  expect(world.motor.rotor.rotation.y).toBeGreaterThan(Math.PI * 2)
 
-  // The motor stays inside the closed box.
-  const boxBounds = new Box3()
-    .setFromObject(world.box.group)
-    .expandByScalar(0.002)
+  // Box: motor, two USB-C cables and the charger inside, lid closed, label on the lid.
+  const { box } = world
+  expect(isDescendantOf({ child: motor, ancestor: box.group })).toBe(true)
+  for (const coil of world.packedUsbCables) expect(coil.parent).toBe(box.group)
+  expect(world.packedCharger.parent).toBe(box.group)
+  expect(box.lid.rotation.x).toBeCloseTo(0, 5)
+  expect(world.sticker.parent).toBe(box.lid)
+  const boxBounds = new Box3().setFromObject(box.group).expandByScalar(0.002)
   expect(boxBounds.containsPoint(motor.getWorldPosition(new Vector3()))).toBe(
     true,
   )
 
-  // The screwdriver is back where it started and both hands are free.
+  expect(box.group.parent).toBe(world.tables.ship_ready_bench)
+  expect(
+    box.group.position.distanceTo(SHIP_READY_BENCH_SPOTS.outgoing),
+  ).toBeLessThan(1e-6)
   expect(world.screwdriver.group.parent).toBe(world.tables.assembly_bench)
-  expect(simulation.ctx.operator.leftHand.heldObject).toBeNull()
-  expect(simulation.ctx.operator.rightHand.heldObject).toBeNull()
+  expect(operator.leftHand.heldObject).toBeNull()
+  expect(operator.rightHand.heldObject).toBeNull()
 })
 
-test("same run is deterministic", () => {
-  const cycleTimes = [0, 1].map(() => {
-    const simulation = new ManufacturingSimulation()
-    simulation.startScenario("assemble_and_pack")
-    simulation.runUntilIdle({ dtSeconds: 0.02, maxSeconds: 300 })
-    return simulation.ctx.progress.cycleSeconds
-  })
-  expect(cycleTimes[0]).toBe(cycleTimes[1])
+test("the same run is deterministic", () => {
+  const [first, second] = [runFullJob(), runFullJob()]
+  expect(first.ctx.progress.cycleSeconds).toBe(second.ctx.progress.cycleSeconds)
 })
