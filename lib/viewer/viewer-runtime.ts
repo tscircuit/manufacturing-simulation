@@ -206,7 +206,15 @@ export class ViewerRuntime {
     this.emitHud()
   }
 
-  /** Start over with all 30 units ready for one bench. */
+  /** Run the full batch or one motor from now on; starts the line over. */
+  setJobUnitCount(unitCount: number): void {
+    this.simulation.setJobUnitCount(unitCount)
+    this.closeUpStationKey = null
+    this.setCameraMode("follow")
+    this.emitHud()
+  }
+
+  /** Start over with the job's units ready for one bench. */
   startAt(startId: LineStartId): void {
     this.simulation.startAt(startId)
     this.closeUpStationKey = null
@@ -494,11 +502,13 @@ export class ViewerRuntime {
         label: row.step.label,
         seconds: progress.rowSeconds[row.rowIndex],
         completedCount,
-        runCount: row.runCount,
+        runCount: row.isPerUnit ? progress.unitCount : row.runCount,
         state:
           row.rowIndex === activeRowIndex
             ? ("active" as const)
-            : row.runCount !== null && completedCount >= row.runCount
+            : row.runCount !== null &&
+                completedCount >=
+                  (row.isPerUnit ? progress.unitCount : row.runCount)
               ? ("done" as const)
               : ("pending" as const),
       }
@@ -527,6 +537,7 @@ export class ViewerRuntime {
     if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
     this.options.onHudChange({
       mode: ctx.mode,
+      jobUnitCount: progress.unitCount,
       statusText,
       isPaused: this.isPaused,
       speed: this.speed,

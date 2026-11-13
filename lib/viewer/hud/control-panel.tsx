@@ -19,6 +19,8 @@ const LINE_START_IDS: LineStartId[] = [
 export function ControlPanel(props: {
   detailsRef: Ref<HTMLDetailsElement>
   mode: SimulationMode
+  jobUnitCount: number
+  onJobUnitCountChange: (unitCount: number) => void
   isPaused: boolean
   speed: number
   onModeChange: (mode: SimulationMode) => void
@@ -61,6 +63,25 @@ export function ControlPanel(props: {
               </button>
             </div>
           </div>
+          <div className="grp">
+            <span className="eyebrow">Simulate</span>
+            <div className="seg">
+              <button
+                type="button"
+                aria-pressed={props.jobUnitCount === BATCH_SIZE}
+                onClick={() => props.onJobUnitCountChange(BATCH_SIZE)}
+              >
+                Full batch ({BATCH_SIZE})
+              </button>
+              <button
+                type="button"
+                aria-pressed={props.jobUnitCount === 1}
+                onClick={() => props.onJobUnitCountChange(1)}
+              >
+                1 motor
+              </button>
+            </div>
+          </div>
           <div className="grp stack">
             <span className="eyebrow">Scenario</span>
             <button
@@ -79,7 +100,9 @@ export function ControlPanel(props: {
               type="button"
               onClick={() => props.onScenarioStart("run_batch")}
             >
-              Run a batch of {BATCH_SIZE}, start to ship
+              {props.jobUnitCount === 1
+                ? "Run 1 motor, start to ship"
+                : `Run a batch of ${props.jobUnitCount}, start to ship`}
             </button>
             <button
               type="button"
@@ -96,7 +119,7 @@ export function ControlPanel(props: {
           </div>
           <div className="grp stack">
             <span className="eyebrow">
-              Jump to a bench with {BATCH_SIZE} ready
+              Jump to a bench with {props.jobUnitCount} ready
             </span>
             <select
               aria-label="Start the batch at a bench"

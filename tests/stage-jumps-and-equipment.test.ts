@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test"
+import { getOccupants } from "lib/job/container-slots"
 import { MAX_PRINTED_LABEL_SHEETS } from "lib/job/label-collection"
 import { countLabelsAtPackOut } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
@@ -116,4 +117,28 @@ test("printed label sheets are collected and stacked at pack-out", () => {
   )
   for (const sheet of world.labelSheets)
     expect(sheet.group.parent).toBe(world.tables.pack_out_bench)
+})
+
+test("1 motor runs a single unit start to ship; the rest stay on the foam stand", () => {
+  const simulation = new ManufacturingSimulation()
+  simulation.setJobUnitCount(1)
+  simulation.startScenario("run_batch")
+  simulation.runUntilIdle({ dtSeconds: 0.05, maxSeconds: 3000 })
+  const { world, progress } = simulation.ctx
+  expect(progress.isJobComplete).toBe(true)
+  expect(world.units[0].stage).toBe("shipped")
+  expect(world.units[0].box.group.parent).toBe(world.carton.group)
+  expect(world.units.slice(1).every((unit) => unit.stage === "raw")).toBe(true)
+  expect(getOccupants(world.motorFoamStand)).toHaveLength(BATCH_SIZE - 1)
+  expect(progress.cycleSeconds).toBeLessThan(400)
+})
+
+test("1 motor can jump straight to QC", () => {
+  const simulation = new ManufacturingSimulation()
+  simulation.setMode("game")
+  simulation.setJobUnitCount(1)
+  simulation.startAt("qc")
+  expect(simulation.getGameActions().benchAction?.label).toBe(
+    "Run the QC bench (1 unit)",
+  )
 })

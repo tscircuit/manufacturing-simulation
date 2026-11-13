@@ -66,6 +66,7 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 
 ### Jumping around the line
 
+- **Simulate: Full batch (30) or 1 motor.** With 1 motor, unit 1 runs start to ship by itself, as rack, QC, box, carton and shipping (about 2 minutes of simulated time); the other 29 stay on the foam stand. Switching starts the line over, and the run, jump and timing counts follow the choice.
 - **Jump to a bench with 30 ready** starts over with the whole batch already done up to that bench: 30 motors on the foam stand (assembly), 30 assembled in the rack at QC, 30 tested in the ready rack at pack-out, or 30 boxed in the tote at ship-ready. The operator stands at that bench; press E (game mode) or run the batch from there.
 - **3D prints are ready** finishes both running prints now, so their plates can be collected.
 - **Labels printed** fills the Epson's tray; **Collect labels to pack-out** (or E at the label bench) carries them over.

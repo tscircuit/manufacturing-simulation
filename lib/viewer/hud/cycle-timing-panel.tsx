@@ -50,16 +50,18 @@ export function CycleTimingPanel(props: {
           ))}
         </ol>
         <div className="tot">
-          {hud.unitsByStage.map(({ stage, count }) => (
-            <span key={stage} className="stage-cell">
-              {STAGE_LABELS[stage]} <b>{count}</b>
-            </span>
-          ))}
+          <div className="stages">
+            {hud.unitsByStage.map(({ stage, count }) => (
+              <span key={stage} className="stage-cell">
+                {STAGE_LABELS[stage]} <b>{count}</b>
+              </span>
+            ))}
+          </div>
           <span>Labels at pack-out</span>
           <span className="t">
             {hud.labelsAtPackOut}
             {hud.printedLabelSheets > 0 &&
-              ` (+${hud.printedLabelSheets} sheets in the Epson)`}
+              ` +${hud.printedLabelSheets} sheets printed`}
           </span>
           <span>Spacers in basket</span>
           <span className="t">{hud.spacersInBasket}</span>

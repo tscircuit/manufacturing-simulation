@@ -10,8 +10,13 @@ import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
 import { walkToStation } from "lib/tasks/operator-motions"
-import type { UnitStage } from "lib/world/create-world"
+import type { AssemblyUnit, UnitStage } from "lib/world/create-world"
 import type { Object3D } from "three"
+
+/** "1 unit", "30 units". */
+export function formatUnitCount(count: number): string {
+  return `${count} unit${count === 1 ? "" : "s"}`
+}
 
 export function formatSeconds(seconds: number): string {
   if (seconds < 60) return `${seconds.toFixed(1)} s`
@@ -36,12 +41,17 @@ const STAGE_ORDER: UnitStage[] = [
   "shipped",
 ]
 
+/** The units in this job: the first `unitCount` of the batch. */
+export function getJobUnits(ctx: SimContext): AssemblyUnit[] {
+  return ctx.world.units.slice(0, ctx.progress.unitCount)
+}
+
 function countUnitsBefore(
   params: { stage: UnitStage },
   ctx: SimContext,
 ): number {
   const limit = STAGE_ORDER.indexOf(params.stage)
-  return ctx.world.units.filter(
+  return getJobUnits(ctx).filter(
     (unit) => STAGE_ORDER.indexOf(unit.stage) < limit,
   ).length
 }
@@ -50,7 +60,7 @@ export function countUnitsAt(
   params: { stage: UnitStage },
   ctx: SimContext,
 ): number {
-  return ctx.world.units.filter((unit) => unit.stage === params.stage).length
+  return getJobUnits(ctx).filter((unit) => unit.stage === params.stage).length
 }
 
 function getPlanFor(tableId: TableId): UnitStagePlan | null {
@@ -91,7 +101,7 @@ export function countWaitingUnits(
 ): number {
   const plan = getPlanFor(params.tableId)
   if (!plan) return 0
-  return ctx.world.units.filter((_, unitIndex) =>
+  return getJobUnits(ctx).filter((_, unitIndex) =>
     isUnitAvailable({ plan, unitIndex }, ctx),
   ).length
 }
@@ -103,7 +113,7 @@ export function getNextUnitWork(
 ): WorkItem | null {
   const plan = getPlanFor(params.tableId)
   if (!plan) return null
-  const { units } = ctx.world
+  const units = getJobUnits(ctx)
   const started = units.findIndex(
     (unit) => unit.stage === plan.fromStage && unit.nextStepIndex > 0,
   )
@@ -321,7 +331,7 @@ export function* runWorkItem(item: WorkItem, ctx: SimContext): SimTask {
   if (world.isCartonShipped) {
     progress.isJobActive = false
     progress.isJobComplete = true
-    ctx.statusText = `Carton shipped: ${countUnitsAt({ stage: "shipped" }, ctx)} units. Cycle time ${formatSeconds(progress.cycleSeconds)}`
+    ctx.statusText = `Carton shipped: ${formatUnitCount(countUnitsAt({ stage: "shipped" }, ctx))}. Cycle time ${formatSeconds(progress.cycleSeconds)}`
   }
 }
 

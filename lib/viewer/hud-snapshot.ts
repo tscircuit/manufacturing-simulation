@@ -7,6 +7,8 @@ export type StepRowState = "pending" | "active" | "done"
 /** Everything the HUD panels render, rebuilt a few times a second. */
 export interface HudSnapshot {
   mode: SimulationMode
+  /** Units in this job: 30 for the full batch, or 1 motor. */
+  jobUnitCount: number
   statusText: string
   isPaused: boolean
   speed: number

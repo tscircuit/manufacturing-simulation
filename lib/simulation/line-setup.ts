@@ -14,7 +14,6 @@ import {
 } from "lib/job/unit-poses"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import {
-  BATCH_SIZE,
   STATIONS,
   type Station,
   TABLE_PLACEMENTS,
@@ -40,22 +39,22 @@ export const LINE_STARTS: Record<
   { label: string; tableId: TableId; station: Station }
 > = {
   assembly: {
-    label: `Assembly: ${BATCH_SIZE} motors on the foam stand`,
+    label: "Assembly: motors on the foam stand",
     tableId: "assembly_bench",
     station: STATIONS.assembly,
   },
   qc: {
-    label: `QC: ${BATCH_SIZE} assembled in the rack`,
+    label: "QC: assembled, in the rack",
     tableId: "qc_bench",
     station: STATIONS.qc,
   },
   pack_out: {
-    label: `Pack-out: ${BATCH_SIZE} tested in the ready rack`,
+    label: "Pack-out: tested, in the ready rack",
     tableId: "pack_out_bench",
     station: STATIONS.packOut,
   },
   ship_ready: {
-    label: `Ship-ready: ${BATCH_SIZE} packed in the tote`,
+    label: "Ship-ready: boxed, in the tote",
     tableId: "ship_ready_bench",
     station: STATIONS.shipReady,
   },
@@ -205,7 +204,9 @@ export function setUpLineAt(
 ): void {
   const order: LineStartId[] = ["assembly", "qc", "pack_out", "ship_ready"]
   const depth = order.indexOf(params.startId)
-  const unitIndices = ctx.world.units.map((_, unitIndex) => unitIndex)
+  const unitIndices = ctx.world.units
+    .slice(0, ctx.progress.unitCount)
+    .map((_, unitIndex) => unitIndex)
   if (depth >= 1) {
     for (const unitIndex of unitIndices)
       assembleUnitInstantly({ unitIndex }, ctx)
@@ -226,5 +227,5 @@ export function setUpLineAt(
   ctx.operator.position.set(pose.x, 0, pose.z)
   ctx.operator.ccwYawRadians = pose.ccwYawRadians
   ctx.world.root.updateMatrixWorld(true)
-  ctx.statusText = `${start.label}, ready at the ${TABLE_PLACEMENTS[start.tableId].label}`
+  ctx.statusText = `${start.label}: ${unitIndices.length} ready at the ${TABLE_PLACEMENTS[start.tableId].label}`
 }

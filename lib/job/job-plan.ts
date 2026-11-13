@@ -13,6 +13,8 @@ export interface JobRow {
   step: JobStep
   /** How many times the step runs in a full batch; null for moves that happen as needed. */
   runCount: number | null
+  /** Runs once per unit, so a smaller job runs it fewer times. */
+  isPerUnit: boolean
 }
 
 /** A bench's per-unit work: which units it takes, and the stage they leave with. */
@@ -26,8 +28,16 @@ export interface UnitStagePlan {
 
 const rows: JobRow[] = []
 
-function addRow(params: { step: JobStep; runCount: number | null }): JobRow {
-  const row = { rowIndex: rows.length, ...params }
+function addRow(params: {
+  step: JobStep
+  runCount: number | null
+  isPerUnit?: boolean
+}): JobRow {
+  const row = {
+    rowIndex: rows.length,
+    ...params,
+    isPerUnit: params.isPerUnit ?? false,
+  }
   rows.push(row)
   return row
 }
@@ -41,7 +51,7 @@ function addUnitStage(params: {
   return {
     ...params,
     rows: params.stage.steps.map((step) =>
-      addRow({ step, runCount: BATCH_SIZE }),
+      addRow({ step, runCount: BATCH_SIZE, isPerUnit: true }),
     ),
   }
 }

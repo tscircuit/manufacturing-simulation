@@ -1,7 +1,7 @@
 import { JOB_ROWS } from "lib/job/job-plan"
 import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
 import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
-import { OPERATOR_START } from "lib/layout/station-layout"
+import { BATCH_SIZE, OPERATOR_START } from "lib/layout/station-layout"
 import { populatePlate } from "lib/models/bambu-printer"
 import { updateFlexCable } from "lib/models/flex-cable"
 import { createRoomShell, type RoomShell } from "lib/models/room-shell"
@@ -55,8 +55,9 @@ interface PausePose {
   hasWalkedAway: boolean
 }
 
-function createJobProgress(): JobProgress {
+function createJobProgress(unitCount: number): JobProgress {
   return {
+    unitCount,
     activeRowIndex: null,
     rowSeconds: JOB_ROWS.map(() => 0),
     rowCompletedCounts: JOB_ROWS.map(() => 0),
@@ -101,6 +102,8 @@ export class ManufacturingSimulation {
   readonly ctx: SimContext
   readonly roomShell: RoomShell
   private activeTask: SimTask | null = null
+  /** How many units the next job runs: the full batch of 30, or 1 motor start to ship. */
+  private unitCount: number = BATCH_SIZE
   private pausePose: PausePose | null = null
   private walkInput: WalkInput = {
     forward: 0,
@@ -121,7 +124,7 @@ export class ManufacturingSimulation {
         cellSizeM: NAV_GRID_CELL_SIZE_M,
         clearanceM: NAV_GRID_CLEARANCE_M,
       }),
-      progress: createJobProgress(),
+      progress: createJobProgress(BATCH_SIZE),
       mode: "simulation",
       statusText: "",
       cameraHint: null,
@@ -149,7 +152,7 @@ export class ManufacturingSimulation {
     ctx.scene.remove(ctx.world.root)
     ctx.world = createWorld()
     ctx.scene.add(ctx.world.root)
-    ctx.progress = createJobProgress()
+    ctx.progress = createJobProgress(this.unitCount)
     ctx.cameraHint = null
     resetOperator({
       operator: ctx.operator,
@@ -204,6 +207,22 @@ export class ManufacturingSimulation {
     this.ctx.progress.isJobActive = startId !== "assembly"
     updateOperatorPose(this.ctx.operator, 1 / 60)
     for (const cable of this.ctx.world.cables) updateFlexCable(cable)
+  }
+
+  get jobUnitCount(): number {
+    return this.unitCount
+  }
+
+  /** Run the full batch or a single motor from now on. Starts the line over. */
+  setJobUnitCount(unitCount: number): void {
+    const { mode } = this.ctx
+    this.unitCount = Math.min(BATCH_SIZE, Math.max(1, Math.round(unitCount)))
+    this.reset()
+    this.ctx.mode = mode
+    this.ctx.statusText =
+      this.unitCount === 1
+        ? "1 motor: unit 1 runs start to ship, the rest stay on the foam stand"
+        : `Full batch: ${this.unitCount} motors`
   }
 
   /** Finish the running 3D prints now. */

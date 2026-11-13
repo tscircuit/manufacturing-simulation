@@ -22,6 +22,8 @@ export interface CameraHint {
 }
 
 export interface JobProgress {
+  /** Units in this job, starting from unit 1: the full batch, or just one motor. The rest stay on the foam stand. */
+  unitCount: number
   /** Timing row of the step running now. */
   activeRowIndex: number | null
   /** Time spent in each timing row, summed over every unit, excluding walking between stations. */

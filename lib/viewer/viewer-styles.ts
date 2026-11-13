@@ -60,7 +60,8 @@ export const VIEWER_STYLES = `
 .msim .tot { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 12px 11px; border-top: 1px solid var(--line); margin-top: 2px; }
 .msim .tot b { font-weight: 600; }
 .msim .tot .printer-line { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
-.msim .tot .stage-cell { font-size: 12px; color: var(--muted); }
+.msim .tot .stages { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px 6px; margin-bottom: 4px; }
+.msim .tot .stage-cell { font-size: 12px; color: var(--muted); white-space: nowrap; }
 .msim .tot .stage-cell b { color: var(--fg, inherit); }
 .msim .act.carry { bottom: calc(214px + env(safe-area-inset-bottom, 0px)); background: var(--panel, #fff); color: inherit; border-color: var(--line); }
 .msim ol.rows .count { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 400; }

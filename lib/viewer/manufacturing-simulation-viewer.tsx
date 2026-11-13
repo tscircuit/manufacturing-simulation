@@ -58,6 +58,10 @@ export function ManufacturingSimulationViewer() {
           <ControlPanel
             detailsRef={controlDetailsRef}
             mode={hud.mode}
+            jobUnitCount={hud.jobUnitCount}
+            onJobUnitCountChange={(unitCount) =>
+              runtimeRef.current?.setJobUnitCount(unitCount)
+            }
             isPaused={hud.isPaused}
             speed={hud.speed}
             onModeChange={(mode) => runtimeRef.current?.setMode(mode)}
