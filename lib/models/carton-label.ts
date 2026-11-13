@@ -2,7 +2,7 @@ import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
 import { Group, Mesh, MeshBasicMaterial, PlaneGeometry } from "three"
 
-/** 4" x 6" thermal stock, with the adhesive side at local Y = 0. */
+/** 4" x 6" sample label, with the adhesive side at local Y = 0. */
 export const CARTON_LABEL = {
   widthM: 4 * METERS_PER_INCH,
   lengthM: 6 * METERS_PER_INCH,

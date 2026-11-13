@@ -493,7 +493,12 @@ export class ManufacturingSimulation {
   private advanceEquipment(dtSeconds: number): void {
     const { ctx } = this
     advancePrinters({ dtSeconds, populate: populatePlate }, ctx)
-    const labelPrinter = ctx.world.labelPrinter
+    const { labelPrinter, cartonLabel } = ctx.world
+    if (
+      cartonLabel.group.visible &&
+      cartonLabel.group.parent === labelPrinter.group
+    )
+      return
     labelPrinter.secondsSinceLastSheet += dtSeconds
     if (labelPrinter.secondsSinceLastSheet < LABEL_SHEET_PRINT_SECONDS) return
     labelPrinter.secondsSinceLastSheet = 0

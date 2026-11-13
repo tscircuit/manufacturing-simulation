@@ -127,9 +127,9 @@ export const STATIONS = {
     alongTableM: 0.15,
     standoffFromEdgeM: 0.3,
   },
-  cartonLabelPrinter: {
+  shipReadyLabel: {
     tableId: "ship_ready_bench",
-    alongTableM: -0.35,
+    alongTableM: -0.15,
     standoffFromEdgeM: 0.3,
   },
   p2s: {

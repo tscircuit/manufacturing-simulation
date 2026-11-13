@@ -445,21 +445,6 @@ export function playCueSound(
     case "label_printer":
       playInkjetSheet({ volume }, kit)
       return
-    case "thermal_label_printer":
-      playPing(
-        {
-          frequencyHz: 220,
-          endFrequencyHz: 180,
-          durationSeconds: 1.4,
-          gain: 0.075 * volume,
-          type: "sawtooth",
-          attackSeconds: 0.04,
-          filters: [{ type: "lowpass", frequencyHz: 850 }],
-          bus: "room",
-        },
-        kit,
-      )
-      return
     case "print_done":
       // Bambu Lab finish tone, from across the room.
       for (const [atSeconds, frequencyHz] of [

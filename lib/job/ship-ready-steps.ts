@@ -2,6 +2,7 @@ import { getOccupants, releaseSlot, reserveSlot } from "lib/job/container-slots"
 import type { JobStage, JobStep, UnitParams } from "lib/job/job-step"
 import { OUTBOUND_SPOT, STATIONS } from "lib/layout/station-layout"
 import { CARTON_LABEL } from "lib/models/carton-label"
+import { INKJET_OUTPUT } from "lib/models/inkjet-printer"
 import { SHIPPING_CARTON } from "lib/models/shipping-carton"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import type { OperatorHand } from "lib/operator/create-operator"
@@ -36,7 +37,15 @@ export const SHIP_CLOSE_UP = {
   distanceM: 1.1,
 }
 
-const LABEL_FEED_SECONDS = 1.4
+const LABEL_FEED_SECONDS = 3.4
+const LABEL_FEED_START = new Vector3(
+  INKJET_OUTPUT.xM,
+  INKJET_OUTPUT.yM,
+  INKJET_OUTPUT.zM - CARTON_LABEL.lengthM / 2,
+)
+const LABEL_FEED_END = LABEL_FEED_START.clone().add(
+  new Vector3(0, 0, CARTON_LABEL.lengthM + 0.002),
+)
 const LABEL_GRIP_POINT = new Vector3(0, 0, CARTON_LABEL.lengthM * 0.38)
 const LABEL_PRINTER_CLOSE_UP = {
   azimuthRadians: -0.65,
@@ -51,6 +60,10 @@ const FRONT_LABEL_POSITION = new Vector3(
 const FRONT_LABEL_QUATERNION = new Quaternion().setFromAxisAngle(
   new Vector3(1, 0, 0),
   Math.PI / 2,
+)
+const LABEL_CARRY_QUATERNION = new Quaternion().setFromAxisAngle(
+  new Vector3(0, 1, 0),
+  Math.PI,
 )
 
 export function getCartonFocusPoint(ctx: SimContext): Vector3 {
@@ -111,48 +124,64 @@ function* foldFlap(params: {
 }
 
 function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
-  const { carton, cartonLabel, cartonLabelPrinter, tables } = ctx.world
+  const { carton, cartonLabel, labelPrinter, tables } = ctx.world
+  const { operator } = ctx
   const label = cartonLabel.group
-  const printer = cartonLabelPrinter.group
-  const hand = ctx.operator.rightHand
+  const hand = operator.rightHand
   const bench = tables.ship_ready_bench
 
-  ctx.statusText = "Moving to the Ship-ready label printer"
-  yield* walkToStation(STATIONS.cartonLabelPrinter, ctx)
+  ctx.statusText = "Walking to the label printer"
+  ctx.cameraHint = null
+  yield* walkToStation(STATIONS.labelPrinter, ctx)
   ctx.cameraHint = {
-    station: STATIONS.cartonLabelPrinter,
+    station: STATIONS.labelPrinter,
     view: LABEL_PRINTER_CLOSE_UP,
     getFocusPoint: trackObjectPoint({
-      object: printer,
-      localPoint: cartonLabelPrinter.feedEnd,
+      object: labelPrinter.group,
+      localPoint: LABEL_FEED_END,
     }),
   }
   yield* waitSeconds(0.35)
   ctx.statusText = "Printing the FBA Box ID label"
   label.visible = true
-  playCue("thermal_label_printer", ctx)
+  playCue("label_printer", ctx)
   yield* tween({
     durationSeconds: LABEL_FEED_SECONDS,
     onProgress: (progress) => {
-      label.position.lerpVectors(
-        cartonLabelPrinter.feedStart,
-        cartonLabelPrinter.feedEnd,
-        progress,
-      )
+      label.position.lerpVectors(LABEL_FEED_START, LABEL_FEED_END, progress)
     },
   })
+
+  ctx.statusText = "Picking up the printed FBA Box ID label"
+  yield* grabObject({ hand, object: label, localGripPoint: LABEL_GRIP_POINT })
+  yield* moveObject(
+    {
+      object: label,
+      hand,
+      parent: operator.group,
+      localPosition: new Vector3(hand.side * 0.18, 1.15, 0.35),
+      localQuaternion: LABEL_CARRY_QUATERNION,
+      arcHeightM: 0.05,
+    },
+    ctx,
+  )
+  label.userData.isCarried = true
+  hand.heldObject = label
+  ctx.statusText = "Carrying the FBA Box ID label to Ship-ready"
+  ctx.cameraHint = null
+  yield* walkToStation(STATIONS.shipReadyLabel, ctx)
 
   ctx.statusText =
     "Setting the printed FBA Box ID label on the Ship-ready table"
   ctx.cameraHint = {
-    station: STATIONS.cartonLabelPrinter,
-    view: LABEL_PRINTER_CLOSE_UP,
+    station: STATIONS.shipReadyLabel,
+    view: { azimuthRadians: 0.4, elevationRadians: 0.85, distanceM: 0.65 },
     getFocusPoint: trackObjectPoint({
       object: bench,
       localPoint: SHIP_READY_BENCH_SPOTS.cartonLabelRest,
     }),
   }
-  yield* grabObject({ hand, object: label, localGripPoint: LABEL_GRIP_POINT })
+  hand.heldObject = null
   yield* moveObject(
     {
       object: label,
@@ -169,7 +198,7 @@ function* printAndApplyCartonLabel(ctx: SimContext): SimTask {
 
   ctx.statusText = "Applying the FBA Box ID label to the sealed carton"
   ctx.cameraHint = {
-    station: STATIONS.shipReady,
+    station: STATIONS.shipReadyLabel,
     view: { azimuthRadians: 0.52, elevationRadians: 0.42, distanceM: 0.85 },
     getFocusPoint: trackObjectPoint({
       object: carton.group,

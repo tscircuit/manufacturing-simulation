@@ -7,6 +7,7 @@ import {
   WORK_TABLE,
 } from "lib/layout/station-layout"
 import { CARTON_LABEL } from "lib/models/carton-label"
+import { INKJET_OUTPUT } from "lib/models/inkjet-printer"
 import {
   SHIPPING_CARTON,
   SHIPPING_CARTON_CAPACITY,
@@ -81,28 +82,34 @@ test(
   { timeout: 120_000 },
 )
 
-test("the Box ID feeds from the printer, rests on the table and stays on the carton", () => {
+test("the shared label printer prints a Box ID that is carried to Ship-ready", () => {
   const simulation = new ManufacturingSimulation()
   simulation.startAt("ship_ready")
   simulation.startScenario("run_batch")
-  const { world } = simulation.ctx
+  const { world, operator } = simulation.ctx
   const label = world.cartonLabel.group
-  const printer = world.cartonLabelPrinter
+  const printer = world.labelPrinter.group
   const bench = world.tables.ship_ready_bench
+  expect(printer.parent).toBe(world.tables.label_bench)
+  expect(label.parent).toBe(printer)
   expect(label.visible).toBe(false)
 
   let sawPrinting = false
+  let sawCarry = false
   let sawLabelOnTable = false
   let printCues = 0
   for (let frame = 0; frame < 3_600 && simulation.isTaskRunning; frame++) {
     simulation.step(0.05)
-    printCues += simulation.ctx.soundCues
-      .splice(0)
-      .filter((cue) => cue === "thermal_label_printer").length
-    if (label.visible && label.parent === printer.group) {
+    const cues = simulation.ctx.soundCues.splice(0)
+    if (label.visible && label.parent === printer) {
+      printCues += cues.filter((cue) => cue === "label_printer").length
       sawPrinting ||=
-        label.position.z > printer.feedStart.z &&
-        label.position.z < printer.feedEnd.z
+        label.position.z > INKJET_OUTPUT.zM - CARTON_LABEL.lengthM / 2 &&
+        label.position.z < INKJET_OUTPUT.zM + CARTON_LABEL.lengthM / 2
+    }
+    if (label.parent === operator.group && operator.walkSpeedMps > 0) {
+      sawCarry = true
+      expect(operator.rightHand.heldObject).toBe(label)
     }
     if (label.parent === bench) {
       sawLabelOnTable = true
@@ -111,6 +118,7 @@ test("the Box ID feeds from the printer, rests on the table and stays on the car
     }
   }
   expect(sawPrinting).toBe(true)
+  expect(sawCarry).toBe(true)
   expect(sawLabelOnTable).toBe(true)
   expect(printCues).toBe(1)
   expect(world.isCartonShipped).toBe(true)
@@ -128,7 +136,7 @@ test("the Box ID feeds from the printer, rests on the table and stays on the car
   simulation.reset()
   expect(simulation.ctx.world.cartonLabel.group.visible).toBe(false)
   expect(simulation.ctx.world.cartonLabel.group.parent).toBe(
-    simulation.ctx.world.cartonLabelPrinter.group,
+    simulation.ctx.world.labelPrinter.group,
   )
 })
 

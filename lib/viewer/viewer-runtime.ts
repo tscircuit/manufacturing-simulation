@@ -527,6 +527,7 @@ export class ViewerRuntime {
       nextStep &&
       previousHint &&
       ctx.mode === "simulation" &&
+      !ctx.progress.isOperatorBusy &&
       !ctx.progress.isHoldingLooseScrewdriver &&
       nextStep.station.tableId === previousHint.station.tableId
     if (!isStayingAtStation) {
