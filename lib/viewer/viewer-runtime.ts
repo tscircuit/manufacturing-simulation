@@ -192,7 +192,10 @@ export class ViewerRuntime {
     window.addEventListener("keydown", this.unlockSound)
     window.addEventListener("keyup", this.handleKeyUp)
     window.addEventListener("blur", this.clearKeys)
-    this.simulation.startScenario("walk_floor")
+    // Open in game mode with one motor, standing at the assembly bench: press E to build it.
+    this.simulation.setJobUnitCount(1)
+    this.simulation.startAt("assembly")
+    this.setMode("game")
     // `?inspect` exposes the runtime for debugging and automated checks.
     if (new URLSearchParams(window.location.search).has("inspect")) {
       window.manufacturingViewer = this
