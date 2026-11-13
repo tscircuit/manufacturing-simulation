@@ -38,3 +38,26 @@ export function getEquipmentPadAtOperator(
 export function getPadJob(pad: EquipmentPad, ctx: SimContext): SideJob | null {
   return getSideJobAt({ tableId: pad.tableId }, ctx)
 }
+
+/** The two circles at the assembly bench when building one motor at a time. */
+export interface AssemblyPad {
+  id: "assemble" | "rack"
+  station: Station
+}
+
+export const ASSEMBLY_PADS: AssemblyPad[] = [
+  { id: "assemble", station: STATIONS.assembly },
+  { id: "rack", station: STATIONS.assemblyRack },
+]
+
+/** Smaller than the equipment circles: the two sit side by side at one bench. */
+export const ASSEMBLY_PAD_RADIUS_M = 0.26
+
+export function getAssemblyPadAtOperator(ctx: SimContext): AssemblyPad | null {
+  const { x, z } = ctx.operator.position
+  for (const pad of ASSEMBLY_PADS) {
+    const pose = getStationStandPose(pad.station)
+    if (Math.hypot(x - pose.x, z - pose.z) <= ASSEMBLY_PAD_RADIUS_M) return pad
+  }
+  return null
+}

@@ -304,3 +304,52 @@ test(
   },
   { timeout: 120_000 },
 )
+
+test(
+  "one at a time: each E builds one motor, the rack circle takes the 3 built to QC, and a carton of 3 ships",
+  () => {
+    const simulation = new ManufacturingSimulation()
+    simulation.setMode("game")
+    simulation.setJobUnitCount(1)
+    const { ctx } = simulation
+    const { world } = ctx
+    const runAt = (station: Station) => {
+      standAt({ simulation, station })
+      simulation.step(0.05)
+      expect(simulation.runGameAction("bench")).toBe(true)
+      simulation.runUntilIdle({ dtSeconds: 0.05, maxSeconds: 2000 })
+    }
+    for (let built = 0; built < 3; built++) {
+      standAt({ simulation, station: STATIONS.assembly })
+      simulation.step(0.05)
+      expect(simulation.getGameActions().benchAction?.label).toBe(
+        `Assemble a motor (${built} in the rack)`,
+      )
+      runAt(STATIONS.assembly)
+      expect(
+        world.units.filter((unit) => unit.stage === "assembled"),
+      ).toHaveLength(built + 1)
+      // Building one never carries the rack off on its own.
+      expect(world.finishedRack.group.parent).toBe(world.tables.assembly_bench)
+    }
+    standAt({ simulation, station: STATIONS.assemblyRack })
+    simulation.step(0.05)
+    expect(simulation.getGameActions().benchAction?.label).toBe(
+      "Carry the rack to QC now (3 assembled)",
+    )
+    runAt(STATIONS.assemblyRack)
+    expect(world.finishedRack.group.parent).toBe(world.tables.qc_bench)
+    runAt(STATIONS.qc)
+    runAt(STATIONS.packOut)
+    runAt(STATIONS.shipReady)
+    expect(ctx.progress.isJobComplete).toBe(true)
+    expect(world.units.filter((unit) => unit.stage === "shipped")).toHaveLength(
+      3,
+    )
+    expect(getOccupants(world.carton)).toHaveLength(3)
+    expect(world.units.slice(3).every((unit) => unit.stage === "raw")).toBe(
+      true,
+    )
+  },
+  { timeout: 120_000 },
+)

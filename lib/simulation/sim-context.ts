@@ -33,6 +33,11 @@ export interface SideJob {
 export interface JobProgress {
   /** Units in this job, starting from unit 1: the full batch, or just one motor. The rest stay on the foam stand. */
   unitCount: number
+  /**
+   * One motor per E: each press at the assembly circle adds one more motor to
+   * the job and builds it, and the rack only moves when the player takes it.
+   */
+  isOneAtATime: boolean
   /** Timing row of the step running now. */
   activeRowIndex: number | null
   /** Time spent in each timing row, summed over every unit, excluding walking between stations. */

@@ -7,8 +7,11 @@ import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
 import type { QcDisplayState } from "lib/models/qc-laptop"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
 import {
+  ASSEMBLY_PAD_RADIUS_M,
+  ASSEMBLY_PADS,
   EQUIPMENT_PAD_RADIUS_M,
   EQUIPMENT_PADS,
+  getAssemblyPadAtOperator,
   getEquipmentPadAtOperator,
   getPadJob,
 } from "lib/simulation/equipment-pads"
@@ -39,6 +42,7 @@ import type { ManufacturingWorld } from "lib/world/create-world"
 import {
   Color,
   Mesh,
+  MeshBasicMaterial,
   type MeshStandardMaterial,
   PCFSoftShadowMap,
   PerspectiveCamera,
@@ -114,6 +118,10 @@ export class ViewerRuntime {
   private readonly camera = new PerspectiveCamera(42, 1, 0.02, 80)
   private readonly cameraRig = new CameraRig(this.camera)
   private readonly stationRing = createStationRing()
+  private readonly assemblyPads = ASSEMBLY_PADS.map((pad) => ({
+    pad,
+    mesh: createEquipmentPadMesh(ASSEMBLY_PAD_RADIUS_M),
+  }))
   private readonly equipmentPads = EQUIPMENT_PADS.map((pad) => ({
     pad,
     mesh: createEquipmentPadMesh(EQUIPMENT_PAD_RADIUS_M),
@@ -169,7 +177,7 @@ export class ViewerRuntime {
     const { scene } = this.simulation.ctx
     addSceneLighting(scene)
     scene.add(this.stationRing)
-    for (const { pad, mesh } of this.equipmentPads) {
+    for (const { pad, mesh } of [...this.equipmentPads, ...this.assemblyPads]) {
       const pose = getStationStandPose(pad.station)
       mesh.position.set(pose.x, 0.011, pose.z)
       scene.add(mesh)
@@ -540,13 +548,36 @@ export class ViewerRuntime {
   /** Printer and label-printer circles: shown in game mode, lit when there's a job, pulsing when you stand on one. */
   private updateEquipmentPads(nowMs: number): void {
     const { ctx } = this.simulation
+    // One at a time: green circle builds a motor, amber circle takes the rack.
+    const onAssemblyPad = getAssemblyPadAtOperator(ctx)
+    for (const { pad, mesh } of this.assemblyPads) {
+      mesh.visible = ctx.mode === "game" && ctx.progress.isOneAtATime
+      if (!mesh.visible) continue
+      const color = pad.id === "assemble" ? 0x2fb36b : 0xe39b1b
+      mesh.material.color.setHex(color)
+      for (const child of mesh.children)
+        if (
+          child instanceof Mesh &&
+          child.material instanceof MeshBasicMaterial
+        )
+          child.material.color.setHex(color)
+      mesh.material.opacity =
+        onAssemblyPad === pad ? 0.7 + 0.25 * Math.sin(nowMs * 0.008) : 0.55
+    }
     const standingOn = getEquipmentPadAtOperator(ctx)
     for (const { pad, mesh } of this.equipmentPads) {
       mesh.visible = ctx.mode === "game"
       if (!mesh.visible) continue
       const hasJob = getPadJob(pad, ctx) !== null
       const isStandingOn = standingOn === pad
-      mesh.material.color.setHex(hasJob ? 0x3aa0ff : 0x8a96a3)
+      const color = hasJob ? 0x3aa0ff : 0x8a96a3
+      mesh.material.color.setHex(color)
+      for (const child of mesh.children)
+        if (
+          child instanceof Mesh &&
+          child.material instanceof MeshBasicMaterial
+        )
+          child.material.color.setHex(color)
       mesh.material.opacity = isStandingOn
         ? 0.7 + 0.25 * Math.sin(nowMs * 0.008)
         : hasJob

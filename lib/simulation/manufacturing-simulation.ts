@@ -91,6 +91,7 @@ function restoreHands(pausePose: PausePose): void {
 function createJobProgress(unitCount: number): JobProgress {
   return {
     unitCount,
+    isOneAtATime: unitCount === 1,
     activeRowIndex: null,
     rowSeconds: JOB_ROWS.map(() => 0),
     rowCompletedCounts: JOB_ROWS.map(() => 0),
@@ -289,7 +290,7 @@ export class ManufacturingSimulation {
     this.ctx.mode = mode
     this.ctx.statusText =
       this.unitCount === 1
-        ? "1 motor: unit 1 runs start to ship, the rest stay on the foam stand"
+        ? "One at a time: E on the green circle builds a motor; the amber circle takes the rack to QC"
         : `Full batch: ${this.unitCount} motors`
   }
 

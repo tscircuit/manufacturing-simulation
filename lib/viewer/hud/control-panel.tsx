@@ -78,7 +78,7 @@ export function ControlPanel(props: {
                 aria-pressed={props.jobUnitCount === 1}
                 onClick={() => props.onJobUnitCountChange(1)}
               >
-                1 motor
+                One at a time
               </button>
             </div>
           </div>
@@ -101,7 +101,7 @@ export function ControlPanel(props: {
               onClick={() => props.onScenarioStart("run_batch")}
             >
               {props.jobUnitCount === 1
-                ? "Run 1 motor, start to ship"
+                ? "Run one motor, start to ship"
                 : `Run a batch of ${props.jobUnitCount}, start to ship`}
             </button>
             <button

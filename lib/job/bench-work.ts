@@ -342,6 +342,46 @@ function isBetweenUnits(work: WorkItem | null, ctx: SimContext): boolean {
   return ctx.world.units[work.unitIndex].nextStepIndex === 0
 }
 
+/** The most motors one run can hold: the foam stand and the rack each take 30. */
+const MAX_JOB_UNITS = 30
+
+/** Whether another motor can be added to a one-at-a-time job and built now. */
+export function canAssembleAnother(ctx: SimContext): boolean {
+  const { progress } = ctx
+  return (
+    countUnitsAt({ stage: "raw" }, ctx) > 0 ||
+    progress.unitCount < MAX_JOB_UNITS
+  )
+}
+
+/**
+ * One motor at a time: add the next motor to the job if none is waiting,
+ * then build just that one into the rack. The rack stays until the player
+ * takes it.
+ */
+export function* assembleOneMotor(ctx: SimContext): SimTask {
+  const { progress } = ctx
+  if (countUnitsAt({ stage: "raw" }, ctx) === 0) {
+    if (progress.unitCount >= MAX_JOB_UNITS) return
+    progress.unitCount += 1
+  }
+  const first = getNextUnitWork({ tableId: "assembly_bench" }, ctx)
+  if (!first) return
+  const { unitIndex } = first
+  for (;;) {
+    const work = getNextUnitWork({ tableId: "assembly_bench" }, ctx)
+    if (!work || work.unitIndex !== unitIndex) break
+    const blocker = getWorkBlocker(work, ctx)
+    if (blocker) {
+      ctx.statusText = blocker
+      return
+    }
+    yield* runWorkItem(work, ctx)
+  }
+  const inRack = countUnitsAt({ stage: "assembled" }, ctx)
+  ctx.statusText = `${formatUnitCount(inRack)} in the rack. E on the green circle builds another; the amber circle takes the rack to QC.`
+}
+
 /** Work through everything waiting at a bench, then its follow-up move. Stops with a message when blocked. */
 export function* runBench(
   params: { tableId: TableId },

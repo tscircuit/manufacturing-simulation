@@ -1,4 +1,7 @@
 import {
+  assembleOneMotor,
+  canAssembleAnother,
+  countUnitsAt,
   countWaitingUnits,
   getCarryWork,
   getFollowUp,
@@ -26,6 +29,7 @@ import {
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 import { OPERATOR_GAME_WALK_SPEED_MPS } from "lib/operator/operator-body"
 import {
+  getAssemblyPadAtOperator,
   getEquipmentPadAtOperator,
   getPadJob,
 } from "lib/simulation/equipment-pads"
@@ -120,6 +124,44 @@ function getLineBenchAction(
   return { action: null, blockedReason: null }
 }
 
+/**
+ * Building one motor at a time: on the build circle (or anywhere else at the
+ * bench) E builds one more motor into the rack; on the rack circle E takes
+ * the rack, however full, to QC.
+ */
+function getOneAtATimeAssemblyActions(
+  params: { actions: GameActions },
+  ctx: SimContext,
+): GameActions {
+  const { actions } = params
+  const carry = getCarryWork({ tableId: "assembly_bench" }, ctx)
+  if (carry)
+    actions.carryAction = {
+      label: carry.label,
+      createTask: () => runWorkItem(carry.item, ctx),
+    }
+  const inRack = countUnitsAt({ stage: "assembled" }, ctx)
+  if (getAssemblyPadAtOperator(ctx)?.id === "rack") {
+    actions.benchAction = actions.carryAction
+    if (!carry)
+      actions.blockedReason =
+        inRack === 0
+          ? "The rack is empty: build a motor on the other circle first"
+          : "The rack isn't on this bench"
+    return actions
+  }
+  if (!canAssembleAnother(ctx)) {
+    actions.blockedReason =
+      "All 30 motors are built: take the rack to QC from the rack circle"
+    return actions
+  }
+  actions.benchAction = {
+    label: `Assemble a motor (${inRack} in the rack)`,
+    createTask: () => assembleOneMotor(ctx),
+  }
+  return actions
+}
+
 /** What the player can do right now. While a task runs, only pausing is offered. */
 export function getGameActions(
   params: {
@@ -211,6 +253,13 @@ export function getGameActions(
     }
     return actions
   }
+  if (
+    tableId === "assembly_bench" &&
+    progress.isOneAtATime &&
+    handsAreEmpty &&
+    !progress.isJobComplete
+  )
+    return getOneAtATimeAssemblyActions({ actions }, ctx)
   if (!handsAreEmpty || !LINE_TABLES.includes(tableId)) return actions
   const { action, blockedReason } = getLineBenchAction({ tableId }, ctx)
   actions.benchAction = action

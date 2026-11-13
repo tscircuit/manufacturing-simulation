@@ -40,7 +40,7 @@ export const FINISHED_RACK_SHUTTLE: Shuttle = {
   get: (world) => world.finishedRack,
   name: "rack",
   homeTable: "assembly_bench",
-  homeStation: STATIONS.assembly,
+  homeStation: STATIONS.assemblyRack,
   homePosition: ASSEMBLY_BENCH_SPOTS.finishedRack,
   nextTable: "qc_bench",
   nextStation: STATIONS.qc,

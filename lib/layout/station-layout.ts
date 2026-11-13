@@ -104,6 +104,12 @@ export const STATIONS = {
     alongTableM: 0,
     standoffFromEdgeM: 0.3,
   },
+  /** In front of the finished-motor rack, downstream end of the assembly bench. */
+  assemblyRack: {
+    tableId: "assembly_bench",
+    alongTableM: -0.62,
+    standoffFromEdgeM: 0.3,
+  },
   qc: { tableId: "qc_bench", alongTableM: -0.05, standoffFromEdgeM: 0.3 },
   packOut: {
     tableId: "pack_out_bench",
