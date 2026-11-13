@@ -1,5 +1,9 @@
 import { STATIONS } from "lib/layout/station-layout"
-import { createLabelSheet, LABEL_SHEET } from "lib/models/label-sheet"
+import {
+  createLabelSheet,
+  LABEL_SHEET,
+  LABEL_SHEET_STACK_PITCH_M,
+} from "lib/models/label-sheet"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
 import { pickUpInFront, setDownFromCarry } from "lib/tasks/carry-motions"
@@ -10,7 +14,6 @@ import { Group, Object3D, Vector3 } from "three"
 
 /** Sheets the label printer's output tray holds before it has to be emptied. */
 export const MAX_PRINTED_LABEL_SHEETS = 6
-const SHEET_THICKNESS_M = 0.0006
 
 /** Add one printed sheet to the top of the label printer's output tray. */
 export function printLabelSheet(ctx: SimContext): boolean {
@@ -18,9 +21,8 @@ export function printLabelSheet(ctx: SimContext): boolean {
   if (labelPrinter.printedSheets.length >= MAX_PRINTED_LABEL_SHEETS)
     return false
   const sheet = createLabelSheet()
-  // Peel the front row first.
-  sheet.labels.reverse()
-  sheet.group.position.y = labelPrinter.printedSheets.length * SHEET_THICKNESS_M
+  sheet.group.position.y =
+    labelPrinter.printedSheets.length * LABEL_SHEET_STACK_PITCH_M
   sheet.group.rotation.y =
     (labelPrinter.printedSheets.length % 2 === 0 ? 1 : -1) * 0.03
   labelPrinter.outputStack.add(sheet.group)
@@ -66,7 +68,7 @@ export function* collectPrintedLabels(ctx: SimContext): SimTask {
   ).length
   const stackTop = PACK_OUT_BENCH_SPOTS.labelSheets
     .clone()
-    .add(new Vector3(0, visibleSheets * SHEET_THICKNESS_M, 0))
+    .add(new Vector3(0, visibleSheets * LABEL_SHEET_STACK_PITCH_M, 0))
   yield* setDownFromCarry(
     { item: bundle, toParent: packBench, toPosition: stackTop },
     ctx,

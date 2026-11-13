@@ -25,6 +25,7 @@ import { createInkjetPrinter } from "lib/models/inkjet-printer"
 import {
   createLabelSheet,
   LABEL_SHEET,
+  LABEL_SHEET_STACK_PITCH_M,
   type LabelSheet,
 } from "lib/models/label-sheet"
 import {
@@ -128,11 +129,11 @@ export interface AssemblyUnit {
   box: WhiteMailerBox
   usbCables: Group[]
   charger: Group
-  /** Peeled from the top label sheet at pack-out. */
+  /** Branded unit label with the sample FNSKU. */
   label: Group | null
 }
 
-/** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
+/** The label printer on the label bench, printing unit-label sheets onto its output stack. */
 export interface LabelPrinterState {
   group: Group
   outputStack: Group
@@ -517,12 +518,11 @@ function populatePackOutBench(table: Group) {
   for (let level = 0; level < LABEL_SHEET_COUNT; level++) {
     const sheet = createLabelSheet()
     sheet.group.position.copy(spots.labelSheets)
-    sheet.group.position.y += (LABEL_SHEET_COUNT - 1 - level) * 0.0006
+    sheet.group.position.y +=
+      (LABEL_SHEET_COUNT - 1 - level) * LABEL_SHEET_STACK_PITCH_M
     table.add(sheet.group)
     labelSheets.push(sheet)
   }
-  // Peel from the front row first.
-  for (const sheet of labelSheets) sheet.labels.reverse()
   const packingTote = createPackingTote()
   packingTote.group.position.copy(spots.tote)
   table.add(packingTote.group)

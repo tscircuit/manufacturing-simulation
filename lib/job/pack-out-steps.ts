@@ -15,7 +15,7 @@ import {
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
-import { type SimTask, tween } from "lib/tasks/coroutines"
+import { type SimTask, tween, waitSeconds } from "lib/tasks/coroutines"
 import {
   grabObject,
   liftAndPlace,
@@ -201,7 +201,7 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
   if (!label) throw new Error("No labels left at pack-out")
   unit.label = label
 
-  ctx.statusText = `Unit ${params.unitIndex + 1}: peeling a 2×4 label off the sheet`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: peeling the combined NEMA17 label`
   const sheet = label.parent
   if (!sheet) throw new Error("Label must start on its sheet")
   yield* grabObject({
@@ -222,7 +222,7 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
     },
     ctx,
   )
-  ctx.statusText = `Unit ${params.unitIndex + 1}: sticking the label on the lid`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: applying the NEMA17 label with FNSKU`
   yield* moveObject(
     {
       object: label,
@@ -267,6 +267,7 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
     arcHeightM: 0,
   })
   yield* releaseHand(hand)
+  yield* waitSeconds(0.4)
 }
 
 function* boxIntoTote(params: UnitParams, ctx: SimContext): SimTask {
@@ -319,13 +320,13 @@ export const PACK_OUT_STAGE: JobStage = {
       run: addCablesAndCharger,
     },
     {
-      label: "Close the box, apply the label",
+      label: "Close the box, apply the NEMA17 label with FNSKU",
       station: STATIONS.packOutLabels,
       closeUpView: {
         ...PACK_CLOSE_UP,
-        azimuthRadians: 1.3,
-        elevationRadians: 0.72,
-        distanceM: 1.1,
+        azimuthRadians: 1.05,
+        elevationRadians: 0.96,
+        distanceM: 0.95,
       },
       getFocusPoint: (_params, ctx) => getLabelFocusPoint(ctx),
       run: closeBoxAndApplyLabel,

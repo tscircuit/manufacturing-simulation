@@ -42,7 +42,7 @@ export interface WhiteMailerBox {
   lid: Group
   /** Front edge of the lid, where a finger lifts it. */
   lidTip: Object3D
-  /** Where the product label goes: near the left end of the closed lid, in lid coordinates. */
+  /** The center of the closed lid, in lid coordinates. */
   stickerSpot: Object3D
 }
 
@@ -145,7 +145,7 @@ export function createWhiteMailerBox(): WhiteMailerBox {
   const lidTip = new Object3D()
   lidTip.position.set(0, t, b.widthM)
   const stickerSpot = new Object3D()
-  stickerSpot.position.set(-b.lengthM / 2 + 0.034, t, b.widthM / 2)
+  stickerSpot.position.set(0, t, b.widthM / 2)
   lid.add(lidTip, stickerSpot)
   return { group, lid, lidTip, stickerSpot }
 }

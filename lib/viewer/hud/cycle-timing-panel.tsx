@@ -57,7 +57,7 @@ export function CycleTimingPanel(props: {
               </span>
             ))}
           </div>
-          <span>Labels at pack-out</span>
+          <span>Unit labels at pack-out</span>
           <span className="t">
             {hud.labelsAtPackOut}
             {hud.printedLabelSheets > 0 &&
