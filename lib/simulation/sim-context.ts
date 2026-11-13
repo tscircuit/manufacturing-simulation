@@ -1,6 +1,7 @@
 import type { Station } from "lib/layout/station-layout"
 import type { NavGrid } from "lib/navigation/nav-grid"
 import type { Operator } from "lib/operator/create-operator"
+import type { SimTask } from "lib/tasks/coroutines"
 import type { ManufacturingWorld } from "lib/world/create-world"
 import type { Scene, Vector3 } from "three"
 
@@ -21,6 +22,13 @@ export interface CameraHint {
   getFocusPoint: () => Vector3
 }
 
+/** Printer or label work fitted in between units of a bench run. */
+export interface SideJob {
+  /** Lower-case phrase, e.g. "take 6 printed label sheets to pack-out". */
+  label: string
+  createTask: () => SimTask
+}
+
 export interface JobProgress {
   /** Units in this job, starting from unit 1: the full batch, or just one motor. The rest stay on the foam stand. */
   unitCount: number
@@ -37,6 +45,8 @@ export interface JobProgress {
   isOperatorBusy: boolean
   /** The operator picked up the screwdriver outside the job and still has it. */
   isHoldingLooseScrewdriver: boolean
+  /** Asked for during a bench run; runs once the current unit is done. */
+  pendingSideJob: SideJob | null
 }
 
 /** Shared state every simulation task reads and changes. */

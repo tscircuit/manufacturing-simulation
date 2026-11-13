@@ -142,3 +142,65 @@ test("1 motor can jump straight to QC", () => {
     "Run the QC bench (1 unit)",
   )
 })
+
+test(
+  "paused mid-assembly, the player walks to the printers and E fits the plate collection in after the current unit",
+  () => {
+    const simulation = new ManufacturingSimulation()
+    simulation.setMode("game")
+    const { ctx } = simulation
+    standAt({ simulation, station: STATIONS.assembly })
+    simulation.runGameAction("bench")
+    for (
+      let elapsedSeconds = 0;
+      !ctx.statusText.includes("driving long screw") && elapsedSeconds < 300;
+      elapsedSeconds += 0.05
+    )
+      simulation.step(0.05)
+    simulation.runGameAction("bench")
+    expect(simulation.isTaskPaused).toBe(true)
+    standAt({ simulation, station: STATIONS.p2s })
+    simulation.step(0.05)
+    const sideJob = simulation.getGameActions().sideJobAction
+    expect(sideJob?.label).toContain("refill the spacers")
+    const spacersBefore = ctx.world.spacerStock.length
+    simulation.runGameAction("bench")
+    expect(simulation.isTaskPaused).toBe(false)
+    for (
+      let elapsedSeconds = 0;
+      ctx.world.units[1].stage !== "assembled" && elapsedSeconds < 900;
+      elapsedSeconds += 0.05
+    )
+      simulation.step(0.05)
+    // Unit 1 was finished first, then the plates were collected and poured in, then the run carried on.
+    expect(ctx.world.units[0].stage).toBe("assembled")
+    expect(ctx.progress.pendingSideJob).toBeNull()
+    expect(ctx.world.printers.every((printer) => printer.isPrinting)).toBe(true)
+    expect(ctx.world.spacerStock.length).toBeGreaterThan(spacersBefore)
+    expect(simulation.isTaskRunning).toBe(true)
+  },
+  { timeout: 120_000 },
+)
+
+test(
+  "during a simulated batch, Collect labels waits for the current unit instead of stopping the batch",
+  () => {
+    const simulation = new ManufacturingSimulation()
+    const { ctx } = simulation
+    simulation.startScenario("run_batch")
+    simulation.step(1)
+    simulation.printLabelsNow()
+    simulation.startScenario("collect_labels")
+    expect(ctx.progress.pendingSideJob?.label).toContain("label sheets")
+    for (
+      let elapsedSeconds = 0;
+      ctx.world.labelPrinter.printedSheets.length > 0 && elapsedSeconds < 900;
+      elapsedSeconds += 0.05
+    )
+      simulation.step(0.05)
+    expect(ctx.world.labelPrinter.printedSheets.length).toBe(0)
+    expect(ctx.world.units[0].stage).toBe("assembled")
+    expect(simulation.isTaskRunning).toBe(true)
+  },
+  { timeout: 120_000 },
+)

@@ -1,6 +1,7 @@
 import { JOB_ROWS } from "lib/job/job-plan"
 import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
 import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
+import { getSideJobAt, runPendingSideJob } from "lib/job/side-jobs"
 import { BATCH_SIZE, OPERATOR_START } from "lib/layout/station-layout"
 import { populatePlate } from "lib/models/bambu-printer"
 import { updateFlexCable } from "lib/models/flex-cable"
@@ -29,6 +30,7 @@ import {
 } from "lib/simulation/scenarios"
 import type {
   JobProgress,
+  SideJob,
   SimContext,
   SimulationMode,
 } from "lib/simulation/sim-context"
@@ -66,6 +68,7 @@ function createJobProgress(unitCount: number): JobProgress {
     isJobComplete: false,
     isOperatorBusy: false,
     isHoldingLooseScrewdriver: false,
+    pendingSideJob: null,
   }
 }
 
@@ -183,6 +186,26 @@ export class ManufacturingSimulation {
       this.startTask(pickUpScrewdriverScenario(this.ctx))
       return
     }
+    if (
+      this.activeTask &&
+      (scenarioId === "refill_spacers" || scenarioId === "collect_labels")
+    ) {
+      // A batch is running: fit the job in after the current unit instead of stopping the batch.
+      const sideJob = getSideJobAt(
+        {
+          tableId:
+            scenarioId === "refill_spacers" ? "printer_bench" : "label_bench",
+        },
+        this.ctx,
+      )
+      if (sideJob) this.requestSideJob(sideJob)
+      else
+        this.ctx.statusText =
+          scenarioId === "refill_spacers"
+            ? "No printer has a finished plate yet. Use “3D prints are ready” to finish them."
+            : "The label printer hasn't printed any sheets yet. Use “Labels printed” to fill its tray."
+      return
+    }
     if (progress.isOperatorBusy) return
     if (scenarioId === "refill_spacers") {
       this.startTask(refillSpacersScenario(this.ctx))
@@ -233,6 +256,12 @@ export class ManufacturingSimulation {
   /** Fill the label printer's output tray now. */
   printLabelsNow(): void {
     printLabelsNow(this.ctx)
+  }
+
+  /** Fit printer or label work in after the current unit of the running task. */
+  private requestSideJob(sideJob: SideJob): void {
+    this.ctx.progress.pendingSideJob = sideJob
+    this.ctx.statusText = `After this unit: ${sideJob.label}`
   }
 
   /** Switching to game mode stops any scenario that isn't mid-step. */
@@ -292,6 +321,12 @@ export class ManufacturingSimulation {
   runGameAction(actionKind: GameActionKind): boolean {
     if (this.activeTask && this.ctx.mode === "game") {
       if (actionKind !== "bench") return false
+      const { sideJobAction } = this.getGameActions()
+      if (sideJobAction) {
+        this.requestSideJob(sideJobAction)
+        this.setTaskPaused(false)
+        return true
+      }
       this.setTaskPaused(!this.isTaskPaused)
       return true
     }
@@ -316,7 +351,11 @@ export class ManufacturingSimulation {
       return
     }
     if (this.activeTask) {
-      if (this.activeTask.next(dtSeconds).done) this.activeTask = null
+      if (this.activeTask.next(dtSeconds).done) {
+        this.activeTask = null
+        // A side job asked for during a task that had no unit boundary left runs now.
+        if (ctx.progress.pendingSideJob) this.startTask(runPendingSideJob(ctx))
+      }
     } else if (ctx.mode === "game") {
       applyWalkInput({ walkInput: this.walkInput, dtSeconds }, ctx)
     } else {

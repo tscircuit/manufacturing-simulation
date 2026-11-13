@@ -18,6 +18,7 @@ import {
   pickUpLooseScrewdriver,
   putBackLooseScrewdriver,
 } from "lib/job/screwdriver-motions"
+import { getSideJobAt } from "lib/job/side-jobs"
 import {
   TABLE_PLACEMENTS,
   type TableId,
@@ -25,7 +26,7 @@ import {
 } from "lib/layout/station-layout"
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 import { OPERATOR_GAME_WALK_SPEED_MPS } from "lib/operator/operator-body"
-import type { SimContext } from "lib/simulation/sim-context"
+import type { SideJob, SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
 import { getAngleDifferenceRadians } from "lib/tasks/operator-motions"
 
@@ -42,6 +43,8 @@ export interface GameActions {
   carryAction: GameAction | null
   /** F: pick up or put back the screwdriver. */
   screwdriverAction: GameAction | null
+  /** Paused away from the bench at the printers or label printer: E fits that job in after the current unit, then carries on. */
+  sideJobAction: SideJob | null
   /** While a task runs, E pauses or resumes it in place. */
   pauseLabel: "Pause" | "Resume" | null
   /** Why E can't run this bench's work right now. */
@@ -123,10 +126,16 @@ export function getGameActions(
     screwdriverAction: null,
     pauseLabel: null,
     blockedReason: null,
+    sideJobAction: null,
   }
   if (ctx.mode !== "game") return actions
   if (params.isTaskRunning) {
     actions.pauseLabel = params.isTaskPaused ? "Resume" : "Pause"
+    if (params.isTaskPaused && !ctx.progress.pendingSideJob)
+      actions.sideJobAction = getSideJobAt(
+        { tableId: getBenchAtOperator(ctx) },
+        ctx,
+      )
     return actions
   }
   const { progress, operator, world } = ctx

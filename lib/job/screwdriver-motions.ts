@@ -1,5 +1,6 @@
 import { getScrewdriverFocusPoint } from "lib/job/bench-frames"
 import { STATIONS } from "lib/layout/station-layout"
+import { NEMA17 } from "lib/models/nema17-motor"
 import { SCREWDRIVER_GRIP_OFFSET_M } from "lib/models/screwdriver"
 import type { SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
@@ -43,16 +44,34 @@ export function* returnScrewdriver(ctx: SimContext): SimTask {
   yield* releaseHand(ctx.operator.rightHand)
 }
 
-/** Left hand braces the motor body while the right hand drives screws. */
+/** Fingers point across the motor from its left side, so the hand stays beside the motor, clear of the screws on top. */
+const SIDE_BRACE_FINGER_DIRECTION = new Vector3(-0.94, -0.06, 0.34).normalize()
+/** Low on the motor body, below the PCB and the screw heads. */
+const SIDE_BRACE_HEIGHT_M = 0.008
+const SIDE_BRACE_GAP_M = 0.01
+
+/** Left hand braces the side of the motor body while the right hand drives screws. */
 export function* steadyMotor(
   params: { unitIndex: number },
   ctx: SimContext,
 ): SimTask {
+  const { operator } = ctx
+  const motor = ctx.world.units[params.unitIndex].motor.group
+  motor.updateWorldMatrix(true, false)
+  operator.group.updateWorldMatrix(true, false)
+  // The operator's left (local +X), so the brace is on the side nearest the left hand.
+  const operatorLeft = new Vector3(1, 0, 0).transformDirection(
+    operator.group.matrixWorld,
+  )
+  const sidePoint = motor
+    .localToWorld(new Vector3(0, SIDE_BRACE_HEIGHT_M, 0))
+    .addScaledVector(operatorLeft, NEMA17.faceSizeM / 2 + SIDE_BRACE_GAP_M)
+  operator.leftHand.targetFingerDirection.copy(SIDE_BRACE_FINGER_DIRECTION)
   yield* grabObject({
-    hand: ctx.operator.leftHand,
-    object: ctx.world.units[params.unitIndex].motor.group,
-    localGripPoint: new Vector3(-0.0215, 0.018, 0.006),
-    fingerCurl: 0.55,
+    hand: operator.leftHand,
+    object: motor,
+    localGripPoint: motor.worldToLocal(sidePoint),
+    fingerCurl: 0.35,
     durationSeconds: 0.6,
   })
 }

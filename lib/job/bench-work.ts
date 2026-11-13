@@ -6,6 +6,7 @@ import {
   UNIT_STAGES,
   type UnitStagePlan,
 } from "lib/job/job-plan"
+import { runPendingSideJob } from "lib/job/side-jobs"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
@@ -335,13 +336,23 @@ export function* runWorkItem(item: WorkItem, ctx: SimContext): SimTask {
   }
 }
 
+/** No unit is part-way through its steps here, so the operator's hands are free. */
+function isBetweenUnits(work: WorkItem | null, ctx: SimContext): boolean {
+  if (!work?.plan) return true
+  return ctx.world.units[work.unitIndex].nextStepIndex === 0
+}
+
 /** Work through everything waiting at a bench, then its follow-up move. Stops with a message when blocked. */
 export function* runBench(
   params: { tableId: TableId },
   ctx: SimContext,
 ): SimTask {
   for (;;) {
-    const work = getNextUnitWork(params, ctx)
+    let work = getNextUnitWork(params, ctx)
+    if (ctx.progress.pendingSideJob && isBetweenUnits(work, ctx)) {
+      yield* runPendingSideJob(ctx)
+      work = getNextUnitWork(params, ctx)
+    }
     if (!work) break
     const blocker = getWorkBlocker(work, ctx)
     if (blocker) {
@@ -350,6 +361,7 @@ export function* runBench(
     }
     yield* runWorkItem(work, ctx)
   }
+  if (ctx.progress.pendingSideJob) yield* runPendingSideJob(ctx)
   const followUp = getFollowUp(params, ctx)
   if (followUp) yield* runWorkItem(followUp, ctx)
   else if (!ctx.progress.isJobComplete)

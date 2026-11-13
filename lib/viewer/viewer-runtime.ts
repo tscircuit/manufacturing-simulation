@@ -547,7 +547,11 @@ export class ViewerRuntime {
       walkingSeconds: Math.max(0, progress.cycleSeconds - stepSeconds),
       cycleSeconds: progress.cycleSeconds,
       benchPromptLabel:
-        actions.pauseLabel ?? actions.benchAction?.label ?? null,
+        (actions.sideJobAction &&
+          `After this unit, ${actions.sideJobAction.label}`) ??
+        actions.pauseLabel ??
+        actions.benchAction?.label ??
+        null,
       carryPromptLabel: actions.carryAction?.label ?? null,
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
       unitsByStage: countUnitsByStage(ctx),
