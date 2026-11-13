@@ -16,3 +16,32 @@ export function createStationRing(): Mesh<RingGeometry, MeshBasicMaterial> {
   ring.visible = false
   return ring
 }
+
+/** A filled floor circle with a bright rim: the stand-here spot for a printer or the label printer. */
+export function createEquipmentPadMesh(
+  radiusM: number,
+): Mesh<RingGeometry, MeshBasicMaterial> {
+  const pad = new Mesh(
+    new RingGeometry(radiusM * 0.86, radiusM, 48),
+    new MeshBasicMaterial({
+      color: 0x3aa0ff,
+      transparent: true,
+      opacity: 0.6,
+      side: DoubleSide,
+      depthWrite: false,
+    }),
+  )
+  pad.rotation.x = -Math.PI / 2
+  const fill = new Mesh(
+    new RingGeometry(0, radiusM * 0.86, 48),
+    new MeshBasicMaterial({
+      color: 0x3aa0ff,
+      transparent: true,
+      opacity: 0.14,
+      side: DoubleSide,
+      depthWrite: false,
+    }),
+  )
+  pad.add(fill)
+  return pad
+}

@@ -1,12 +1,29 @@
 import { FLOOR_PLAN } from "lib/layout/floor-plan"
+import { METERS_PER_INCH } from "lib/units"
 
-export type TableId = "assembly_bench" | "printer_bench" | "pack_out_bench"
+export type TableId =
+  | "assembly_bench"
+  | "qc_bench"
+  | "pack_out_bench"
+  | "ship_ready_bench"
+  | "printer_bench"
+  | "label_bench"
 
-/** A 6' plastic folding table: 72" x 30", 29" high. */
-export const FOLDING_TABLE = {
+/**
+ * Units per batch: the motor foam stand, both racks and the tote each hold a
+ * full batch, and one Amazon carton ships it.
+ */
+export const BATCH_SIZE = 30
+
+/**
+ * Electric standing desk with a 72" x 30" top, set to 42" for a 6'2"
+ * operator: about 10 cm below his elbows, so he works upright.
+ */
+export const WORK_TABLE = {
   lengthM: 1.83,
   depthM: 0.76,
-  topHeightM: 0.74,
+  topHeightM: 42 * METERS_PER_INCH,
+  topThicknessM: 0.025,
 } as const
 
 /**
@@ -20,32 +37,59 @@ export interface TablePlacement {
   centerZM: number
   ccwYawRadians: number
   label: string
+  /** Position along the line, shown on the station sign; 0 for benches off the line. */
+  lineOrder: number
 }
 
-// Table positions are placeholders until the real unit 322 layout is known.
+/** The line runs north to south along the window wall, one 6' table per station. */
+const LINE_TABLE_CENTER_XM = 0.52
+const LINE_FIRST_TABLE_CENTER_ZM = 2.0
+const LINE_TABLE_PITCH_M = 1.83 + 0.05
+/** Tables along the line face east, so their local +X points north. */
+const LINE_TABLE_CCW_YAW_RADIANS = Math.PI / 2
+/** Benches on the east wall face west. */
+const EAST_WALL_TABLE_CENTER_XM = FLOOR_PLAN.widthM - 0.45
+const EAST_WALL_TABLE_CCW_YAW_RADIANS = -Math.PI / 2
+
+function placeOnLine(params: {
+  lineOrder: number
+  label: string
+}): TablePlacement {
+  return {
+    centerXM: LINE_TABLE_CENTER_XM,
+    centerZM:
+      LINE_FIRST_TABLE_CENTER_ZM + (params.lineOrder - 1) * LINE_TABLE_PITCH_M,
+    ccwYawRadians: LINE_TABLE_CCW_YAW_RADIANS,
+    ...params,
+  }
+}
+
+function placeOnEastWall(params: {
+  centerZM: number
+  label: string
+}): TablePlacement {
+  return {
+    centerXM: EAST_WALL_TABLE_CENTER_XM,
+    centerZM: params.centerZM,
+    ccwYawRadians: EAST_WALL_TABLE_CCW_YAW_RADIANS,
+    label: params.label,
+    lineOrder: 0,
+  }
+}
+
+// Positions follow the line description; adjust once the real layout is measured.
 export const TABLE_PLACEMENTS: Record<TableId, TablePlacement> = {
-  assembly_bench: {
-    centerXM: 0.45,
-    centerZM: 5.5,
-    ccwYawRadians: Math.PI / 2,
-    label: "Assembly bench",
-  },
-  printer_bench: {
-    centerXM: FLOOR_PLAN.widthM - 0.45,
-    centerZM: 5.6,
-    ccwYawRadians: -Math.PI / 2,
-    label: "P2S printer",
-  },
-  pack_out_bench: {
-    centerXM: FLOOR_PLAN.widthM - 0.45,
-    centerZM: 9.2,
-    ccwYawRadians: -Math.PI / 2,
-    label: "Pack-out",
-  },
+  assembly_bench: placeOnLine({ lineOrder: 1, label: "Assembly bench" }),
+  qc_bench: placeOnLine({ lineOrder: 2, label: "QC bench" }),
+  pack_out_bench: placeOnLine({ lineOrder: 3, label: "Pack-out bench" }),
+  ship_ready_bench: placeOnLine({ lineOrder: 4, label: "Ship-ready bench" }),
+  // Where the P2S bench stood in the first version, south of the washroom.
+  printer_bench: placeOnEastWall({ centerZM: 5.6, label: "3D printers" }),
+  label_bench: placeOnEastWall({
+    centerZM: 5.6 + LINE_TABLE_PITCH_M,
+    label: "Label printer",
+  }),
 }
-
-/** Where the P2S sits on the printer bench, in the table's local frame. */
-export const PRINTER_ON_TABLE = { alongTableM: -0.35, depthOffsetM: 0.05 }
 
 /** A place to stand at a table, measured in the table's local frame. */
 export interface Station {
@@ -55,37 +99,62 @@ export interface Station {
 }
 
 export const STATIONS = {
-  printer: {
-    tableId: "printer_bench",
-    alongTableM: PRINTER_ON_TABLE.alongTableM + 0.06,
-    standoffFromEdgeM: 0.36,
-  },
   assembly: {
     tableId: "assembly_bench",
     alongTableM: 0,
     standoffFromEdgeM: 0.3,
   },
+  /** In front of the finished-motor rack, downstream end of the assembly bench. */
+  assemblyRack: {
+    tableId: "assembly_bench",
+    alongTableM: -0.62,
+    standoffFromEdgeM: 0.3,
+  },
+  qc: { tableId: "qc_bench", alongTableM: -0.05, standoffFromEdgeM: 0.3 },
   packOut: {
     tableId: "pack_out_bench",
     alongTableM: 0,
     standoffFromEdgeM: 0.3,
   },
-  finishedGoods: {
+  /** Downstream end of the pack-out bench, by the labels and the tote. */
+  packOutLabels: {
     tableId: "pack_out_bench",
-    alongTableM: 0.58,
+    alongTableM: -0.4,
+    standoffFromEdgeM: 0.3,
+  },
+  shipReady: {
+    tableId: "ship_ready_bench",
+    alongTableM: 0.15,
+    standoffFromEdgeM: 0.3,
+  },
+  p2s: {
+    tableId: "printer_bench",
+    alongTableM: -0.45,
+    standoffFromEdgeM: 0.32,
+  },
+  h2s: { tableId: "printer_bench", alongTableM: 0.35, standoffFromEdgeM: 0.36 },
+  labelPrinter: {
+    tableId: "label_bench",
+    alongTableM: 0,
     standoffFromEdgeM: 0.3,
   },
 } satisfies Record<string, Station>
 
-export const OPERATOR_START = { xM: 2.9, zM: 3.0, ccwYawRadians: 0.2 }
+/** Floor spot by the entry door where sealed cartons wait for pickup. */
+export const OUTBOUND_SPOT = {
+  xM: FLOOR_PLAN.widthM - 1.1,
+  zM: 0.75,
+  ccwYawRadians: 0,
+}
+
+export const OPERATOR_START = { xM: 2.9, zM: 1.2, ccwYawRadians: -0.6 }
 
 /** Loop the operator walks in the "Walk the floor" scenario. */
 export const PATROL_ROUTE = [
-  { x: 2.8, z: 1.3 },
-  { x: 1.7, z: 4.0 },
-  { x: 2.9, z: 7.6 },
-  { x: 1.6, z: 12.4 },
-  { x: 3.9, z: 13.0 },
-  { x: 3.5, z: 8.0 },
-  { x: 3.2, z: 3.2 },
+  { x: 1.5, z: 1.6 },
+  { x: 1.5, z: 6.0 },
+  { x: 1.5, z: 8.6 },
+  { x: 3.6, z: 12.6 },
+  { x: 3.8, z: 7.0 },
+  { x: 2.9, z: 1.3 },
 ]

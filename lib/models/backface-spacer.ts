@@ -1,4 +1,3 @@
-import { Group } from "three"
 import { BOLT_HOLE_CORNERS } from "lib/models/nema17-motor"
 import {
   createCircleHole,
@@ -7,6 +6,7 @@ import {
   createOctagonShape,
   createStandardMaterial,
 } from "lib/scene/primitives"
+import { Group } from "three"
 
 /** Dimensions from backface-spacer-4mm.scad on motorcontrol.tscircuit.com. */
 export const BACKFACE_SPACER = {
@@ -21,7 +21,15 @@ export const BACKFACE_SPACER = {
 } as const
 
 /** 4 mm NEMA17 backface spacer: 1 mm base plus four 3 mm sleeves. Origin on its base. */
+/** One spacer built once; every spacer is a clone sharing its geometry and material. */
+let spacerTemplate: Group | null = null
+
 export function createBackfaceSpacer(): Group {
+  spacerTemplate ??= buildBackfaceSpacer()
+  return spacerTemplate.clone()
+}
+
+function buildBackfaceSpacer(): Group {
   const spacer = new Group()
   const printMaterial = createStandardMaterial({
     color: 0xf07a1c,

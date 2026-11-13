@@ -1,321 +1,350 @@
-import { Vector3 } from "three"
-import { FOLDING_TABLE, STATIONS } from "lib/layout/station-layout"
-import { getBoxFocusPoint } from "lib/job/bench-frames"
-import type { JobStep } from "lib/job/job-step"
-import { FOAM_INSERT, FOAM_INSERT_HEIGHT_M } from "lib/models/foam-insert"
-import { MAILER_BOX } from "lib/models/mailer-box"
-import { NEMA17 } from "lib/models/nema17-motor"
-import type { SimContext } from "lib/simulation/sim-context"
+import { getLabelFocusPoint, getPackingFocusPoint } from "lib/job/bench-frames"
+import { releaseSlot, reserveSlot } from "lib/job/container-slots"
+import type { JobStage, UnitParams } from "lib/job/job-step"
+import { countLabelsAtPackOut, takeNextLabel } from "lib/job/label-stock"
+import { MOTOR_IN_BOX_POSITION } from "lib/job/unit-poses"
+import { STATIONS } from "lib/layout/station-layout"
+import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
+import { STICKER } from "lib/models/sticker"
 import {
-  runInParallel,
-  type SimTask,
-  tween,
-  waitSeconds,
-} from "lib/tasks/coroutines"
+  BOX_POCKETS,
+  POCKET_FLOOR_YM,
+  WHITE_MAILER_BOX,
+  type WhiteMailerBox,
+} from "lib/models/white-mailer-box"
+import type { OperatorHand } from "lib/operator/create-operator"
+import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
+import { type SimTask, tween } from "lib/tasks/coroutines"
 import {
   grabObject,
-  holdInHand,
   liftAndPlace,
   moveObject,
   reachHand,
   releaseHand,
   trackObjectPoint,
-  walkToStation,
 } from "lib/tasks/operator-motions"
 import {
   IDENTITY_QUATERNION,
-  MOTOR_ON_SIDE_QUATERNION,
+  MOTOR_IN_BOX_QUATERNION,
   PACK_OUT_BENCH_SPOTS,
 } from "lib/world/bench-spots"
+import { type Group, Quaternion, Vector3 } from "three"
 
-const WALL_UP_RADIANS = Math.PI / 2
-const TUCK_START_RADIANS = 0.5
-const PACK_OUT_CLOSE_UP = {
-  azimuthRadians: 2.5,
-  elevationRadians: 0.6,
-  distanceM: 0.7,
+/** From beside the operator, so the open lid and the operator don't hide the foam. */
+const PACK_CLOSE_UP = {
+  azimuthRadians: 1.2,
+  elevationRadians: 0.95,
+  distanceM: 0.65,
 }
-/** Motor lying on its side rests on the bottom foam's slab, centred in the pocket. */
-const MOTOR_IN_FOAM_POSITION = new Vector3(
-  -0.0123,
-  MAILER_BOX.boardThicknessM +
-    FOAM_INSERT.slabThicknessM +
-    NEMA17.faceSizeM / 2,
-  0,
+const LABEL_PEEL_QUATERNION = new Quaternion().setFromAxisAngle(
+  new Vector3(1, 0, 0),
+  -0.45,
 )
+const TOTE_LIFT_M = 0.34
 
-function* foldBox(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  const { box } = world
-  const bench = world.tables.pack_out_bench
-  const { leftHand, rightHand } = operator
-  ctx.statusText = "Setting the assembly on the bench"
-  yield* moveObject(
-    {
-      object: world.motor.group,
-      hand: rightHand,
-      parent: bench,
-      localPosition: PACK_OUT_BENCH_SPOTS.assemblyRest,
-      localQuaternion: MOTOR_ON_SIDE_QUATERNION,
-      durationSeconds: 1,
-      arcHeightM: 0.05,
-    },
-    ctx,
-  )
-  yield* releaseHand(rightHand)
-
-  ctx.statusText = "Taking a flat box blank"
-  yield* grabObject({
-    hand: leftHand,
-    object: box.frontWall.tip,
-    fingerCurl: 0.9,
-    durationSeconds: 0.8,
+function* openOrCloseLid(params: {
+  box: WhiteMailerBox
+  hand: OperatorHand
+  isOpening: boolean
+}): SimTask {
+  const { box } = params
+  yield* reachHand({
+    hand: params.hand,
+    getTarget: trackObjectPoint({ object: box.lidTip }),
+    durationSeconds: 0.6,
   })
-  yield* moveObject(
-    {
-      object: box.group,
-      hand: leftHand,
-      parent: bench,
-      localPosition: PACK_OUT_BENCH_SPOTS.boxFolding,
-      localQuaternion: IDENTITY_QUATERNION,
-      durationSeconds: 1,
-      arcHeightM: 0.06,
-    },
-    ctx,
-  )
-
-  ctx.statusText = "Folding the side walls up"
-  yield* runInParallel([
-    reachHand({
-      hand: leftHand,
-      getTarget: trackObjectPoint({ object: box.leftWall.tip }),
-      durationSeconds: 0.5,
-    }),
-    reachHand({
-      hand: rightHand,
-      getTarget: trackObjectPoint({ object: box.rightWall.tip }),
-      durationSeconds: 0.6,
-    }),
-  ])
+  const { lidOpenRadians } = WHITE_MAILER_BOX
   yield* tween({
-    durationSeconds: 1,
+    durationSeconds: 1.1,
     onProgress: (progress) => {
-      box.leftWall.fold.rotation.z = WALL_UP_RADIANS * progress
-      box.rightWall.fold.rotation.z = WALL_UP_RADIANS * progress
+      box.lid.rotation.x =
+        lidOpenRadians * (params.isOpening ? progress : 1 - progress)
     },
   })
-
-  ctx.statusText = "Folding the front and back walls up"
-  yield* runInParallel([
-    reachHand({
-      hand: leftHand,
-      getTarget: trackObjectPoint({ object: box.backWall.tip }),
-      durationSeconds: 0.5,
-    }),
-    reachHand({
-      hand: rightHand,
-      getTarget: trackObjectPoint({ object: box.frontWall.tip }),
-      durationSeconds: 0.5,
-    }),
-  ])
-  yield* tween({
-    durationSeconds: 1,
-    onProgress: (progress) => {
-      box.frontWall.fold.rotation.z = WALL_UP_RADIANS * progress
-      box.backWall.fold.rotation.z = WALL_UP_RADIANS * progress
-    },
-  })
-  yield* waitSeconds(0.2)
-  yield* runInParallel([releaseHand(leftHand), releaseHand(rightHand)])
+  yield* releaseHand(params.hand)
 }
 
-function* insertBottomFoam(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  ctx.statusText = "Dropping the bottom foam insert into the box"
+function* placeInPocket(
+  params: {
+    item: Group
+    box: WhiteMailerBox
+    hand: OperatorHand
+    gripPoint: Vector3
+    pocketPosition: Vector3
+  },
+  ctx: SimContext,
+): SimTask {
   yield* grabObject({
-    hand: operator.rightHand,
-    object: world.bottomFoam,
-    localGripPoint: new Vector3(0, 0.03, 0.03),
+    hand: params.hand,
+    object: params.item,
+    localGripPoint: params.gripPoint,
     fingerCurl: 0.8,
     durationSeconds: 0.7,
   })
   yield* liftAndPlace(
     {
-      object: world.bottomFoam,
-      hand: operator.rightHand,
-      parent: world.box.group,
-      localPosition: new Vector3(0, MAILER_BOX.boardThicknessM, 0),
+      object: params.item,
+      hand: params.hand,
+      parent: params.box.group,
+      localPosition: params.pocketPosition,
       localQuaternion: IDENTITY_QUATERNION,
-      liftHeightM: 0.05,
-      travelSeconds: 0.7,
-    },
-    ctx,
-  )
-  yield* releaseHand(operator.rightHand)
-}
-
-function* placeAssemblyInFoam(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  ctx.statusText = "Nesting the motor assembly in the foam pocket"
-  yield* grabObject({
-    hand: operator.rightHand,
-    object: world.motor.group,
-    localGripPoint: new Vector3(-0.019, 0.02, 0.02),
-    fingerCurl: 0.6,
-    durationSeconds: 0.7,
-  })
-  yield* liftAndPlace(
-    {
-      object: world.motor.group,
-      hand: operator.rightHand,
-      parent: world.box.group,
-      localPosition: MOTOR_IN_FOAM_POSITION,
-      localQuaternion: MOTOR_ON_SIDE_QUATERNION,
       liftHeightM: 0.06,
       travelSeconds: 0.7,
     },
     ctx,
   )
-  yield* releaseHand(operator.rightHand)
+  yield* releaseHand(params.hand)
 }
 
-function* capAndCloseBox(ctx: SimContext): SimTask {
+function* openBoxAndNestMotor(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  const { box } = world
-  const hand = operator.rightHand
-  ctx.statusText = "Capping with the top foam insert"
+  const unit = world.units[params.unitIndex]
+  const { box } = unit
+  releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
+  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a white mailer off the stack`
   yield* grabObject({
-    hand,
-    object: world.topFoam,
-    localGripPoint: new Vector3(0, 0.029, 0.03),
-    fingerCurl: 0.8,
-    durationSeconds: 0.7,
+    hand: operator.leftHand,
+    object: box.group,
+    localGripPoint: new Vector3(
+      0,
+      WHITE_MAILER_BOX.heightM * 0.6,
+      WHITE_MAILER_BOX.widthM / 2,
+    ),
+    fingerCurl: 0.6,
+    durationSeconds: 0.8,
   })
   yield* liftAndPlace(
     {
-      object: world.topFoam,
-      hand,
-      parent: box.group,
-      localPosition: new Vector3(
-        0,
-        MAILER_BOX.boardThicknessM + FOAM_INSERT_HEIGHT_M,
-        0,
-      ),
+      object: box.group,
+      hand: operator.leftHand,
+      parent: world.tables.pack_out_bench,
+      localPosition: PACK_OUT_BENCH_SPOTS.packing,
       localQuaternion: IDENTITY_QUATERNION,
       liftHeightM: 0.05,
-      travelSeconds: 0.7,
     },
     ctx,
   )
-  yield* releaseHand(hand)
+  yield* releaseHand(operator.leftHand)
 
-  ctx.statusText = "Closing the lid and tucking the flap"
-  yield* reachHand({
-    hand,
-    getTarget: trackObjectPoint({ object: box.lidTip }),
+  ctx.statusText = `Unit ${params.unitIndex + 1}: opening the lid, pink anti-static foam top and bottom`
+  yield* openOrCloseLid({ box, hand: operator.leftHand, isOpening: true })
+
+  ctx.statusText = `Unit ${params.unitIndex + 1}: nesting the motor and its cable in the foam`
+  yield* grabObject({
+    hand: operator.rightHand,
+    object: unit.motor.group,
+    localGripPoint: new Vector3(0, 0.03, 0.021),
+    fingerCurl: 0.6,
     durationSeconds: 0.7,
   })
-  yield* tween({
-    durationSeconds: 1,
-    onProgress: (progress) => {
-      box.lid.rotation.z = WALL_UP_RADIANS * progress
-      box.tuckFlap.rotation.z = TUCK_START_RADIANS * progress
+  yield* moveObject(
+    {
+      object: unit.motor.group,
+      hand: operator.rightHand,
+      parent: box.group,
+      localPosition: MOTOR_IN_BOX_POSITION,
+      localQuaternion: MOTOR_IN_BOX_QUATERNION,
+      durationSeconds: 1.2,
+      arcHeightM: 0.09,
     },
+    ctx,
+  )
+  yield* releaseHand(operator.rightHand)
+}
+
+function* addCablesAndCharger(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
+  const coilGrip = new Vector3(0.017, 0.008, 0)
+  const { usbCables, charger } = BOX_POCKETS
+  for (const [index, coil] of unit.usbCables.entries()) {
+    ctx.statusText = `Unit ${params.unitIndex + 1}: adding USB-C cable ${index + 1} of 2`
+    yield* placeInPocket(
+      {
+        item: coil,
+        box: unit.box,
+        hand: operator.rightHand,
+        gripPoint: coilGrip,
+        pocketPosition: new Vector3(
+          usbCables.x,
+          POCKET_FLOOR_YM + index * COILED_USB_CABLE.heightM,
+          usbCables.z,
+        ),
+      },
+      ctx,
+    )
+  }
+  ctx.statusText = `Unit ${params.unitIndex + 1}: adding the 45 W USB-C charger`
+  yield* placeInPocket(
+    {
+      item: unit.charger,
+      box: unit.box,
+      hand: operator.rightHand,
+      gripPoint: new Vector3(0, 0.024, 0.016),
+      pocketPosition: new Vector3(charger.x, POCKET_FLOOR_YM, charger.z),
+    },
+    ctx,
+  )
+}
+
+function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
+  const { box } = unit
+  const hand = operator.rightHand
+  ctx.statusText = `Unit ${params.unitIndex + 1}: closing the lid and tucking the front`
+  playCue("box_close", ctx)
+  yield* openOrCloseLid({ box, hand: operator.leftHand, isOpening: false })
+
+  const label = takeNextLabel(world)
+  if (!label) throw new Error("No labels left at pack-out")
+  unit.label = label
+
+  ctx.statusText = `Unit ${params.unitIndex + 1}: peeling a 2×4 label off the sheet`
+  const sheet = label.parent
+  if (!sheet) throw new Error("Label must start on its sheet")
+  yield* grabObject({
+    hand,
+    object: label,
+    localGripPoint: new Vector3(0, 0.001, STICKER.lengthM / 2 - 0.01),
+    fingerCurl: 1,
+    durationSeconds: 0.7,
   })
-  yield* tween({
-    durationSeconds: 0.5,
-    onProgress: (progress) => {
-      box.tuckFlap.rotation.z =
-        TUCK_START_RADIANS + (WALL_UP_RADIANS - TUCK_START_RADIANS) * progress
+  yield* moveObject(
+    {
+      object: label,
+      hand,
+      parent: sheet,
+      localPosition: label.position.clone().add(new Vector3(0, 0.04, 0.03)),
+      localQuaternion: label.quaternion.clone().multiply(LABEL_PEEL_QUATERNION),
+      durationSeconds: 0.5,
     },
+    ctx,
+  )
+  ctx.statusText = `Unit ${params.unitIndex + 1}: sticking the label on the lid`
+  yield* moveObject(
+    {
+      object: label,
+      hand,
+      parent: box.lid,
+      localPosition: box.stickerSpot.position
+        .clone()
+        .add(new Vector3(0, 0.012, 0)),
+      localQuaternion: IDENTITY_QUATERNION,
+      durationSeconds: 0.9,
+      arcHeightM: 0.06,
+    },
+    ctx,
+  )
+  yield* moveObject(
+    {
+      object: label,
+      hand,
+      parent: box.lid,
+      localPosition: box.stickerSpot.position,
+      localQuaternion: IDENTITY_QUATERNION,
+      durationSeconds: 0.3,
+    },
+    ctx,
+  )
+  const halfLabelM = STICKER.lengthM / 2 - 0.008
+  yield* reachHand({
+    hand,
+    getTarget: trackObjectPoint({
+      object: label,
+      localPoint: new Vector3(0, 0, -halfLabelM),
+    }),
+    durationSeconds: 0.3,
+  })
+  yield* reachHand({
+    hand,
+    getTarget: trackObjectPoint({
+      object: label,
+      localPoint: new Vector3(0, 0, halfLabelM),
+    }),
+    durationSeconds: 0.5,
+    arcHeightM: 0,
   })
   yield* releaseHand(hand)
 }
 
-function* moveBoxToFinishedGoods(ctx: SimContext): SimTask {
+function* boxIntoTote(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
-  const { box } = world
-  const bench = world.tables.pack_out_bench
-  const { leftHand, rightHand } = operator
-  ctx.statusText = "Carrying the packed box to finished goods"
-  yield* runInParallel([
-    grabObject({
-      hand: leftHand,
-      object: box.group,
-      localGripPoint: new Vector3(-0.06, 0.04, 0.02),
-      fingerCurl: 0.5,
-      durationSeconds: 0.6,
-    }),
-    grabObject({
-      hand: rightHand,
-      object: box.group,
-      localGripPoint: new Vector3(0.06, 0.04, 0.02),
-      fingerCurl: 0.5,
-      durationSeconds: 0.6,
-    }),
-  ])
-  yield* moveObject(
+  const { box } = world.units[params.unitIndex]
+  const hand = operator.leftHand
+  const slotIndex = reserveSlot({
+    container: world.packingTote,
+    unitIndex: params.unitIndex,
+  })
+  ctx.statusText = `Unit ${params.unitIndex + 1}: packed box into the tote`
+  yield* grabObject({
+    hand,
+    object: box.group,
+    localGripPoint: new Vector3(0, WHITE_MAILER_BOX.heightM, 0),
+    fingerCurl: 0.6,
+    durationSeconds: 0.6,
+  })
+  yield* liftAndPlace(
     {
       object: box.group,
-      hand: rightHand,
-      parent: bench,
-      localPosition: new Vector3(0, FOLDING_TABLE.topHeightM + 0.25, 0.34),
+      hand,
+      parent: world.packingTote.group,
+      localPosition: world.packingTote.slots[slotIndex].position,
       localQuaternion: IDENTITY_QUATERNION,
-      durationSeconds: 0.7,
+      liftHeightM: TOTE_LIFT_M,
+      travelSeconds: 0.8,
     },
     ctx,
   )
-  holdInHand({ hand: rightHand, object: box.group })
-  yield* walkToStation(STATIONS.finishedGoods, ctx)
-  yield* moveObject(
-    {
-      object: box.group,
-      hand: rightHand,
-      parent: bench,
-      localPosition: PACK_OUT_BENCH_SPOTS.finishedGoods,
-      localQuaternion: IDENTITY_QUATERNION,
-      durationSeconds: 0.9,
-      arcHeightM: 0.03,
-    },
-    ctx,
-  )
-  yield* runInParallel([releaseHand(leftHand), releaseHand(rightHand)])
+  yield* releaseHand(hand)
 }
 
-export const PACK_OUT_STEPS: JobStep[] = [
-  {
-    label: "Set assembly down, fold a box",
-    station: STATIONS.packOut,
-    closeUpView: { ...PACK_OUT_CLOSE_UP, distanceM: 0.95 },
-    getFocusPoint: getBoxFocusPoint,
-    run: foldBox,
-  },
-  {
-    label: "Insert bottom foam",
-    station: STATIONS.packOut,
-    closeUpView: PACK_OUT_CLOSE_UP,
-    getFocusPoint: getBoxFocusPoint,
-    run: insertBottomFoam,
-  },
-  {
-    label: "Place assembly in foam",
-    station: STATIONS.packOut,
-    closeUpView: PACK_OUT_CLOSE_UP,
-    getFocusPoint: getBoxFocusPoint,
-    run: placeAssemblyInFoam,
-  },
-  {
-    label: "Top foam, close the lid",
-    station: STATIONS.packOut,
-    closeUpView: PACK_OUT_CLOSE_UP,
-    getFocusPoint: getBoxFocusPoint,
-    run: capAndCloseBox,
-  },
-  {
-    label: "Move box to finished goods",
-    station: STATIONS.packOut,
-    closeUpView: { ...PACK_OUT_CLOSE_UP, distanceM: 1.4 },
-    getFocusPoint: getBoxFocusPoint,
-    run: moveBoxToFinishedGoods,
-  },
-]
+export const PACK_OUT_STAGE: JobStage = {
+  label: "Pack-out",
+  isPerUnit: true,
+  steps: [
+    {
+      label: "Open a box, nest the motor",
+      station: STATIONS.packOut,
+      closeUpView: PACK_CLOSE_UP,
+      getFocusPoint: (_params, ctx) => getPackingFocusPoint(ctx),
+      run: openBoxAndNestMotor,
+    },
+    {
+      label: "Add 2 USB-C cables and charger",
+      station: STATIONS.packOut,
+      closeUpView: PACK_CLOSE_UP,
+      getFocusPoint: (_params, ctx) => getPackingFocusPoint(ctx),
+      run: addCablesAndCharger,
+    },
+    {
+      label: "Close the box, apply the label",
+      station: STATIONS.packOutLabels,
+      closeUpView: {
+        ...PACK_CLOSE_UP,
+        azimuthRadians: 1.3,
+        elevationRadians: 0.72,
+        distanceM: 1.1,
+      },
+      getFocusPoint: (_params, ctx) => getLabelFocusPoint(ctx),
+      run: closeBoxAndApplyLabel,
+      getBlocker: (_params, ctx) =>
+        countLabelsAtPackOut(ctx.world) > 0
+          ? null
+          : "No labels left at pack-out. Collect printed sheets from the label printer.",
+    },
+    {
+      label: "Packed box into the tote",
+      station: STATIONS.packOutLabels,
+      closeUpView: {
+        ...PACK_CLOSE_UP,
+        azimuthRadians: 1.3,
+        elevationRadians: 0.72,
+        distanceM: 1.1,
+      },
+      getFocusPoint: (_params, ctx) => getLabelFocusPoint(ctx),
+      run: boxIntoTote,
+    },
+  ],
+}

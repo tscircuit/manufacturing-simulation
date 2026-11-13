@@ -1,5 +1,5 @@
-import { Vector3 } from "three"
 import { METERS_PER_INCH } from "lib/units"
+import { Vector3 } from "three"
 
 /** 6'2" operator. */
 export const OPERATOR_HEIGHT_M = 74 * METERS_PER_INCH
@@ -17,8 +17,9 @@ export const OPERATOR_BODY = {
   forearmLengthM: 0.29,
   neckAboveHipM: 0.62,
   /** Furthest a pinch target can be from the shoulder before the operator bends at the hips. */
-  comfortableReachM: 0.55,
-  maxHipBendRadians: 1.0,
+  comfortableReachM: 0.6,
+  /** Standing desks keep work near elbow height, so only a slight lean is ever needed. */
+  maxHipBendRadians: 0.45,
 } as const
 
 /** Walking speed along a planned path, and in game mode. */

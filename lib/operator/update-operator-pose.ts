@@ -1,4 +1,3 @@
-import { type Mesh, Vector3 } from "three"
 import type {
   BodySide,
   Operator,
@@ -7,8 +6,8 @@ import type {
 import { getHandQuaternion } from "lib/operator/hand-pose"
 import { OPERATOR_BODY, PINCH_POINT_IN_HAND } from "lib/operator/operator-body"
 import { solveTwoBoneIk } from "lib/operator/solve-two-bone-ik"
+import { type Mesh, Vector3 } from "three"
 
-const UP = new Vector3(0, 1, 0)
 /** Palm faces away from the operator while working at a bench. */
 const WORK_BACK_OF_HAND_HINT = new Vector3(0, 0, -1)
 const KNEE_POLE = new Vector3(0, 0, 1)
@@ -39,21 +38,18 @@ function getShoulderPosition(params: {
   )
 }
 
-/** Stretch a unit-height cylinder between two points. */
+const DOWN = new Vector3(0, -1, 0)
+
+/** Hang a limb segment from its upper joint and point it at the next joint. */
 function placeSegment(params: {
   segment: Mesh
   from: Vector3
   to: Vector3
 }): void {
   const { segment, from, to } = params
-  const direction = from.clone().sub(to)
-  const lengthM = direction.length()
-  segment.position.copy(from).add(to).multiplyScalar(0.5)
-  segment.quaternion.setFromUnitVectors(
-    UP,
-    direction.divideScalar(lengthM || 1),
-  )
-  segment.scale.set(1, lengthM, 1)
+  const direction = to.clone().sub(from)
+  segment.position.copy(from)
+  segment.quaternion.setFromUnitVectors(DOWN, direction.normalize())
 }
 
 /** Least hip bend that brings an operator-local target within comfortable reach. */
@@ -109,7 +105,7 @@ function updateHandTargets(operator: Operator, dtSeconds: number): number {
     hand.fingerCurl +=
       (hand.targetFingerCurl - hand.fingerCurl) *
       approachFraction({ ratePerSecond: 14, dtSeconds })
-    if (!hand.isReaching) continue
+    if (!hand.isReaching || operator.isCarryingLoad) continue
     const wristTarget = getWristTarget(hand, operator)
     const bend = getRequiredHipBend({
       side: hand.side,
@@ -150,16 +146,29 @@ function poseLegs(
     })
     placeSegment({ segment: leg.thigh, from: hipJoint, to: knee })
     placeSegment({ segment: leg.shin, from: knee, to: ankle })
+    leg.hip.position.copy(hipJoint)
     leg.knee.position.copy(knee)
-    leg.foot.position.set(ankle.x, ankle.y - 0.047, ankle.z + 0.06)
+    // Shoe sole sits on the floor when the ankle is at rest height.
+    leg.foot.position.set(ankle.x, ankle.y - 0.06, ankle.z + 0.055)
   }
 }
 
+/** Shoulder joint fixed to the torso as posed this frame, including the walking bob. */
+function getPosedShoulderPosition(
+  hand: OperatorHand,
+  operator: Operator,
+): Vector3 {
+  const bend = operator.hipBendRadians
+  const { shoulderHalfWidthM, shoulderAboveHipM } = OPERATOR_BODY
+  return new Vector3(
+    hand.side * shoulderHalfWidthM,
+    operator.torso.position.y + shoulderAboveHipM * Math.cos(bend),
+    operator.torso.position.z + shoulderAboveHipM * Math.sin(bend),
+  )
+}
+
 function poseArm(hand: OperatorHand, operator: Operator): void {
-  const shoulder = getShoulderPosition({
-    side: hand.side,
-    hipBendRadians: operator.hipBendRadians,
-  })
+  const shoulder = getPosedShoulderPosition(hand, operator)
   const armLengthM =
     OPERATOR_BODY.upperArmLengthM + OPERATOR_BODY.forearmLengthM
   const armSwingM =
@@ -178,6 +187,8 @@ function poseArm(hand: OperatorHand, operator: Operator): void {
     lowerLengthM: OPERATOR_BODY.forearmLengthM,
     poleDirection: new Vector3(hand.side * 0.45, -0.3, -1),
   })
+  hand.shoulder.position.copy(shoulder)
+  hand.wrist.position.copy(wrist)
   placeSegment({ segment: hand.upperArm, from: shoulder, to: elbow })
   placeSegment({ segment: hand.forearm, from: elbow, to: wrist })
   hand.elbow.position.copy(elbow)
@@ -191,8 +202,12 @@ function poseArm(hand: OperatorHand, operator: Operator): void {
     backOfHandHint: WORK_BACK_OF_HAND_HINT,
   })
   hand.hand.quaternion.copy(relaxedQuaternion).slerp(workQuaternion, reach)
-  hand.fingerBase.rotation.x = -hand.fingerCurl * 0.9
-  hand.fingerTip.rotation.x = -hand.fingerCurl
+  for (const [index, finger] of hand.fingers.entries()) {
+    // The little finger curls a touch more than the index.
+    const fingerCurl = hand.fingerCurl * (1 + index * 0.06)
+    finger.proximal.rotation.x = -fingerCurl * 0.9
+    finger.distal.rotation.x = -fingerCurl * 1.05
+  }
   hand.thumb.rotation.set(-0.35 - hand.fingerCurl * 0.5, 0, -hand.side * 0.35)
 }
 

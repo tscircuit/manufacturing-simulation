@@ -9,6 +9,8 @@ const CAMERA_BUTTONS: Array<{ mode: CameraMode; label: string }> = [
 export function CameraBar(props: {
   cameraMode: CameraMode
   isAutoCloseUp: boolean
+  isSoundOn: boolean
+  onSoundChange: (isSoundOn: boolean) => void
   onCameraModeChange: (mode: CameraMode) => void
   onAutoCloseUpChange: (isAutoCloseUp: boolean) => void
 }) {
@@ -31,6 +33,14 @@ export function CameraBar(props: {
           onChange={(event) => props.onAutoCloseUpChange(event.target.checked)}
         />
         Auto close-up
+      </label>
+      <label>
+        <input
+          type="checkbox"
+          checked={props.isSoundOn}
+          onChange={(event) => props.onSoundChange(event.target.checked)}
+        />
+        Sound
       </label>
     </div>
   )

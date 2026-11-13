@@ -1,24 +1,57 @@
-import {
-  Color,
-  PCFSoftShadowMap,
-  PerspectiveCamera,
-  type Texture,
-  WebGLRenderer,
-} from "three"
-import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
+import { countUnitsByStage, getNextLineWork } from "lib/job/bench-work"
+import { JOB_ROWS } from "lib/job/job-plan"
+import { countLabelsAtPackOut } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
-import { type TableId, TABLE_PLACEMENTS } from "lib/layout/station-layout"
+import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
+import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
+import type { QcDisplayState } from "lib/models/qc-laptop"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
-import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
+import {
+  ASSEMBLY_PAD_RADIUS_M,
+  ASSEMBLY_PADS,
+  EQUIPMENT_PAD_RADIUS_M,
+  EQUIPMENT_PADS,
+  getAssemblyPadAtOperator,
+  getEquipmentPadAtOperator,
+  getPadJob,
+} from "lib/simulation/equipment-pads"
+import type { LineStartId } from "lib/simulation/line-setup"
+import {
+  type GameActionKind,
+  ManufacturingSimulation,
+} from "lib/simulation/manufacturing-simulation"
 import type { ScenarioId } from "lib/simulation/scenarios"
 import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
+import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
 import type { HudSnapshot } from "lib/viewer/hud-snapshot"
-import { createStationRing } from "lib/viewer/station-ring"
+import { NEMA17_LABEL_DATA_URL } from "lib/viewer/nema17-label-artwork"
+import {
+  getOperatorObstruction,
+  updateMaterialOpacity,
+} from "lib/viewer/operator-fade"
+import { SoundPlayer } from "lib/viewer/sound/sound-player"
+import {
+  createEquipmentPadMesh,
+  createStationRing,
+} from "lib/viewer/station-ring"
 import type { ManufacturingWorld } from "lib/world/create-world"
+import {
+  Color,
+  Mesh,
+  MeshBasicMaterial,
+  type MeshStandardMaterial,
+  PCFSoftShadowMap,
+  PerspectiveCamera,
+  type Sprite,
+  SRGBColorSpace,
+  type Texture,
+  TextureLoader,
+  WebGLRenderer,
+} from "three"
 
 const MAX_FRAME_SECONDS = 0.05
 const HUD_INTERVAL_MS = 100
@@ -29,6 +62,39 @@ interface PointerTrack {
   xPx: number
   yPx: number
   button: number
+}
+
+declare global {
+  interface Window {
+    /** Set when the page is opened with `?inspect`. */
+    manufacturingViewer?: ViewerRuntime
+  }
+}
+
+/** Short status for a printer's sign and the HUD. */
+function getPrinterStatusText(printer: BambuPrinter): string {
+  if (!printer.isPrinting) {
+    return printer.plateSpacers.length > 0
+      ? `${printer.model}: ${printer.plateSpacers.length} spacers ready`
+      : `${printer.model}: idle`
+  }
+  const totalSeconds = BAMBU_PRINTERS[printer.model].estimatedPlateSeconds
+  const percent = Math.floor((100 * printer.printedSeconds) / totalSeconds)
+  const remainingMinutes = Math.ceil(
+    (totalSeconds - printer.printedSeconds) / 60,
+  )
+  const remaining =
+    remainingMinutes >= 60
+      ? `${Math.floor(remainingMinutes / 60)} h ${remainingMinutes % 60} m`
+      : `${remainingMinutes} m`
+  return `${printer.model}: printing ${percent}%, ${remaining} left`
+}
+
+function loadLabelTexture(): Texture {
+  const texture = new TextureLoader().load(NEMA17_LABEL_DATA_URL)
+  texture.colorSpace = SRGBColorSpace
+  texture.anisotropy = 8
+  return texture
 }
 
 function readThemeToken(params: {
@@ -52,6 +118,14 @@ export class ViewerRuntime {
   private readonly camera = new PerspectiveCamera(42, 1, 0.02, 80)
   private readonly cameraRig = new CameraRig(this.camera)
   private readonly stationRing = createStationRing()
+  private readonly assemblyPads = ASSEMBLY_PADS.map((pad) => ({
+    pad,
+    mesh: createEquipmentPadMesh(ASSEMBLY_PAD_RADIUS_M),
+  }))
+  private readonly equipmentPads = EQUIPMENT_PADS.map((pad) => ({
+    pad,
+    mesh: createEquipmentPadMesh(EQUIPMENT_PAD_RADIUS_M),
+  }))
   private readonly keysDown = new Set<string>()
   private readonly pointers = new Map<number, PointerTrack>()
   private stickInput = { forward: 0, right: 0 }
@@ -59,16 +133,33 @@ export class ViewerRuntime {
   private isPaused = false
   private speed = 1
   private isAutoCloseUp = true
+  private readonly soundPlayer = new SoundPlayer()
   private decoratedWorld: ManufacturingWorld | null = null
   private previousCameraHint: CameraHint | null = null
   private didAutoCloseUp = false
   private closeUpStationKey: string | null = null
   private floorTexture: Texture | null = null
+  /** The approved NEMA17 label artwork from tscircuit/product-packaging. */
+  private readonly stickerTexture = loadLabelTexture()
+  private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
+    idle: createQcScreenTexture("idle"),
+    testing: createQcScreenTexture("testing"),
+    pass: createQcScreenTexture("pass"),
+  }
+  private shownQcDisplayState: QcDisplayState | null = null
+  private texturedLabelSheetCount = -1
+  private printerSigns: Array<{ text: string; sprite: Sprite }> = []
+  private stationSigns: Sprite[] = []
+  private operatorBodyOpacity = 1
+  private operatorHandOpacity = 1
   private animationFrameId = 0
   private previousFrameMs = 0
   private previousHudMs = 0
   private readonly darkModeQuery = window.matchMedia(
     "(prefers-color-scheme: dark)",
+  )
+  private readonly themeAttributeObserver = new MutationObserver(() =>
+    this.applyTheme(),
   )
 
   constructor(
@@ -86,8 +177,17 @@ export class ViewerRuntime {
     const { scene } = this.simulation.ctx
     addSceneLighting(scene)
     scene.add(this.stationRing)
+    for (const { pad, mesh } of [...this.equipmentPads, ...this.assemblyPads]) {
+      const pose = getStationStandPose(pad.station)
+      mesh.position.set(pose.x, 0.011, pose.z)
+      scene.add(mesh)
+    }
     this.applyTheme()
     this.darkModeQuery.addEventListener("change", this.applyTheme)
+    this.themeAttributeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    })
     canvas.addEventListener("pointerdown", this.handlePointerDown)
     canvas.addEventListener("pointermove", this.handlePointerMove)
     canvas.addEventListener("pointerup", this.handlePointerUp)
@@ -95,9 +195,19 @@ export class ViewerRuntime {
     canvas.addEventListener("contextmenu", this.preventDefault)
     canvas.addEventListener("wheel", this.handleWheel, { passive: false })
     window.addEventListener("keydown", this.handleKeyDown)
+    // Browsers only start audio from a gesture.
+    window.addEventListener("pointerdown", this.unlockSound)
+    window.addEventListener("keydown", this.unlockSound)
     window.addEventListener("keyup", this.handleKeyUp)
     window.addEventListener("blur", this.clearKeys)
-    this.simulation.startScenario("walk_floor")
+    // Open in game mode with one motor, standing at the assembly bench: press E to build it.
+    this.simulation.setJobUnitCount(1)
+    this.simulation.startAt("assembly")
+    this.setMode("game")
+    // `?inspect` exposes the runtime for debugging and automated checks.
+    if (new URLSearchParams(window.location.search).has("inspect")) {
+      window.manufacturingViewer = this
+    }
     this.animationFrameId = requestAnimationFrame(this.renderFrame)
   }
 
@@ -105,6 +215,7 @@ export class ViewerRuntime {
     cancelAnimationFrame(this.animationFrameId)
     const { canvas } = this.options
     this.darkModeQuery.removeEventListener("change", this.applyTheme)
+    this.themeAttributeObserver.disconnect()
     canvas.removeEventListener("pointerdown", this.handlePointerDown)
     canvas.removeEventListener("pointermove", this.handlePointerMove)
     canvas.removeEventListener("pointerup", this.handlePointerUp)
@@ -112,16 +223,51 @@ export class ViewerRuntime {
     canvas.removeEventListener("contextmenu", this.preventDefault)
     canvas.removeEventListener("wheel", this.handleWheel)
     window.removeEventListener("keydown", this.handleKeyDown)
+    window.removeEventListener("pointerdown", this.unlockSound)
+    window.removeEventListener("keydown", this.unlockSound)
+    this.soundPlayer.dispose()
     window.removeEventListener("keyup", this.handleKeyUp)
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
+    this.stickerTexture.dispose()
+    for (const texture of Object.values(this.qcScreenTextures))
+      texture.dispose()
     this.renderer.dispose()
   }
 
   startScenario(scenarioId: ScenarioId): void {
     this.setMode("simulation")
     this.simulation.startScenario(scenarioId)
-    if (scenarioId !== "assemble_and_pack") this.setCameraMode("follow")
+    if (scenarioId !== "run_batch" && scenarioId !== "refill_spacers")
+      this.setCameraMode("follow")
+    this.emitHud()
+  }
+
+  /** Run the full batch or one motor from now on; starts the line over. */
+  setJobUnitCount(unitCount: number): void {
+    this.simulation.setJobUnitCount(unitCount)
+    this.closeUpStationKey = null
+    this.setCameraMode("follow")
+    this.emitHud()
+  }
+
+  /** Start over with the job's units ready for one bench. */
+  startAt(startId: LineStartId): void {
+    this.simulation.startAt(startId)
+    this.closeUpStationKey = null
+    this.setCameraMode("follow")
+    this.emitHud()
+  }
+
+  /** Finish the running 3D prints now. */
+  finishPrintsNow(): void {
+    this.simulation.finishPrintsNow()
+    this.emitHud()
+  }
+
+  /** Fill the label printer's tray now. */
+  printLabelsNow(): void {
+    this.simulation.printLabelsNow()
     this.emitHud()
   }
 
@@ -163,12 +309,21 @@ export class ViewerRuntime {
     this.emitHud()
   }
 
+  setSoundOn(isSoundOn: boolean): void {
+    this.soundPlayer.setOn(isSoundOn)
+    this.emitHud()
+  }
+
+  private readonly unlockSound = (): void => {
+    this.soundPlayer.unlock()
+  }
+
   setAutoCloseUp(isAutoCloseUp: boolean): void {
     this.isAutoCloseUp = isAutoCloseUp
     this.emitHud()
   }
 
-  runGameAction(actionKind: "step" | "screwdriver"): void {
+  runGameAction(actionKind: GameActionKind): void {
     this.simulation.runGameAction(actionKind)
     this.emitHud()
   }
@@ -200,7 +355,34 @@ export class ViewerRuntime {
       operatorPosition: operator.position,
       fallbackCloseUpTarget: getPinchWorldPosition(operator.rightHand),
     })
+    const obstruction = getOperatorObstruction({
+      operator,
+      cameraPosition: this.camera.position,
+      lookTarget: this.cameraRig.target,
+      checkSightLine: this.cameraRig.mode === "close_up",
+    })
+    this.operatorBodyOpacity = updateMaterialOpacity({
+      materials: operator.materials,
+      currentOpacity: this.operatorBodyOpacity,
+      isFaded: obstruction !== "none",
+      dtSeconds: realSeconds,
+    })
+    this.operatorHandOpacity = updateMaterialOpacity({
+      materials: operator.handMaterials,
+      currentOpacity: this.operatorHandOpacity,
+      isFaded: obstruction === "camera_inside",
+      dtSeconds: realSeconds,
+    })
     this.updateStationRing(nowMs)
+    this.updateEquipmentPads(nowMs)
+    this.soundPlayer.update({
+      ctx: this.simulation.ctx,
+      camera: this.camera,
+      simDtSeconds:
+        this.isPaused || this.simulation.isTaskPaused
+          ? 0
+          : realSeconds * this.speed,
+    })
     if (nowMs - this.previousHudMs > HUD_INTERVAL_MS) this.emitHud()
     this.renderer.render(this.simulation.ctx.scene, this.camera)
   }
@@ -220,18 +402,69 @@ export class ViewerRuntime {
     this.camera.updateProjectionMatrix()
   }
 
-  /** Add station labels whenever the simulation rebuilds its world. */
+  /** Add station signs and printed artwork whenever the simulation rebuilds its world. */
   private decorateWorld(): void {
     const { world } = this.simulation.ctx
-    if (world === this.decoratedWorld) return
-    this.decoratedWorld = world
-    for (const tableId of Object.keys(world.tables) as TableId[]) {
-      const label = createLabelSprite({
-        text: TABLE_PLACEMENTS[tableId].label,
-        widthM: 0.62,
+    if (world !== this.decoratedWorld) {
+      this.decoratedWorld = world
+      this.shownQcDisplayState = null
+      this.texturedLabelSheetCount = -1
+      this.printerSigns = []
+      this.stationSigns = []
+      for (const tableId of Object.keys(world.tables) as TableId[]) {
+        const placement = TABLE_PLACEMENTS[tableId]
+        const text =
+          placement.lineOrder > 0
+            ? `${placement.lineOrder} · ${placement.label}`
+            : placement.label
+        const label = createLabelSprite({ text, widthM: 0.72 })
+        label.position.set(0, LABEL_HEIGHT_M, -0.3)
+        world.tables[tableId].add(label)
+        this.stationSigns.push(label)
+      }
+    }
+    // Label sheets keep coming out of the label printer; give new ones the artwork.
+    if (
+      world.labelPrinter.printedSheets.length !== this.texturedLabelSheetCount
+    ) {
+      this.texturedLabelSheetCount = world.labelPrinter.printedSheets.length
+      world.root.traverse((object) => {
+        if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
+        const material = object.material as MeshStandardMaterial
+        if (material.map === this.stickerTexture) return
+        material.map = this.stickerTexture
+        material.color.set(0xffffff)
+        material.needsUpdate = true
       })
-      label.position.set(0, LABEL_HEIGHT_M, -0.3)
-      world.tables[tableId].add(label)
+    }
+    this.updatePrinterSigns(world)
+    // Signs would sit in front of the work in a close-up.
+    const showSigns = this.cameraRig.mode !== "close_up"
+    for (const sign of this.stationSigns) sign.visible = showSigns
+    for (const { sprite } of this.printerSigns) sprite.visible = showSigns
+    const { laptop } = world
+    if (laptop.displayState === this.shownQcDisplayState) return
+    this.shownQcDisplayState = laptop.displayState
+    laptop.display.material.map = this.qcScreenTextures[laptop.displayState]
+    laptop.display.material.color.set(0xffffff)
+    laptop.display.material.needsUpdate = true
+  }
+
+  /** A floating sign over each 3D printer with its plate status or print progress. */
+  private updatePrinterSigns(world: ManufacturingWorld): void {
+    for (const [index, printer] of world.printers.entries()) {
+      const text = getPrinterStatusText(printer)
+      const sign = this.printerSigns[index]
+      if (sign?.text === text) continue
+      if (sign) {
+        sign.sprite.removeFromParent()
+        sign.sprite.material.map?.dispose()
+        sign.sprite.material.dispose()
+      }
+      const sprite = createLabelSprite({ text, widthM: 0.62 })
+      sprite.position.set(0, BAMBU_PRINTERS[printer.model].heightM + 0.12, 0)
+      printer.group.add(sprite)
+      this.printerSigns[index] = { text, sprite }
     }
   }
 
@@ -284,7 +517,7 @@ export class ViewerRuntime {
     )
       return
     this.didAutoCloseUp = false
-    const nextStep = ASSEMBLY_JOB_STEPS[ctx.progress.completedStepCount]
+    const nextStep = getNextLineWork(ctx)?.row.step
     const isStayingAtStation =
       nextStep &&
       previousHint &&
@@ -299,7 +532,7 @@ export class ViewerRuntime {
 
   private updateStationRing(nowMs: number): void {
     const { progress, mode } = this.simulation.ctx
-    const nextStep = ASSEMBLY_JOB_STEPS[progress.completedStepCount]
+    const nextStep = getNextLineWork(this.simulation.ctx)?.row.step
     const isVisible =
       nextStep &&
       !progress.isOperatorBusy &&
@@ -312,51 +545,121 @@ export class ViewerRuntime {
     this.stationRing.material.opacity = 0.55 + 0.3 * Math.sin(nowMs * 0.005)
   }
 
+  /** Printer and label-printer circles: shown in game mode, lit when there's a job, pulsing when you stand on one. */
+  private updateEquipmentPads(nowMs: number): void {
+    const { ctx } = this.simulation
+    // One at a time: green circle builds a motor, amber circle takes the rack.
+    const onAssemblyPad = getAssemblyPadAtOperator(ctx)
+    for (const { pad, mesh } of this.assemblyPads) {
+      mesh.visible = ctx.mode === "game" && ctx.progress.isOneAtATime
+      if (!mesh.visible) continue
+      const color = pad.id === "assemble" ? 0x2fb36b : 0xe39b1b
+      mesh.material.color.setHex(color)
+      for (const child of mesh.children)
+        if (
+          child instanceof Mesh &&
+          child.material instanceof MeshBasicMaterial
+        )
+          child.material.color.setHex(color)
+      mesh.material.opacity =
+        onAssemblyPad === pad ? 0.7 + 0.25 * Math.sin(nowMs * 0.008) : 0.55
+    }
+    const standingOn = getEquipmentPadAtOperator(ctx)
+    for (const { pad, mesh } of this.equipmentPads) {
+      mesh.visible = ctx.mode === "game"
+      if (!mesh.visible) continue
+      const hasJob = getPadJob(pad, ctx) !== null
+      const isStandingOn = standingOn === pad
+      const color = hasJob ? 0x3aa0ff : 0x8a96a3
+      mesh.material.color.setHex(color)
+      for (const child of mesh.children)
+        if (
+          child instanceof Mesh &&
+          child.material instanceof MeshBasicMaterial
+        )
+          child.material.color.setHex(color)
+      mesh.material.opacity = isStandingOn
+        ? 0.7 + 0.25 * Math.sin(nowMs * 0.008)
+        : hasJob
+          ? 0.6
+          : 0.3
+    }
+  }
+
   private emitHud(): void {
     this.previousHudMs = performance.now()
     const { ctx } = this.simulation
     const { progress } = ctx
     const actions = this.simulation.getGameActions()
-    const steps = ASSEMBLY_JOB_STEPS.map((step, index) => ({
-      label: step.label,
-      seconds: progress.stepSeconds[index],
-      state:
-        index === progress.activeStepIndex
-          ? ("active" as const)
-          : index < progress.completedStepCount
-            ? ("done" as const)
-            : ("pending" as const),
-    }))
-    const stepSeconds = progress.stepSeconds.reduce(
+    const { activeRowIndex } = progress
+    const steps = JOB_ROWS.map((row) => {
+      const completedCount = progress.rowCompletedCounts[row.rowIndex]
+      return {
+        label: row.step.label,
+        seconds: progress.rowSeconds[row.rowIndex],
+        completedCount,
+        runCount: row.isPerUnit ? progress.unitCount : row.runCount,
+        state:
+          row.rowIndex === activeRowIndex
+            ? ("active" as const)
+            : row.runCount !== null &&
+                completedCount >=
+                  (row.isPerUnit ? progress.unitCount : row.runCount)
+              ? ("done" as const)
+              : ("pending" as const),
+      }
+    })
+    const stepSeconds = progress.rowSeconds.reduce(
       (sum, seconds) => sum + seconds,
       0,
     )
     let statusText = ctx.statusText
-    const nextStep = ASSEMBLY_JOB_STEPS[progress.completedStepCount]
-    const hasPrompt = actions.stepAction || actions.screwdriverAction
-    if (
+    const nextItem = getNextLineWork(ctx)
+    const hasPrompt =
+      actions.benchAction || actions.carryAction || actions.screwdriverAction
+    if (ctx.mode === "game" && actions.blockedReason)
+      statusText = actions.blockedReason
+    else if (
       ctx.mode === "game" &&
       !this.simulation.isTaskRunning &&
       !hasPrompt &&
-      nextStep &&
-      !progress.isHoldingLooseScrewdriver
+      nextItem &&
+      !ctx.world.carriedTub
     ) {
       const tableLabel =
-        TABLE_PLACEMENTS[nextStep.station.tableId].label.toLowerCase()
-      statusText = `Next: ${nextStep.label.toLowerCase()} at the ${tableLabel}`
+        TABLE_PLACEMENTS[nextItem.row.step.station.tableId].label
+      statusText = `Next: ${nextItem.row.step.label.toLowerCase()} at the ${tableLabel}`
     }
+    if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
     this.options.onHudChange({
       mode: ctx.mode,
+      jobUnitCount: progress.unitCount,
       statusText,
       isPaused: this.isPaused,
       speed: this.speed,
       cameraMode: this.cameraRig.mode,
       isAutoCloseUp: this.isAutoCloseUp,
+      isSoundOn: this.soundPlayer.isOn,
       steps,
       walkingSeconds: Math.max(0, progress.cycleSeconds - stepSeconds),
       cycleSeconds: progress.cycleSeconds,
-      stepPromptLabel: actions.stepAction?.label ?? null,
+      benchPromptLabel:
+        (actions.sideJobAction &&
+          actions.sideJobAction.label.charAt(0).toUpperCase() +
+            actions.sideJobAction.label.slice(1)) ??
+        actions.pauseLabel ??
+        actions.benchAction?.label ??
+        null,
+      carryPromptLabel: actions.carryAction?.label ?? null,
+      resumePromptLabel: actions.resumeLabel,
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
+      unitsByStage: countUnitsByStage(ctx),
+      labelsAtPackOut: countLabelsAtPackOut(ctx.world),
+      printedLabelSheets: ctx.world.labelPrinter.printedSheets.length,
+      spacersInBasket: ctx.world.spacerStock.length,
+      printerLines: ctx.world.printers.map((printer) =>
+        getPrinterStatusText(printer),
+      ),
     })
   }
 
@@ -400,10 +703,13 @@ export class ViewerRuntime {
     const { mode } = this.simulation.ctx
     if (key === "g") this.setMode(mode === "game" ? "simulation" : "game")
     if (mode === "game") {
-      if (key === "e") this.runGameAction("step")
+      if (key === "e") this.runGameAction("bench")
+      if (key === "r") this.runGameAction("carry")
+      if (key === "c") this.runGameAction("resume")
       if (key === "f") this.runGameAction("screwdriver")
       if (key.startsWith("arrow") || key === " ") event.preventDefault()
     }
+    if (key === "m") this.setSoundOn(!this.soundPlayer.isOn)
     if (key === "1") this.setCameraMode("overview")
     if (key === "2") this.setCameraMode("follow")
     if (key === "3") this.setCameraMode("close_up")

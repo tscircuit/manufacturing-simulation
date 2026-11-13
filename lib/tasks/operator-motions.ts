@@ -1,4 +1,3 @@
-import { type Object3D, Quaternion, Vector3 } from "three"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import type { Station } from "lib/layout/station-layout"
 import { findPath } from "lib/navigation/find-path"
@@ -11,6 +10,7 @@ import {
 } from "lib/operator/operator-body"
 import type { SimContext } from "lib/simulation/sim-context"
 import { type SimTask, tween, waitSeconds } from "lib/tasks/coroutines"
+import { type Object3D, Quaternion, Vector3 } from "three"
 
 const TURN_RATE_WHILE_WALKING_RADIANS_PER_SECOND = 6
 const TURN_RATE_IN_PLACE_RADIANS_PER_SECOND = 4
@@ -213,7 +213,10 @@ export function* moveObject(
   ctx: SimContext,
 ): SimTask {
   const { object, hand, parent, localPosition, localQuaternion } = params
-  ctx.scene.attach(object)
+  // In transit, parts hang off the world root (identity transform) so a reset clears them.
+  // Moving a carried load off the body ends the carry.
+  if (object.userData.isCarried) ctx.operator.isCarryingLoad = false
+  ctx.world.root.attach(object)
   object.userData.isCarried = false
   const startPosition = object.position.clone()
   const startQuaternion = object.quaternion.clone()
@@ -270,7 +273,7 @@ export function* liftAndPlace(
     {
       object,
       hand,
-      parent: ctx.scene,
+      parent: ctx.world.root,
       localPosition: new Vector3(
         startPosition.x,
         carryHeightM,
@@ -285,7 +288,7 @@ export function* liftAndPlace(
     {
       object,
       hand,
-      parent: ctx.scene,
+      parent: ctx.world.root,
       localPosition: new Vector3(endPosition.x, carryHeightM, endPosition.z),
       localQuaternion: endQuaternion,
       durationSeconds: params.travelSeconds ?? 0.8,

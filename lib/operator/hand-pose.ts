@@ -1,6 +1,6 @@
-import { Matrix4, Quaternion, type Vector3 } from "three"
 import type { OperatorHand } from "lib/operator/create-operator"
 import { PINCH_POINT_IN_HAND } from "lib/operator/operator-body"
+import { Matrix4, Quaternion, type Vector3 } from "three"
 
 /** World position of a hand's pinch point. */
 export function getPinchWorldPosition(hand: OperatorHand): Vector3 {

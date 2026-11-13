@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from "react"
 import { CameraBar } from "lib/viewer/hud/camera-bar"
 import { ControlPanel } from "lib/viewer/hud/control-panel"
 import { CycleTimingPanel } from "lib/viewer/hud/cycle-timing-panel"
 import { StatusBar } from "lib/viewer/hud/status-bar"
 import { TouchControls } from "lib/viewer/hud/touch-controls"
 import type { HudSnapshot } from "lib/viewer/hud-snapshot"
-import { VIEWER_STYLES } from "lib/viewer/viewer-styles"
 import { ViewerRuntime } from "lib/viewer/viewer-runtime"
+import { VIEWER_STYLES } from "lib/viewer/viewer-styles"
+import { useEffect, useRef, useState } from "react"
 
 const NARROW_SCREEN_PX = 720
 
@@ -58,6 +58,10 @@ export function ManufacturingSimulationViewer() {
           <ControlPanel
             detailsRef={controlDetailsRef}
             mode={hud.mode}
+            jobUnitCount={hud.jobUnitCount}
+            onJobUnitCountChange={(unitCount) =>
+              runtimeRef.current?.setJobUnitCount(unitCount)
+            }
             isPaused={hud.isPaused}
             speed={hud.speed}
             onModeChange={(mode) => runtimeRef.current?.setMode(mode)}
@@ -67,6 +71,9 @@ export function ManufacturingSimulationViewer() {
             onPauseToggle={() => runtimeRef.current?.togglePause()}
             onSpeedChange={(speed) => runtimeRef.current?.setSpeed(speed)}
             onReset={() => runtimeRef.current?.reset()}
+            onStartAt={(startId) => runtimeRef.current?.startAt(startId)}
+            onPrintsReady={() => runtimeRef.current?.finishPrintsNow()}
+            onLabelsPrinted={() => runtimeRef.current?.printLabelsNow()}
           />
           <CycleTimingPanel detailsRef={timingDetailsRef} hud={hud} />
           {hud.mode === "game" && isCoarsePointer && (
@@ -76,8 +83,13 @@ export function ManufacturingSimulationViewer() {
               }
               onAct={() =>
                 runtimeRef.current?.runGameAction(
-                  hud.stepPromptLabel ? "step" : "screwdriver",
+                  hud.benchPromptLabel ? "bench" : "screwdriver",
                 )
+              }
+              onCarry={
+                hud.carryPromptLabel
+                  ? () => runtimeRef.current?.runGameAction("carry")
+                  : null
               }
             />
           )}
@@ -86,6 +98,10 @@ export function ManufacturingSimulationViewer() {
             <CameraBar
               cameraMode={hud.cameraMode}
               isAutoCloseUp={hud.isAutoCloseUp}
+              isSoundOn={hud.isSoundOn}
+              onSoundChange={(isSoundOn) =>
+                runtimeRef.current?.setSoundOn(isSoundOn)
+              }
               onCameraModeChange={(mode) =>
                 runtimeRef.current?.setCameraMode(mode)
               }

@@ -1,11 +1,12 @@
+import { runFullBatch } from "lib/job/bench-work"
+import { collectPrintedLabels } from "lib/job/label-collection"
 import {
-  PATROL_ROUTE,
-  STATIONS,
-  TABLE_PLACEMENTS,
-} from "lib/layout/station-layout"
-import { ASSEMBLY_JOB_STEPS } from "lib/job/assembly-job-steps"
-import { runJobStep } from "lib/job/run-job-step"
+  collectFinishedPlates,
+  getFinishedPrinters,
+  refillSpacerBasket,
+} from "lib/job/printer-steps"
 import { pickUpLooseScrewdriver } from "lib/job/screwdriver-motions"
+import { PATROL_ROUTE, STATIONS } from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
 import { type SimTask, waitSeconds } from "lib/tasks/coroutines"
 import { walkTo, walkToStation } from "lib/tasks/operator-motions"
@@ -13,7 +14,9 @@ import { walkTo, walkToStation } from "lib/tasks/operator-motions"
 export type ScenarioId =
   | "walk_floor"
   | "pick_up_screwdriver"
-  | "assemble_and_pack"
+  | "run_batch"
+  | "refill_spacers"
+  | "collect_labels"
 
 const PATROL_PAUSE_SECONDS = 0.5
 
@@ -36,16 +39,28 @@ export function* pickUpScrewdriverScenario(ctx: SimContext): SimTask {
   yield* pickUpLooseScrewdriver(ctx)
 }
 
-/** Run every remaining job step, walking between stations. Stops if the user takes control. */
-export function* assembleAndPackScenario(ctx: SimContext): SimTask {
-  const { progress } = ctx
-  while (progress.completedStepCount < ASSEMBLY_JOB_STEPS.length) {
-    const stepIndex = progress.completedStepCount
-    const step = ASSEMBLY_JOB_STEPS[stepIndex]
-    progress.isJobActive = true
-    ctx.statusText = `Walking to the ${TABLE_PLACEMENTS[step.station.tableId].label.toLowerCase()}`
-    yield* walkToStation(step.station, ctx)
-    yield* runJobStep({ stepIndex }, ctx)
-    if (ctx.mode !== "simulation") return
+/** Run the line from wherever it is now, bench by bench, until the carton ships. */
+export function* runBatchScenario(ctx: SimContext): SimTask {
+  yield* runFullBatch(ctx)
+}
+
+/** Collect every finished printer plate and pour the spacers into the assembly basket. */
+export function* refillSpacersScenario(ctx: SimContext): SimTask {
+  if (getFinishedPrinters(ctx).length === 0 && !ctx.world.carriedTub) {
+    ctx.statusText =
+      "No printer has a finished plate yet. Use “3D prints ready” to finish them."
+    return
   }
+  yield* collectFinishedPlates(ctx)
+  yield* refillSpacerBasket(ctx)
+}
+
+/** Take the printed label sheets from the label printer to pack-out. */
+export function* collectLabelsScenario(ctx: SimContext): SimTask {
+  if (ctx.world.labelPrinter.printedSheets.length === 0) {
+    ctx.statusText =
+      "The label printer hasn't printed any sheets yet. Use “Labels printed” to fill its tray."
+    return
+  }
+  yield* collectPrintedLabels(ctx)
 }

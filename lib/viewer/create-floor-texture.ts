@@ -1,5 +1,5 @@
-import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three"
 import { METERS_PER_FOOT } from "lib/units"
+import { CanvasTexture, RepeatWrapping, SRGBColorSpace } from "three"
 
 const TILE_SIZE_M = 2 * METERS_PER_FOOT
 const TEXTURE_SIZE_PX = 128

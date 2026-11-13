@@ -1,8 +1,10 @@
-import type { Scene, Vector3 } from "three"
 import type { Station } from "lib/layout/station-layout"
 import type { NavGrid } from "lib/navigation/nav-grid"
 import type { Operator } from "lib/operator/create-operator"
+import type { SoundCue } from "lib/simulation/sound-cues"
+import type { SimTask } from "lib/tasks/coroutines"
 import type { ManufacturingWorld } from "lib/world/create-world"
+import type { Scene, Vector3 } from "three"
 
 export type SimulationMode = "simulation" | "game"
 
@@ -21,18 +23,36 @@ export interface CameraHint {
   getFocusPoint: () => Vector3
 }
 
+/** Printer or label work fitted in between units of a bench run. */
+export interface SideJob {
+  /** Lower-case phrase, e.g. "take 6 printed label sheets to pack-out". */
+  label: string
+  createTask: () => SimTask
+}
+
 export interface JobProgress {
-  completedStepCount: number
-  activeStepIndex: number | null
-  /** Time spent inside each job step, excluding walking between stations. */
-  stepSeconds: number[]
-  /** Time since the job started, including walking. */
+  /** Units in this job, starting from unit 1: the full batch, or just one motor. The rest stay on the foam stand. */
+  unitCount: number
+  /**
+   * One motor per E: each press at the assembly circle adds one more motor to
+   * the job and builds it, and the rack only moves when the player takes it.
+   */
+  isOneAtATime: boolean
+  /** Timing row of the step running now. */
+  activeRowIndex: number | null
+  /** Time spent in each timing row, summed over every unit, excluding walking between stations. */
+  rowSeconds: number[]
+  /** How many times each timing row has finished. */
+  rowCompletedCounts: number[]
+  /** Time since the batch started, including walking. */
   cycleSeconds: number
   isJobActive: boolean
   isJobComplete: boolean
   isOperatorBusy: boolean
   /** The operator picked up the screwdriver outside the job and still has it. */
   isHoldingLooseScrewdriver: boolean
+  /** Asked for during a bench run; runs once the current unit is done. */
+  pendingSideJob: SideJob | null
 }
 
 /** Shared state every simulation task reads and changes. */
@@ -45,4 +65,6 @@ export interface SimContext {
   mode: SimulationMode
   statusText: string
   cameraHint: CameraHint | null
+  /** Sounds asked for since the viewer last drained them. */
+  soundCues: SoundCue[]
 }

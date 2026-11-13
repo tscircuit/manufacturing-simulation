@@ -1,5 +1,5 @@
-import { DirectionalLight, HemisphereLight, type Scene } from "three"
 import { FLOOR_PLAN } from "lib/layout/floor-plan"
+import { DirectionalLight, HemisphereLight, type Scene } from "three"
 
 /** Sky fill, a shadow-casting key light over the room, and a soft rim light. */
 export function addSceneLighting(scene: Scene): void {
@@ -21,6 +21,8 @@ export function addSceneLighting(scene: Scene): void {
     far: 30,
   })
   keyLight.shadow.bias = -0.0006
+  // Pushes the lookup off curved skin and fabric so faces don't speckle with shadow acne.
+  keyLight.shadow.normalBias = 0.02
   scene.add(keyLight, keyLight.target)
 
   const rimLight = new DirectionalLight(0xffffff, 0.25 * Math.PI)
