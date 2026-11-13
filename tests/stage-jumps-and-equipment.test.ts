@@ -3,9 +3,14 @@ import { getOccupants } from "lib/job/container-slots"
 import { MAX_PRINTED_LABEL_SHEETS } from "lib/job/label-collection"
 import { countLabelsAtPackOut } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
-import { BATCH_SIZE, STATIONS, type Station } from "lib/layout/station-layout"
+import {
+  BATCH_SIZE,
+  STATIONS,
+  type Station,
+  WORK_TABLE,
+} from "lib/layout/station-layout"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
-import { Vector3 } from "three"
+import { Box3, Vector3 } from "three"
 
 function standAt(params: {
   simulation: ManufacturingSimulation
@@ -145,40 +150,64 @@ test("1 motor can jump straight to QC", () => {
 })
 
 test(
-  "paused mid-assembly, the player walks to the printers and E fits the plate collection in after the current unit",
+  "paused mid-screw, the player walks to the P2S circle, E collects and refills now, C goes back and finishes the motor",
   () => {
     const simulation = new ManufacturingSimulation()
     simulation.setMode("game")
     const { ctx } = simulation
+    const { world } = ctx
     standAt({ simulation, station: STATIONS.assembly })
     simulation.runGameAction("bench")
     for (
       let elapsedSeconds = 0;
-      !ctx.statusText.includes("driving long screw") && elapsedSeconds < 300;
+      !ctx.statusText.includes("driving long screw 2") && elapsedSeconds < 300;
       elapsedSeconds += 0.05
     )
       simulation.step(0.05)
+    simulation.step(0.4)
     simulation.runGameAction("bench")
     expect(simulation.isTaskPaused).toBe(true)
+
+    // Walking away sets the screwdriver down on the bench instead of carrying it or leaving it in mid-air.
     standAt({ simulation, station: STATIONS.p2s })
     simulation.step(0.05)
-    const sideJob = simulation.getGameActions().sideJobAction
-    expect(sideJob?.label).toContain("refill the spacers")
-    const spacersBefore = ctx.world.spacerStock.length
-    simulation.runGameAction("bench")
-    expect(simulation.isTaskPaused).toBe(false)
+    const screwdriver = world.screwdriver.group
+    expect(screwdriver.parent).toBe(world.root)
+    const screwdriverBounds = new Box3().setFromObject(screwdriver)
+    expect(screwdriverBounds.min.y).toBeCloseTo(WORK_TABLE.topHeightM, 2)
+    expect(ctx.operator.rightHand.heldObject).toBeNull()
+
+    const actions = simulation.getGameActions()
+    expect(actions.sideJobAction?.label).toContain("refill the spacers")
+    expect(actions.resumeLabel).not.toBeNull()
+    const spacersBefore = world.spacerStock.length
+    expect(simulation.runGameAction("bench")).toBe(true)
+    expect(simulation.isSideTaskRunning).toBe(true)
     for (
       let elapsedSeconds = 0;
-      ctx.world.units[1].stage !== "assembled" && elapsedSeconds < 900;
+      simulation.isSideTaskRunning && elapsedSeconds < 300;
       elapsedSeconds += 0.05
     )
       simulation.step(0.05)
-    // Unit 1 was finished first, then the plates were collected and poured in, then the run carried on.
-    expect(ctx.world.units[0].stage).toBe("assembled")
-    expect(ctx.progress.pendingSideJob).toBeNull()
-    expect(ctx.world.printers.every((printer) => printer.isPrinting)).toBe(true)
-    expect(ctx.world.spacerStock.length).toBeGreaterThan(spacersBefore)
-    expect(simulation.isTaskRunning).toBe(true)
+    expect(world.printers.every((printer) => printer.isPrinting)).toBe(true)
+    expect(world.spacerStock.length).toBeGreaterThan(spacersBefore)
+    // The assembly is still waiting where it was.
+    expect(simulation.isTaskPaused).toBe(true)
+    expect(world.units[0].stage).toBe("raw")
+
+    expect(simulation.runGameAction("resume")).toBe(true)
+    for (
+      let elapsedSeconds = 0;
+      world.units[0].stage !== "assembled" && elapsedSeconds < 300;
+      elapsedSeconds += 0.05
+    )
+      simulation.step(0.05)
+    const unit = world.units[0]
+    expect(unit.stage).toBe("assembled")
+    expect(
+      unit.longScrews.every((screw) => screw.parent === unit.motor.group),
+    ).toBe(true)
+    expect(screwdriver.parent).toBe(world.tables.assembly_bench)
   },
   { timeout: 120_000 },
 )
@@ -235,4 +264,43 @@ test(
     expect(carrySamples).toBeGreaterThan(20)
   },
   { timeout: 60_000 },
+)
+
+test(
+  "paused mid-assembly, the label-printer circle takes the printed sheets to pack-out now",
+  () => {
+    const simulation = new ManufacturingSimulation()
+    simulation.setMode("game")
+    const { ctx } = simulation
+    const { world } = ctx
+    standAt({ simulation, station: STATIONS.assembly })
+    simulation.runGameAction("bench")
+    for (
+      let elapsedSeconds = 0;
+      !ctx.statusText.includes("spacer") && elapsedSeconds < 300;
+      elapsedSeconds += 0.05
+    )
+      simulation.step(0.05)
+    simulation.runGameAction("bench")
+    simulation.printLabelsNow()
+    const labelsBefore = countLabelsAtPackOut(world)
+    standAt({ simulation, station: STATIONS.labelPrinter })
+    simulation.step(0.05)
+    expect(simulation.getGameActions().sideJobAction?.label).toContain(
+      "label sheets to pack-out",
+    )
+    simulation.runGameAction("bench")
+    for (
+      let elapsedSeconds = 0;
+      simulation.isSideTaskRunning && elapsedSeconds < 300;
+      elapsedSeconds += 0.05
+    )
+      simulation.step(0.05)
+    expect(countLabelsAtPackOut(world)).toBeGreaterThan(labelsBefore)
+    expect(simulation.isTaskPaused).toBe(true)
+    // Off the circles, E carries on just like C.
+    expect(simulation.runGameAction("bench")).toBe(true)
+    expect(simulation.isTaskPaused).toBe(false)
+  },
+  { timeout: 120_000 },
 )

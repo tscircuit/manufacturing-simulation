@@ -1,7 +1,7 @@
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
-import { Group, Object3D } from "three"
+import { Group, type Mesh, Object3D } from "three"
 
 /**
  * Amazon FBA shipping carton for 30 packed units. The packed 7x4x3 mailers
@@ -34,8 +34,12 @@ export interface ShippingCarton {
   backFlap: Group
   leftFlap: Group
   rightFlap: Group
-  /** Packing tape along the closed seam; scale X from 0 to 1 to apply. */
+  /** Packing tape along the closed seam, from the left end; scale X from 0 to 1 to apply. */
   tape: Group
+  /** Where the tape folds down over each end face: show the left one as taping starts, the right one as it finishes. */
+  tapeEndTabs: [Mesh, Mesh]
+  /** Length of the seam, end to end. */
+  tapeLengthM: number
   leftGrip: Object3D
   rightGrip: Object3D
 }
@@ -89,7 +93,8 @@ export function createShippingCarton(): ShippingCarton {
       position: [0, t / 2, -widthM / 4],
     }),
   )
-  frontFlap.rotation.x = -CARTON_FLAP_OPEN_RADIANS
+  // Open flaps stand up and lean out, like the short ones, so all four close from above.
+  frontFlap.rotation.x = CARTON_FLAP_OPEN_RADIANS
   const backFlap = new Group()
   backFlap.position.set(0, heightM, -widthM / 2)
   backFlap.add(
@@ -99,7 +104,7 @@ export function createShippingCarton(): ShippingCarton {
       position: [0, t / 2, widthM / 4],
     }),
   )
-  backFlap.rotation.x = CARTON_FLAP_OPEN_RADIANS
+  backFlap.rotation.x = -CARTON_FLAP_OPEN_RADIANS
   const leftFlap = new Group()
   leftFlap.position.set(-lengthM / 2, heightM - t, 0)
   leftFlap.add(
@@ -122,23 +127,42 @@ export function createShippingCarton(): ShippingCarton {
   rightFlap.rotation.z = -CARTON_FLAP_OPEN_RADIANS
   group.add(frontFlap, backFlap, leftFlap, rightFlap)
 
+  // 48 mm tape lying on the closed long flaps, from one end edge to the other.
+  const tapeMaterial = createStandardMaterial({
+    color: 0xb48a52,
+    roughness: 0.35,
+    transparent: true,
+    opacity: 0.88,
+  })
+  const tapeTopYM = heightM + t
   const tape = new Group()
-  tape.position.set(-lengthM / 2 - 0.05, heightM + t + 0.0004, 0)
+  tape.position.set(-lengthM / 2, tapeTopYM + 0.0003, 0)
   tape.add(
     createBoxMesh({
-      size: [lengthM + 0.1, 0.0006, 0.048],
-      material: createStandardMaterial({
-        color: 0xb48a52,
-        roughness: 0.35,
-        transparent: true,
-        opacity: 0.85,
-      }),
-      position: [(lengthM + 0.1) / 2, 0, 0],
+      size: [lengthM, 0.0006, 0.048],
+      material: tapeMaterial,
+      position: [lengthM / 2, 0, 0],
     }),
   )
   tape.scale.x = 0.001
   tape.visible = false
   group.add(tape)
+  // The tape wraps 60 mm down each end face, stuck flat to the board.
+  const tapeTabDropM = 0.06
+  const tapeEndTabs = [-1, 1].map((side) => {
+    const tab = createBoxMesh({
+      size: [0.0006, tapeTabDropM, 0.048],
+      material: tapeMaterial,
+      position: [
+        side * (lengthM / 2 + 0.0003),
+        tapeTopYM - tapeTabDropM / 2,
+        0,
+      ],
+    })
+    tab.visible = false
+    group.add(tab)
+    return tab
+  }) as [Mesh, Mesh]
 
   const slots: Object3D[] = []
   const mailer = WHITE_MAILER_BOX
@@ -170,6 +194,8 @@ export function createShippingCarton(): ShippingCarton {
     leftFlap,
     rightFlap,
     tape,
+    tapeEndTabs,
+    tapeLengthM: lengthM,
     leftGrip,
     rightGrip,
   }

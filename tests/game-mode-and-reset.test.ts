@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
-import { STATIONS } from "lib/layout/station-layout"
+import { STATIONS, WORK_TABLE } from "lib/layout/station-layout"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
-import { Vector3 } from "three"
+import { Box3, Vector3 } from "three"
 
 function standAt(params: {
   simulation: ManufacturingSimulation
@@ -91,11 +91,17 @@ test("E runs the whole assembly bench; E pauses it, the player can walk away, an
   for (let frame = 0; frame < 60; frame++) simulation.step(1 / 60)
   simulation.setWalkInput({ forward: 0, right: 0, cameraCcwYawRadians: 0 })
   expect(ctx.operator.position.distanceTo(pausedAt)).toBeGreaterThan(0.5)
+  // Walking away sets the screwdriver down right below where it was: on the bench, not in mid-air.
+  const restingAt = ctx.world.screwdriver.group.getWorldPosition(new Vector3())
   expect(
-    ctx.world.screwdriver.group
-      .getWorldPosition(new Vector3())
-      .distanceTo(screwdriverPosition),
+    Math.hypot(
+      restingAt.x - screwdriverPosition.x,
+      restingAt.z - screwdriverPosition.z,
+    ),
   ).toBeLessThan(1e-9)
+  expect(
+    new Box3().setFromObject(ctx.world.screwdriver.group).min.y,
+  ).toBeCloseTo(WORK_TABLE.topHeightM, 2)
   expect(ctx.progress.cycleSeconds).toBe(cycleSeconds)
 
   simulation.runGameAction("bench")

@@ -32,7 +32,7 @@ simulation.ctx.progress.cycleSeconds // total including walking
   1. **Assembly bench:** a foam stand of 30 NEMA17 motors, the spacer basket, three stacks of RP2040 motor controller boards, a SKIL Twist 2.0 4V screwdriver ([Ace 2033885](https://www.acehardware.com/p/2033885)) held by its grip with the bit on the screw while the other hand braces the side of the motor, clear of the screws, a jig, an empty 30-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 motor cables, 6-pin at the motor and PHR-4 at the board (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The rack goes to QC when all 30 are done, or earlier with R.
   2. **QC bench:** each unit goes into a cradle with two USB-C cables (laptop data and the 10-port GaN charging station for power), spins, and moves to a second rack, which is carried to pack-out.
   3. **Pack-out bench:** each unit goes into a 7×4×3" white mailer with pink anti-static foam, with 2 coiled USB-C cables, a 45 W charger and a 2×4" label peeled from a stack of AveneMark sheets, then into a 30-box tote that is carried to ship-ready.
-  4. **Ship-ready bench:** all 30 boxes go into the Amazon carton, which is folded, taped and set out by the door.
+  4. **Ship-ready bench:** all 30 boxes go into the Amazon carton. Its end flaps fold in, then the long flaps fold over them. A strip of 48 mm tape runs along the seam and down both end faces, and the carton is set out by the door.
 - **East wall:**
   - **3D printers:** a Bambu Lab P2S (25 spacers per plate) and an H2S (49 per plate). Finished plates are emptied into a tub, carried to the assembly bench, and poured into the spacer basket; then the next print starts.
   - **Label printer:** an Epson EcoTank ET-2400 that prints an AveneMark sheet (10 labels) every 45 s, up to 6 in its tray. Collecting them carries the sheets to the top of the pack-out stack.
@@ -72,6 +72,7 @@ Parts are drawn as boxes sized from their footprints, merged into one mesh per m
 | E | At a bench, run all of its remaining work without stopping. At the printers, collect finished plates into a tub; at the assembly bench with a tub, refill the spacer basket. While anything runs, E pauses it in place; walk away if you like, and E again walks back and carries on (game mode) |
 | R | Carry what's ready to the next bench now, even a part-filled rack or tote; take an empty one back; or seal and ship (game mode) |
 | F | Pick up or put back the screwdriver (game mode) |
+| C | Go back to the paused work and carry on (game mode) |
 
 Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) in game mode.
 
@@ -80,7 +81,7 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 - **Simulate: Full batch (30) or 1 motor.** With 1 motor, unit 1 runs start to ship by itself, as rack, QC, box, carton and shipping (about 2 minutes of simulated time); the other 29 stay on the foam stand. Switching starts the line over, and the run, jump and timing counts follow the choice.
 - **Jump to a bench with 30 ready** starts over with the whole batch already done up to that bench: 30 motors on the foam stand (assembly), 30 assembled in the rack at QC, 30 tested in the ready rack at pack-out, or 30 boxed in the tote at ship-ready. The operator stands at that bench; press E (game mode) or run the batch from there.
 - **3D prints are ready** finishes both running prints now, so their plates can be collected.
-- **Printers and labels during a run:** pause a bench run (E), walk to the printer or label bench, and press E: the operator finishes the unit in hand, collects the plates and refills the spacer basket (or takes the label sheets to pack-out), then carries on with the bench. In simulation mode, the Collect buttons do the same without stopping the batch.
+- **Printers and labels during a run:** pause with E and walk to one of the blue floor circles in front of the label printer, the P2S or the H2S. When you walk away, the operator first sets down whatever was in hand (the screwdriver, a screw) on the bench, so nothing floats. On a circle, E does the job now: it takes the printed label sheets to the pack-out stack, or collects the finished plates and refills the assembly spacer basket. The assembly stays paused meanwhile. Press C, or E off the circles, to walk back, pick the work back up and carry on from exactly where you stopped. In simulation mode, the Collect buttons fit the job in after the current unit without stopping the batch.
 - **Labels printed** fills the Epson's tray; **Collect labels to pack-out** (or E at the label bench) carries them over.
 - The timing panel shows how many units are at each stage, how many labels are at pack-out, and the spacer and printer status.
 

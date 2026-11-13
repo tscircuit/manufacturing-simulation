@@ -29,6 +29,8 @@ export interface HudSnapshot {
   benchPromptLabel: string | null
   /** R: move what's ready on to the next bench. */
   carryPromptLabel: string | null
+  /** C: go back to the paused work. */
+  resumePromptLabel: string | null
   screwdriverPromptLabel: string | null
   unitsByStage: Array<{ stage: UnitStage; count: number }>
   labelsAtPackOut: number

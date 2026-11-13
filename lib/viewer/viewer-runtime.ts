@@ -6,6 +6,12 @@ import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
 import type { QcDisplayState } from "lib/models/qc-laptop"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
+import {
+  EQUIPMENT_PAD_RADIUS_M,
+  EQUIPMENT_PADS,
+  getEquipmentPadAtOperator,
+  getPadJob,
+} from "lib/simulation/equipment-pads"
 import type { LineStartId } from "lib/simulation/line-setup"
 import {
   type GameActionKind,
@@ -25,7 +31,10 @@ import {
   updateMaterialOpacity,
 } from "lib/viewer/operator-fade"
 import { SoundPlayer } from "lib/viewer/sound/sound-player"
-import { createStationRing } from "lib/viewer/station-ring"
+import {
+  createEquipmentPadMesh,
+  createStationRing,
+} from "lib/viewer/station-ring"
 import type { ManufacturingWorld } from "lib/world/create-world"
 import {
   Color,
@@ -105,6 +114,10 @@ export class ViewerRuntime {
   private readonly camera = new PerspectiveCamera(42, 1, 0.02, 80)
   private readonly cameraRig = new CameraRig(this.camera)
   private readonly stationRing = createStationRing()
+  private readonly equipmentPads = EQUIPMENT_PADS.map((pad) => ({
+    pad,
+    mesh: createEquipmentPadMesh(EQUIPMENT_PAD_RADIUS_M),
+  }))
   private readonly keysDown = new Set<string>()
   private readonly pointers = new Map<number, PointerTrack>()
   private stickInput = { forward: 0, right: 0 }
@@ -156,6 +169,11 @@ export class ViewerRuntime {
     const { scene } = this.simulation.ctx
     addSceneLighting(scene)
     scene.add(this.stationRing)
+    for (const { pad, mesh } of this.equipmentPads) {
+      const pose = getStationStandPose(pad.station)
+      mesh.position.set(pose.x, 0.011, pose.z)
+      scene.add(mesh)
+    }
     this.applyTheme()
     this.darkModeQuery.addEventListener("change", this.applyTheme)
     this.themeAttributeObserver.observe(document.documentElement, {
@@ -345,6 +363,7 @@ export class ViewerRuntime {
       dtSeconds: realSeconds,
     })
     this.updateStationRing(nowMs)
+    this.updateEquipmentPads(nowMs)
     this.soundPlayer.update({
       ctx: this.simulation.ctx,
       camera: this.camera,
@@ -515,6 +534,24 @@ export class ViewerRuntime {
     this.stationRing.material.opacity = 0.55 + 0.3 * Math.sin(nowMs * 0.005)
   }
 
+  /** Printer and label-printer circles: shown in game mode, lit when there's a job, pulsing when you stand on one. */
+  private updateEquipmentPads(nowMs: number): void {
+    const { ctx } = this.simulation
+    const standingOn = getEquipmentPadAtOperator(ctx)
+    for (const { pad, mesh } of this.equipmentPads) {
+      mesh.visible = ctx.mode === "game"
+      if (!mesh.visible) continue
+      const hasJob = getPadJob(pad, ctx) !== null
+      const isStandingOn = standingOn === pad
+      mesh.material.color.setHex(hasJob ? 0x3aa0ff : 0x8a96a3)
+      mesh.material.opacity = isStandingOn
+        ? 0.7 + 0.25 * Math.sin(nowMs * 0.008)
+        : hasJob
+          ? 0.6
+          : 0.3
+    }
+  }
+
   private emitHud(): void {
     this.previousHudMs = performance.now()
     const { ctx } = this.simulation
@@ -574,11 +611,13 @@ export class ViewerRuntime {
       cycleSeconds: progress.cycleSeconds,
       benchPromptLabel:
         (actions.sideJobAction &&
-          `After this unit, ${actions.sideJobAction.label}`) ??
+          actions.sideJobAction.label.charAt(0).toUpperCase() +
+            actions.sideJobAction.label.slice(1)) ??
         actions.pauseLabel ??
         actions.benchAction?.label ??
         null,
       carryPromptLabel: actions.carryAction?.label ?? null,
+      resumePromptLabel: actions.resumeLabel,
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
       unitsByStage: countUnitsByStage(ctx),
       labelsAtPackOut: countLabelsAtPackOut(ctx.world),
@@ -632,6 +671,7 @@ export class ViewerRuntime {
     if (mode === "game") {
       if (key === "e") this.runGameAction("bench")
       if (key === "r") this.runGameAction("carry")
+      if (key === "c") this.runGameAction("resume")
       if (key === "f") this.runGameAction("screwdriver")
       if (key.startsWith("arrow") || key === " ") event.preventDefault()
     }

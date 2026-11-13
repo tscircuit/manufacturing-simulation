@@ -106,18 +106,19 @@ export function* sealAndShip(_params: UnitParams, ctx: SimContext): SimTask {
   yield* runInParallel([releaseHand(leftHand), releaseHand(rightHand)])
 
   ctx.statusText = "Taping the seam"
-  carton.tape.visible = true
   const tapeEnd = new Vector3()
+  // The tape gun rides on the leading end of the tape.
   yield* reachHand({
     hand: rightHand,
     getTarget: () => {
       carton.tape.updateWorldMatrix(true, false)
-      return carton.tape.localToWorld(
-        tapeEnd.set(carton.tape.scale.x * 0.5, 0.01, 0),
-      )
+      return carton.tape.localToWorld(tapeEnd.set(carton.tapeLengthM, 0.02, 0))
     },
     durationSeconds: 0.5,
   })
+  // Start the strip down the left end face, then pull it across the seam.
+  carton.tape.visible = true
+  carton.tapeEndTabs[0].visible = true
   playCue("tape_gun", ctx)
   yield* tween({
     durationSeconds: 1.4,
@@ -125,6 +126,8 @@ export function* sealAndShip(_params: UnitParams, ctx: SimContext): SimTask {
       carton.tape.scale.x = Math.max(0.001, progress)
     },
   })
+  // Fold it down the right end face and cut.
+  carton.tapeEndTabs[1].visible = true
   yield* releaseHand(rightHand)
   yield* waitSeconds(0.2)
 

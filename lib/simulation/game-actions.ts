@@ -18,7 +18,6 @@ import {
   pickUpLooseScrewdriver,
   putBackLooseScrewdriver,
 } from "lib/job/screwdriver-motions"
-import { getSideJobAt } from "lib/job/side-jobs"
 import {
   TABLE_PLACEMENTS,
   type TableId,
@@ -26,6 +25,10 @@ import {
 } from "lib/layout/station-layout"
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 import { OPERATOR_GAME_WALK_SPEED_MPS } from "lib/operator/operator-body"
+import {
+  getEquipmentPadAtOperator,
+  getPadJob,
+} from "lib/simulation/equipment-pads"
 import type { SideJob, SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
 import { getAngleDifferenceRadians } from "lib/tasks/operator-motions"
@@ -43,8 +46,10 @@ export interface GameActions {
   carryAction: GameAction | null
   /** F: pick up or put back the screwdriver. */
   screwdriverAction: GameAction | null
-  /** Paused away from the bench at the printers or label printer: E fits that job in after the current unit, then carries on. */
+  /** Paused and standing on a printer or label-printer circle: E does that job now; C goes back to the paused work after. */
   sideJobAction: SideJob | null
+  /** C: go back to the paused work and carry on. */
+  resumeLabel: string | null
   /** While a task runs, E pauses or resumes it in place. */
   pauseLabel: "Pause" | "Resume" | null
   /** Why E can't run this bench's work right now. */
@@ -117,7 +122,11 @@ function getLineBenchAction(
 
 /** What the player can do right now. While a task runs, only pausing is offered. */
 export function getGameActions(
-  params: { isTaskRunning: boolean; isTaskPaused: boolean },
+  params: {
+    isTaskRunning: boolean
+    isTaskPaused: boolean
+    isSideTaskRunning: boolean
+  },
   ctx: SimContext,
 ): GameActions {
   const actions: GameActions = {
@@ -127,15 +136,30 @@ export function getGameActions(
     pauseLabel: null,
     blockedReason: null,
     sideJobAction: null,
+    resumeLabel: null,
   }
   if (ctx.mode !== "game") return actions
+  if (params.isSideTaskRunning) return actions
   if (params.isTaskRunning) {
     actions.pauseLabel = params.isTaskPaused ? "Resume" : "Pause"
-    if (params.isTaskPaused && !ctx.progress.pendingSideJob)
-      actions.sideJobAction = getSideJobAt(
-        { tableId: getBenchAtOperator(ctx) },
-        ctx,
-      )
+    if (!params.isTaskPaused) return actions
+    actions.resumeLabel = "Go back and carry on"
+    const pad = getEquipmentPadAtOperator(ctx)
+    if (!pad) return actions
+    const isCarryingLoad = ctx.operator.group.children.some(
+      (child) => child.userData.isCarried,
+    )
+    if (isCarryingLoad) {
+      actions.blockedReason =
+        "Set down what you're carrying first: press C to carry on with it"
+      return actions
+    }
+    actions.sideJobAction = getPadJob(pad, ctx)
+    if (!actions.sideJobAction)
+      actions.blockedReason =
+        pad.id === "label_printer"
+          ? "No printed label sheets yet. Press C to carry on."
+          : "No finished plates yet. Press C to carry on."
     return actions
   }
   const { progress, operator, world } = ctx

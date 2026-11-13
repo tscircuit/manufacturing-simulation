@@ -21,6 +21,11 @@ import {
 } from "lib/simulation/game-actions"
 import { type LineStartId, setUpLineAt } from "lib/simulation/line-setup"
 import {
+  type ParkedObject,
+  parkHeldWork,
+  unparkWork,
+} from "lib/simulation/pause-parking"
+import {
   collectLabelsScenario,
   pickUpScrewdriverScenario,
   refillSpacersScenario,
@@ -37,7 +42,7 @@ import type {
 import type { SimTask } from "lib/tasks/coroutines"
 import { walkTo } from "lib/tasks/operator-motions"
 import { createWorld } from "lib/world/create-world"
-import { Scene } from "three"
+import { Scene, type Vector3 } from "three"
 
 const NAV_GRID_CELL_SIZE_M = 0.1
 const NAV_GRID_CLEARANCE_M = 0.27
@@ -45,16 +50,42 @@ const NAV_GRID_CLEARANCE_M = 0.27
 const LABEL_SHEET_PRINT_SECONDS = 45
 const MOVED_WHILE_PAUSED_M = 0.02
 
-/** E runs the bench (or pauses a running task); R moves what's ready on; F handles the screwdriver. */
-export type GameActionKind = "bench" | "carry" | "screwdriver"
+/** E runs the bench (or pauses/resumes); R moves what's ready on; F handles the screwdriver; C resumes paused work. */
+export type GameActionKind = "bench" | "carry" | "screwdriver" | "resume"
 
-/** Where the operator was and what each hand was doing when the task was paused. */
+/** What a hand was doing when the task was paused, so it can pick up exactly there. */
+interface PausedHand {
+  hand: OperatorHand
+  isReaching: boolean
+  trackTarget: OperatorHand["trackTarget"]
+  targetFingerCurl: number
+  targetFingerDirection: Vector3
+}
+
+/** Where the operator was, what each hand was doing, and what got set down, when the task was paused. */
 interface PausePose {
   x: number
   z: number
   ccwYawRadians: number
-  hands: Array<{ hand: OperatorHand; isReaching: boolean }>
+  hands: PausedHand[]
   hasWalkedAway: boolean
+  parked: ParkedObject[]
+  /** Job state the paused task expects back after any equipment job done in between. */
+  progress: {
+    isOperatorBusy: boolean
+    activeRowIndex: number | null
+    cameraHint: SimContext["cameraHint"]
+    statusText: string
+  }
+}
+
+function restoreHands(pausePose: PausePose): void {
+  for (const paused of pausePose.hands) {
+    paused.hand.trackTarget = paused.trackTarget
+    paused.hand.targetFingerCurl = paused.targetFingerCurl
+    paused.hand.targetFingerDirection.copy(paused.targetFingerDirection)
+    paused.hand.isReaching = paused.isReaching
+  }
 }
 
 function createJobProgress(unitCount: number): JobProgress {
@@ -88,8 +119,12 @@ function* resumeWhereLeftOff(
     },
     ctx,
   )
-  for (const { hand, isReaching } of pausePose.hands)
-    hand.isReaching = isReaching
+  ctx.statusText = "Picking the work back up"
+  yield* unparkWork({ parked: pausePose.parked }, ctx)
+  restoreHands(pausePose)
+  ctx.progress.isOperatorBusy = pausePose.progress.isOperatorBusy
+  ctx.progress.activeRowIndex = pausePose.progress.activeRowIndex
+  ctx.cameraHint = pausePose.progress.cameraHint
   ctx.statusText = statusText
   for (;;) {
     const dtSeconds = yield
@@ -105,6 +140,8 @@ export class ManufacturingSimulation {
   readonly ctx: SimContext
   readonly roomShell: RoomShell
   private activeTask: SimTask | null = null
+  /** A printer or label job done while the main task is paused. */
+  private sideTask: SimTask | null = null
   /** How many units the next job runs: the full batch of 30, or 1 motor start to ship. */
   private unitCount: number = BATCH_SIZE
   private pausePose: PausePose | null = null
@@ -141,6 +178,10 @@ export class ManufacturingSimulation {
     return this.activeTask !== null
   }
 
+  get isSideTaskRunning(): boolean {
+    return this.sideTask !== null
+  }
+
   get isTaskPaused(): boolean {
     return this.activeTask !== null && this.pausePose !== null
   }
@@ -151,6 +192,7 @@ export class ManufacturingSimulation {
    */
   reset(): void {
     this.activeTask = null
+    this.sideTask = null
     this.pausePose = null
     const { ctx } = this
     ctx.scene.remove(ctx.world.root)
@@ -297,16 +339,27 @@ export class ManufacturingSimulation {
         hands: operator.hands.map((hand) => ({
           hand,
           isReaching: hand.isReaching,
+          trackTarget: hand.trackTarget,
+          targetFingerCurl: hand.targetFingerCurl,
+          targetFingerDirection: hand.targetFingerDirection.clone(),
         })),
         hasWalkedAway: false,
+        parked: [],
+        progress: {
+          isOperatorBusy: this.ctx.progress.isOperatorBusy,
+          activeRowIndex: this.ctx.progress.activeRowIndex,
+          cameraHint: this.ctx.cameraHint,
+          statusText: this.ctx.statusText,
+        },
       }
       return
     }
-    if (isPaused || !this.pausePose) return
+    if (isPaused || !this.pausePose || this.sideTask) return
     const pausePose = this.pausePose
     this.pausePose = null
     if (pausePose.hasWalkedAway)
       this.activeTask = resumeWhereLeftOff({ task, pausePose }, this.ctx)
+    else restoreHands(pausePose)
   }
 
   setWalkInput(walkInput: WalkInput): void {
@@ -315,7 +368,11 @@ export class ManufacturingSimulation {
 
   getGameActions(): GameActions {
     return getGameActions(
-      { isTaskRunning: this.isTaskRunning, isTaskPaused: this.isTaskPaused },
+      {
+        isTaskRunning: this.isTaskRunning,
+        isTaskPaused: this.isTaskPaused,
+        isSideTaskRunning: this.isSideTaskRunning,
+      },
       this.ctx,
     )
   }
@@ -323,16 +380,22 @@ export class ManufacturingSimulation {
   /** E ("bench") runs the bench or pauses/resumes; R ("carry") moves what's ready on; F handles the screwdriver. */
   runGameAction(actionKind: GameActionKind): boolean {
     if (this.activeTask && this.ctx.mode === "game") {
+      if (this.sideTask) return false
+      if (actionKind === "resume") {
+        if (!this.isTaskPaused) return false
+        this.setTaskPaused(false)
+        return true
+      }
       if (actionKind !== "bench") return false
       const { sideJobAction } = this.getGameActions()
       if (sideJobAction) {
-        this.requestSideJob(sideJobAction)
-        this.setTaskPaused(false)
+        this.startSideTask(sideJobAction)
         return true
       }
       this.setTaskPaused(!this.isTaskPaused)
       return true
     }
+    if (actionKind === "resume") return false
     const actions = this.getGameActions()
     const action =
       actionKind === "bench"
@@ -372,11 +435,47 @@ export class ManufacturingSimulation {
     for (const cable of ctx.world.cables) updateFlexCable(cable)
   }
 
+  /** Do a printer or label job now, while the main task stays paused; C goes back to it afterwards. */
+  private startSideTask(sideJob: SideJob): void {
+    const pausePose = this.pausePose
+    if (!pausePose) return
+    this.walkAwayFromPausedWork(pausePose)
+    this.sideTask = sideJob.createTask()
+    if (this.sideTask.next().done) this.finishSideTask()
+  }
+
+  private finishSideTask(): void {
+    this.sideTask = null
+    const { ctx } = this
+    ctx.progress.isOperatorBusy = false
+    ctx.cameraHint = null
+    ctx.operator.walkSpeedMps = 0
+    ctx.statusText = `${ctx.statusText}. Press C to go back and carry on.`
+  }
+
+  /** Set down what was in hand or mid-move and let the arms relax, once per pause. */
+  private walkAwayFromPausedWork(pausePose: PausePose): void {
+    if (pausePose.hasWalkedAway) return
+    pausePose.hasWalkedAway = true
+    pausePose.parked = parkHeldWork(this.ctx)
+    for (const hand of this.ctx.operator.hands) {
+      hand.isReaching = false
+      hand.trackTarget = null
+    }
+  }
+
   /** Paused: nothing in the task moves and no time is counted, but in game mode the player can walk around. */
   private stepWhilePaused(dtSeconds: number): void {
     const { ctx } = this
     const pausePose = this.pausePose
     if (!pausePose) return
+    if (this.sideTask) {
+      if (this.sideTask.next(dtSeconds).done) this.finishSideTask()
+      if (ctx.progress.isJobActive) ctx.progress.cycleSeconds += dtSeconds
+      updateOperatorPose(ctx.operator, dtSeconds)
+      for (const cable of ctx.world.cables) updateFlexCable(cable)
+      return
+    }
     if (ctx.mode === "game")
       applyWalkInput({ walkInput: this.walkInput, dtSeconds }, ctx)
     else ctx.operator.walkSpeedMps = 0
@@ -384,12 +483,7 @@ export class ManufacturingSimulation {
       ctx.operator.position.x - pausePose.x,
       ctx.operator.position.z - pausePose.z,
     )
-    if (!pausePose.hasWalkedAway && distanceM > MOVED_WHILE_PAUSED_M) {
-      // Let the arms relax while walking; anything held in a hand comes along.
-      pausePose.hasWalkedAway = true
-      for (const hand of ctx.operator.hands)
-        if (!hand.heldObject) hand.isReaching = false
-    }
+    if (distanceM > MOVED_WHILE_PAUSED_M) this.walkAwayFromPausedWork(pausePose)
     updateOperatorPose(ctx.operator, dtSeconds)
     for (const cable of ctx.world.cables) updateFlexCable(cable)
   }
