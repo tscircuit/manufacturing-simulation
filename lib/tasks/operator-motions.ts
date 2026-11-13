@@ -108,7 +108,7 @@ export function* walkTo(
 }
 
 export function* walkToStation(station: Station, ctx: SimContext): SimTask {
-  const pose = getStationStandPose(station)
+  const pose = getStationStandPose(station, ctx.tableLayout)
   yield* walkTo(
     { x: pose.x, z: pose.z, finalCcwYawRadians: pose.ccwYawRadians },
     ctx,

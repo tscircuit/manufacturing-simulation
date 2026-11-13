@@ -21,6 +21,7 @@ import {
   putBackLooseScrewdriver,
 } from "lib/job/screwdriver-motions"
 import {
+  getLayoutPlacements,
   TABLE_PLACEMENTS,
   type TableId,
   WORK_TABLE,
@@ -74,8 +75,9 @@ const INPUT_DEAD_ZONE = 0.15
 /** The bench the operator is standing at, if any: in front of a table, within reach of its edge. */
 export function getBenchAtOperator(ctx: SimContext): TableId | null {
   const { x, z } = ctx.operator.position
-  for (const tableId of Object.keys(TABLE_PLACEMENTS) as TableId[]) {
-    const table = TABLE_PLACEMENTS[tableId]
+  for (const tableId of Object.keys(ctx.tableLayout) as TableId[]) {
+    const table = ctx.tableLayout[tableId]
+    if (!table) continue
     const dx = x - table.centerXM
     const dz = z - table.centerZM
     const cos = Math.cos(table.ccwYawRadians)
@@ -133,13 +135,18 @@ function getOneAtATimeAssemblyActions(
   ctx: SimContext,
 ): GameActions {
   const { actions } = params
-  const carry = getCarryWork({ tableId: "assembly_bench" }, ctx)
+  const firstTable = ctx.jobPlan.lineTables[0]
+  const isBareUnit = ctx.world.productLine === "bagged"
+  const carry = getCarryWork({ tableId: firstTable }, ctx)
   if (carry)
     actions.carryAction = {
       label: carry.label,
       createTask: () => runWorkItem(carry.item, ctx),
     }
-  const inRack = countUnitsAt({ stage: "assembled" }, ctx)
+  const inRack = countUnitsAt(
+    { stage: isBareUnit ? "tested" : "assembled" },
+    ctx,
+  )
   if (getAssemblyPadAtOperator(ctx)?.id === "rack") {
     actions.benchAction = actions.carryAction
     if (!carry)
@@ -150,15 +157,15 @@ function getOneAtATimeAssemblyActions(
     return actions
   }
   if (!canAssembleAnother(ctx)) {
-    actions.blockedReason =
-      "All 30 motors are built: take the rack to QC from the rack circle"
+    actions.blockedReason = isBareUnit
+      ? "All 30 boards are tested: carry the passed tray to bagging (R)"
+      : "All 30 motors are built: take the rack to QC from the rack circle"
     return actions
   }
   actions.benchAction = {
-    label:
-      ctx.world.productLine === "bagged"
-        ? `Kit a unit (${inRack} in the rack)`
-        : `Assemble a motor (${inRack} in the rack)`,
+    label: isBareUnit
+      ? `Test a board (${inRack} passed)`
+      : `Assemble a motor (${inRack} in the rack)`,
     createTask: () => assembleOneMotor(ctx),
   }
   return actions
@@ -248,7 +255,7 @@ export function getGameActions(
     }
     return actions
   }
-  if (tableId === "assembly_bench" && world.carriedTub) {
+  if (tableId === world.spacerHome.station.tableId && world.carriedTub) {
     actions.benchAction = {
       label: `Refill the spacer basket (${world.tubSpacers.length} spacers)`,
       createTask: () => refillSpacerBasket(ctx),
@@ -256,7 +263,7 @@ export function getGameActions(
     return actions
   }
   if (
-    tableId === "assembly_bench" &&
+    tableId === ctx.jobPlan.lineTables[0] &&
     progress.isOneAtATime &&
     handsAreEmpty &&
     !progress.isJobComplete
@@ -317,6 +324,7 @@ export function applyWalkInput(
       x: nextX,
       z: operator.position.z,
       clearanceM: PLAYER_CLEARANCE_M,
+      tables: getLayoutPlacements(ctx.tableLayout),
     })
   ) {
     operator.position.x = nextX
@@ -327,6 +335,7 @@ export function applyWalkInput(
       x: operator.position.x,
       z: nextZ,
       clearanceM: PLAYER_CLEARANCE_M,
+      tables: getLayoutPlacements(ctx.tableLayout),
     })
   ) {
     operator.position.z = nextZ

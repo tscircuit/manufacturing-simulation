@@ -22,10 +22,7 @@ import {
   releaseHand,
   walkToStation,
 } from "lib/tasks/operator-motions"
-import {
-  ASSEMBLY_BENCH_SPOTS,
-  IDENTITY_QUATERNION,
-} from "lib/world/bench-spots"
+import { IDENTITY_QUATERNION } from "lib/world/bench-spots"
 import { scatter } from "lib/world/create-world"
 import { type Group, type Object3D, Vector3 } from "three"
 
@@ -268,15 +265,14 @@ export function* refillSpacerBasket(ctx: SimContext): SimTask {
   const tub = world.carriedTub
   if (!tub) return
   ctx.progress.isOperatorBusy = true
-  yield* walkToStation(STATIONS.assembly, ctx)
-  const bench = world.tables.assembly_bench
+  const home = world.spacerHome
+  yield* walkToStation(home.station, ctx)
+  const bench = world.tables[home.station.tableId]
   ctx.cameraHint = {
-    station: STATIONS.assembly,
+    station: home.station,
     view: { azimuthRadians: 1.3, elevationRadians: 0.8, distanceM: 0.8 },
     getFocusPoint: () =>
-      bench.localToWorld(
-        ASSEMBLY_BENCH_SPOTS.spacerBasket.clone().add(new Vector3(0, 0.08, 0)),
-      ),
+      bench.localToWorld(home.basketSpot.clone().add(new Vector3(0, 0.08, 0))),
   }
   const room =
     getSpacerCapacity(ASSEMBLY_SPACER_BASKET) - world.spacerStock.length
@@ -287,9 +283,7 @@ export function* refillSpacerBasket(ctx: SimContext): SimTask {
       object: tub,
       hand: operator.rightHand,
       parent: bench,
-      localPosition: ASSEMBLY_BENCH_SPOTS.spacerBasket
-        .clone()
-        .add(new Vector3(0.08, 0.2, -0.08)),
+      localPosition: home.basketSpot.clone().add(new Vector3(0.08, 0.2, -0.08)),
       localQuaternion: IDENTITY_QUATERNION.clone().setFromAxisAngle(
         new Vector3(1, 0, 0),
         0.5,
@@ -317,7 +311,7 @@ export function* refillSpacerBasket(ctx: SimContext): SimTask {
       object: tub,
       hand: operator.rightHand,
       parent: bench,
-      localPosition: ASSEMBLY_BENCH_SPOTS.emptyTubs
+      localPosition: home.usedTubSpot
         .clone()
         .add(new Vector3(0, world.usedTubs.length * TUB_NESTING_M, 0)),
       localQuaternion: IDENTITY_QUATERNION,

@@ -9,8 +9,10 @@ import {
 import { getCartonFocusPoint, SHIP_CLOSE_UP } from "lib/job/ship-ready-steps"
 import { TRANSFER_STEPS } from "lib/job/transfer-steps"
 import { STATIONS } from "lib/layout/station-layout"
+import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import { ESD_BAG, type EsdBag, setEsdBagFilled } from "lib/models/esd-bag"
-import { getPartKitSpotPositions, setPartKitLayout } from "lib/models/part-kit"
+import { createPartKit, type PartKit } from "lib/models/part-kit"
+import { createScrewPouch, SCREW_POUCH } from "lib/models/screw-pouch"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
@@ -33,8 +35,8 @@ import {
   BAGGING_BENCH_SPOTS,
   IDENTITY_QUATERNION,
 } from "lib/world/bench-spots"
-import type { AssemblyUnit } from "lib/world/create-world"
-import { type Group, Quaternion, Vector3 } from "three"
+import { type AssemblyUnit, setOutLongScrews } from "lib/world/create-world"
+import { type Group, type Object3D, Quaternion, Vector3 } from "three"
 
 /** From beside the operator, looking at the bag stand. */
 const BAG_CLOSE_UP = {
@@ -52,6 +54,17 @@ const ZIP_SECONDS = 0.8
 function getBag(unit: AssemblyUnit): EsdBag {
   if (!unit.bag) throw new Error("This line has no bag for the unit")
   return unit.bag
+}
+
+function getPouchFocusPoint(ctx: SimContext): Vector3 {
+  const { pouchFill } = BAGGING_BENCH_SPOTS
+  return getTablePoint(
+    {
+      tableId: "pack_out_bench",
+      localPoint: new Vector3(pouchFill.x, pouchFill.y + 0.02, pouchFill.z),
+    },
+    ctx,
+  )
 }
 
 function getBagFocusPoint(ctx: SimContext): Vector3 {
@@ -95,15 +108,97 @@ function* slideZipClosed(
   })
 }
 
-/** Take a flat bag, stand it open, slide the tested parts kit in, and zip it shut. */
-function* bagTheUnit(params: UnitParams, ctx: SimContext): SimTask {
+/** Fill a pink 2" x 3" pouch with the unit's four long screws, zip it and fold it. */
+function* fillScrewPouch(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const unit = world.units[params.unitIndex]
-  const bag = getBag(unit)
+  const pouch = createScrewPouch()
+  unit.screwPouch = pouch
   const bench = world.tables.pack_out_bench
-  releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
+  // Take the next pouch off the top of the open box.
+  bench.add(pouch.group)
+  pouch.group.position
+    .copy(BAGGING_BENCH_SPOTS.pouchBox)
+    .add(new Vector3(0, 0.03, 0))
+  ctx.statusText = `Unit ${params.unitIndex + 1}: a pink 2×3 screw pouch from the box`
+  yield* grabObject({
+    hand: operator.leftHand,
+    object: pouch.group,
+    localGripPoint: new Vector3(0, 0.002, -0.015),
+    fingerCurl: 1,
+    durationSeconds: 0.6,
+  })
+  yield* moveObject(
+    {
+      object: pouch.group,
+      hand: operator.leftHand,
+      parent: bench,
+      localPosition: BAGGING_BENCH_SPOTS.pouchFill,
+      localQuaternion: IDENTITY_QUATERNION,
+      durationSeconds: 0.8,
+      arcHeightM: 0.05,
+    },
+    ctx,
+  )
+  yield* releaseHand(operator.leftHand)
+  const screws = setOutLongScrews({
+    bin: world.longScrewBin,
+    unitIndex: params.unitIndex,
+  })
+  unit.longScrews = screws
+  const hand = operator.rightHand
+  for (const [index, screw] of screws.entries()) {
+    ctx.statusText = `Unit ${params.unitIndex + 1}: long M3 screw ${index + 1} of 4 into the pouch`
+    yield* grabObject({
+      hand,
+      object: screw,
+      fingerCurl: 1,
+      durationSeconds: 0.45,
+    })
+    yield* moveObject(
+      {
+        object: screw,
+        hand,
+        parent: pouch.group,
+        localPosition: pouch.screwSpots[index].position,
+        localQuaternion: pouch.screwSpots[index].quaternion,
+        durationSeconds: 0.6,
+        arcHeightM: 0.05,
+      },
+      ctx,
+    )
+    yield* releaseHand(hand)
+    playCue("screw_drop", ctx)
+  }
+  ctx.statusText = `Unit ${params.unitIndex + 1}: zipping the pouch and folding it over the screws`
+  yield* reachHand({
+    hand,
+    getTarget: trackObjectPoint({
+      object: pouch.topFlap,
+      localPoint: new Vector3(
+        0,
+        -SCREW_POUCH.thicknessM,
+        -SCREW_POUCH.foldedLengthM + 0.008,
+      ),
+    }),
+    durationSeconds: 0.5,
+  })
+  playCue("bag_zip", ctx)
+  yield* waitSeconds(0.5)
+  yield* tween({
+    durationSeconds: 0.6,
+    onProgress: (progress) => {
+      pouch.topFlap.rotation.x = Math.PI * progress
+    },
+  })
+  yield* releaseHand(hand)
+}
 
-  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a 3×5 ESD bag from the tray`
+/** Take a flat outer bag from the tray, stand it on the wire stand and open it. */
+function* openBagOnStand(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const bag = getBag(world.units[params.unitIndex])
+  ctx.statusText = `Unit ${params.unitIndex + 1}: a 3×5 static-shielding bag from the tray`
   yield* grabObject({
     hand: operator.leftHand,
     object: bag.group,
@@ -115,7 +210,7 @@ function* bagTheUnit(params: UnitParams, ctx: SimContext): SimTask {
     {
       object: bag.group,
       hand: operator.leftHand,
-      parent: bench,
+      parent: world.tables.pack_out_bench,
       localPosition: BAGGING_BENCH_SPOTS.bagStand
         .clone()
         .add(new Vector3(0, BAG_ON_STAND_LIFT_M, 0)),
@@ -133,39 +228,109 @@ function* bagTheUnit(params: UnitParams, ctx: SimContext): SimTask {
       bag.filledBody.scale.z = 0.15 + 0.85 * progress
     },
   })
+  yield* releaseHand(operator.leftHand)
+}
 
-  const kit = unit.kit
-  if (!kit) throw new Error("The unit has no parts kit to bag")
-  ctx.statusText = `Unit ${params.unitIndex + 1}: board, spacer, 4 screws and cable into the bag`
+/** Lower one part into the open bag onto its place in the bag's contents. */
+function* dropIntoBag(
+  params: {
+    part: Object3D
+    contents: PartKit
+    spot: Object3D
+    gripPoint: Vector3
+    label: string
+  },
+  ctx: SimContext,
+): SimTask {
+  const hand = ctx.operator.rightHand
+  ctx.statusText = params.label
   yield* grabObject({
-    hand: operator.rightHand,
-    object: kit.group,
-    localGripPoint: new Vector3(0, 0.006, 0.02),
-    fingerCurl: 0.8,
-    durationSeconds: 0.7,
+    hand,
+    object: params.part,
+    localGripPoint: params.gripPoint,
+    fingerCurl: 1,
+    durationSeconds: 0.55,
   })
   yield* liftAndPlace(
     {
-      object: kit.group,
-      hand: operator.rightHand,
-      parent: bag.group,
-      localPosition: bag.contentsSpot.position,
-      localQuaternion: bag.contentsSpot.quaternion,
-      liftHeightM: 0.16,
-      travelSeconds: 1,
+      object: params.part,
+      hand,
+      parent: params.contents.group,
+      localPosition: params.spot.position,
+      localQuaternion: params.spot.quaternion,
+      liftHeightM: 0.17,
+      travelSeconds: 0.8,
     },
     ctx,
   )
-  yield* releaseHand(operator.rightHand)
-  // In the bag the cable and screw pouch lie beside the board, not on it.
-  const from = getPartKitSpotPositions(kit)
-  yield* tween({
-    durationSeconds: 0.5,
-    onProgress: (progress) =>
-      setPartKitLayout({ kit, layout: "bag", progress, from }),
-  })
+  yield* releaseHand(hand)
+}
 
-  ctx.statusText = `Unit ${params.unitIndex + 1}: pressing the zip closed`
+/** Spacer, then the tested board on it, then the cable and the screw pouch beside them; zip it. */
+function* packTheBag(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
+  const bag = getBag(unit)
+  const contents = createPartKit()
+  unit.kit = contents
+  bag.group.add(contents.group)
+  contents.group.position.copy(bag.contentsSpot.position)
+  contents.group.quaternion.copy(bag.contentsSpot.quaternion)
+  const n = params.unitIndex + 1
+
+  const spacer = world.spacerStock.pop()
+  if (!spacer) throw new Error("The spacer basket is empty")
+  unit.spacer = spacer
+  yield* dropIntoBag(
+    {
+      part: spacer,
+      contents,
+      spot: contents.spacerSpot,
+      gripPoint: new Vector3(0, 0.003, 0.019),
+      label: `Unit ${n}: a 4 mm spacer from the basket into the bag`,
+    },
+    ctx,
+  )
+  releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
+  yield* dropIntoBag(
+    {
+      part: unit.pcb.group,
+      contents,
+      spot: contents.pcbSpot,
+      gripPoint: new Vector3(0, 0.002, 0.02),
+      label: `Unit ${n}: the tested board from the passed tray, onto the spacer`,
+    },
+    ctx,
+  )
+  const coil = createCoiledJstCable()
+  world.cableBin.add(coil)
+  coil.position.set(0, 0.022, 0.035)
+  contents.cable = coil
+  yield* dropIntoBag(
+    {
+      part: coil,
+      contents,
+      spot: contents.cableSpot,
+      gripPoint: new Vector3(0.022, 0.002, 0),
+      label: `Unit ${n}: a coiled motor-to-board cable from the bin`,
+    },
+    ctx,
+  )
+  const pouch = unit.screwPouch
+  if (!pouch) throw new Error("The screw pouch hasn't been filled")
+  contents.screwPouch = pouch.group
+  yield* dropIntoBag(
+    {
+      part: pouch.group,
+      contents,
+      spot: contents.pouchSpot,
+      gripPoint: new Vector3(0, 0.006, 0),
+      label: `Unit ${n}: the screw pouch on the cable`,
+    },
+    ctx,
+  )
+
+  ctx.statusText = `Unit ${n}: pressing the zip closed`
   yield* slideZipClosed({ bag, hand: operator.rightHand }, ctx)
   yield* runInParallel([
     releaseHand(operator.leftHand),
@@ -345,11 +510,29 @@ export const BAGGING_STAGE: JobStage = {
   isPerUnit: true,
   steps: [
     {
-      label: "Kit into an ESD bag, zip it",
+      label: "4 screws into a pink pouch, fold it",
+      station: STATIONS.packOut,
+      closeUpView: { ...BAG_CLOSE_UP, azimuthRadians: 1.6, distanceM: 0.6 },
+      getFocusPoint: (_params, ctx) => getPouchFocusPoint(ctx),
+      run: fillScrewPouch,
+    },
+    {
+      label: "Open a 3×5 ESD bag on the stand",
       station: STATIONS.packOut,
       closeUpView: BAG_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getBagFocusPoint(ctx),
-      run: bagTheUnit,
+      run: openBagOnStand,
+    },
+    {
+      label: "Spacer, board, cable, screw pouch in; zip",
+      station: STATIONS.packOut,
+      closeUpView: BAG_CLOSE_UP,
+      getFocusPoint: (_params, ctx) => getBagFocusPoint(ctx),
+      run: packTheBag,
+      getBlocker: (_params, ctx) =>
+        ctx.world.spacerStock.length > 0
+          ? null
+          : "The spacer basket is empty. Collect prints from the 3D printers and refill it.",
     },
     {
       label: "tscircuit sticker on the front",

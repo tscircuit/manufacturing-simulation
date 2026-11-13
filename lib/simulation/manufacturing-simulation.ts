@@ -3,7 +3,13 @@ import type { JobPlan, ProductLine } from "lib/job/job-plan"
 import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
 import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
 import { getSideJobAt, runPendingSideJob } from "lib/job/side-jobs"
-import { BATCH_SIZE, OPERATOR_START } from "lib/layout/station-layout"
+import {
+  BARE_UNIT_TABLE_LAYOUT,
+  BATCH_SIZE,
+  getLayoutPlacements,
+  KIT_TABLE_LAYOUT,
+  OPERATOR_START,
+} from "lib/layout/station-layout"
 import { populatePlate } from "lib/models/bambu-printer"
 import { updateFlexCable } from "lib/models/flex-cable"
 import { createRoomShell, type RoomShell } from "lib/models/room-shell"
@@ -163,6 +169,8 @@ export class ManufacturingSimulation {
   constructor(params: { productLine?: ProductLine } = {}) {
     this.productLine = params.productLine ?? "kit"
     const jobPlan = getJobPlan(this.productLine)
+    const tableLayout =
+      this.productLine === "bagged" ? BARE_UNIT_TABLE_LAYOUT : KIT_TABLE_LAYOUT
     const scene = new Scene()
     this.roomShell = createRoomShell()
     const operator = createOperator()
@@ -174,9 +182,11 @@ export class ManufacturingSimulation {
       navGrid: createNavGrid({
         cellSizeM: NAV_GRID_CELL_SIZE_M,
         clearanceM: NAV_GRID_CLEARANCE_M,
+        tables: getLayoutPlacements(tableLayout),
       }),
       progress: createJobProgress({ unitCount: BATCH_SIZE, jobPlan }),
       jobPlan,
+      tableLayout,
       mode: "simulation",
       statusText: "",
       cameraHint: null,

@@ -31,8 +31,9 @@ export type ProductLine = "kit" | "bagged"
 
 /** One-off moves between benches, by what they do. */
 export interface TransferRows {
-  carryFinishedRack: JobRow
-  returnFinishedRack: JobRow
+  /** Null on a line without an assembly bench. */
+  carryFinishedRack: JobRow | null
+  returnFinishedRack: JobRow | null
   carryReadyRack: JobRow
   returnReadyRack: JobRow
   carryTote: JobRow
@@ -55,8 +56,9 @@ export interface JobPlan {
 /** Build a line's plan. Only the pack-out work, the carton loading and the sealing differ between products. */
 export function createJobPlan(params: {
   productLine: ProductLine
-  /** Defaults to the kit's assembly and QC. */
-  assemblyStage?: JobStage
+  /** Defaults to the kit's assembly; null for a line that starts at QC. */
+  assemblyStage?: JobStage | null
+  /** Defaults to the kit's QC. */
   qcStage?: JobStage
   packOutStage: JobStage
   loadCartonStage: JobStage
@@ -88,24 +90,27 @@ export function createJobPlan(params: {
     ),
   })
   // Rows are added in the order the timing table shows them.
-  const assembly = addUnitStage({
-    stage: params.assemblyStage ?? ASSEMBLY_STAGE,
-    tableId: "assembly_bench",
-    fromStage: "raw",
-    toStage: "assembled",
-  })
-  const carryFinishedRack = addRow({
-    step: TRANSFER_STEPS.carryFinishedRack,
-    runCount: 1,
-  })
-  const returnFinishedRack = addRow({
-    step: TRANSFER_STEPS.returnFinishedRack,
-    runCount: null,
-  })
+  const assemblyStage =
+    params.assemblyStage === undefined ? ASSEMBLY_STAGE : params.assemblyStage
+  const assembly = assemblyStage
+    ? addUnitStage({
+        stage: assemblyStage,
+        tableId: "assembly_bench",
+        fromStage: "raw",
+        toStage: "assembled",
+      })
+    : null
+  const carryFinishedRack = assembly
+    ? addRow({ step: TRANSFER_STEPS.carryFinishedRack, runCount: 1 })
+    : null
+  const returnFinishedRack = assembly
+    ? addRow({ step: TRANSFER_STEPS.returnFinishedRack, runCount: null })
+    : null
+  // Without an assembly bench, QC takes boards straight from raw.
   const qc = addUnitStage({
     stage: params.qcStage ?? QC_STAGE,
     tableId: "qc_bench",
-    fromStage: "assembled",
+    fromStage: assembly ? "assembled" : "raw",
     toStage: "tested",
   })
   const carryReadyRack = addRow({
@@ -131,7 +136,7 @@ export function createJobPlan(params: {
     toStage: "in_carton",
   })
   const sealAndShip = addRow({ step: params.sealAndShipStep, runCount: 1 })
-  const unitStages = [assembly, qc, packOut, shipReady]
+  const unitStages = [...(assembly ? [assembly] : []), qc, packOut, shipReady]
   return {
     productLine: params.productLine,
     unitStages,

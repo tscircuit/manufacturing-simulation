@@ -7,7 +7,7 @@ The bare unit is the motor controller without a motor. Each bag holds:
 - four long M3 screws, in their own small pouch so they can't scratch the board;
 - the motor-to-board cable.
 
-QC keeps one test motor and spins every board on it before it's bagged.
+QC keeps one test motor. Every board is set down beside it, plugged in with the test motor's cable, DATA and PWR, and spun before it's bagged. Boards are never screwed onto the test motor. There's no assembly bench on this line.
 
 This is a research summary from public sources as of November 2026, not legal advice. Amazon's Seller Central help pages need a login, and Amazon's product pages returned errors when I tried to read them. The Amazon rules below come from sellers' and prep vendors' summaries of them, and the bag listings from Amazon search results. Check each against Seller Central (Help → "Packaging and prep requirements", "Poly bagging", "Shipping and routing requirements") and the listings themselves before ordering.
 
@@ -17,14 +17,14 @@ This is a research summary from public sources as of November 2026, not legal ad
 | --- | --- | --- |
 | Controller board | 42.3 × 43.6 mm, 6.4 mm high | 1.6 mm board plus the 4.8 mm side-entry JST, whose mouth sticks out 1.25 mm |
 | Backface spacer | 42 × 42 × 4 mm | 1 mm base plus 3 mm sleeves. It goes under the board, protecting the flat back. |
-| 4 long M3 screws | M3 × 16 mm with 5.5 mm heads, 4 side by side ≈ 22 × 19 × 3 mm | In a 2" × 3" pink anti-static zip pouch, folded in half to about 51 × 38 × 5 mm |
+| 4 long M3 screws | M3 × 16 mm with 5.5 mm heads, 4 side by side ≈ 22 × 19 × 3 mm | In a 2" × 3" pink anti-static zip pouch, folded in half to about 51 × 38 × 7 mm |
 | Motor-to-board cable | 150 mm, 6-pin JST PH to PHR-4, coiled ≈ 46 × 46 × 5 mm | |
 
 How it packs:
 
 - **One stack** (board, spacer, cable and pouch on top of each other) is 51 × 46 mm and 20 mm thick. A flat bag needs about the contents' width plus their thickness plus a little more, which is about 77 mm, so it doesn't fit a 3" bag. It also presses the screws onto the board's components.
-- **Two piles side by side** (the board on its spacer; the cable with the screw pouch on top) are 51 × 91 mm and 10.4 mm thick. That needs about **67 mm wide** (51 + 10.4 + 6) by **113 mm long** (91 + 5 for thickness + 13 for the zip + 3) inside a flat zip bag.
-- **A 3" × 5" bag (76 × 127 mm) fits with about 9 mm and 14 mm to spare.** That's snug but not tight. A 3" × 4" bag is too short, and 4" × 6" is more than twice the area needed.
+- **Two piles side by side** (the board on its spacer, 10.4 mm; the cable with the folded pouch on top, about 12 mm) are 51 × 91 mm and 12 mm thick at most. That needs about **69 mm wide** (51 + 12 + 6) by **113 mm long** (91 + 6 for thickness + 13 for the zip + 3) inside a flat zip bag.
+- **A 3" × 5" bag (76 × 127 mm) fits with about 7 mm and 14 mm to spare.** That's snug but not tight. A 3" × 4" bag is too short, and 4" × 6" is more than twice the area needed.
 
 ## Bags to buy on Amazon
 
@@ -71,24 +71,23 @@ Amazon ended its own US prep and labelling services for shipments created from J
 
 ## Manufacturing steps for the bare unit
 
-1. **Spacers (P2S and H2S).** Print the 4 mm backface spacers and refill the kitting bench's basket from the tub.
-2. **Kitting bench (the old assembly bench, no motors).** For each unit:
-   1. Lay a spacer on the jig.
-   2. Put a controller board on it.
-   3. Put 4 long M3 screws in a 2" × 3" pink pouch and zip it.
-   4. Add a coiled motor-to-board cable.
-   5. Put the kit in the rack.
+1. **Spacers (P2S and H2S).** Print the 4 mm backface spacers and refill the bagging bench's basket from the tub.
+2. **QC bench (where the assembly bench used to be; one test motor).** All 30 boards arrive in a black ESD tray with an amber rim. For each board:
+   1. Set it on the ESD mat right beside the test motor. Don't screw it on.
+   2. Plug in the test motor's cable (J1), the laptop USB-C (DATA) and the charging station (PWR).
+   3. Spin the motor and watch current and stall on the laptop.
+   4. Unplug everything and put the board in the passed tray (green rim).
 
-   Kit one at a time (green circle) or all 30, and take the rack (amber circle) whenever you like.
-3. **QC bench (one test motor).** Put the board on the test motor's back face, plug the test motor's cable into J1, then the laptop USB-C into DATA and the charging station into PWR. Spin the motor. Unplug everything, put the board back in its kit, and move the kit to the ready rack.
-4. **Labels.** The Epson prints 2" × 3" tscircuit stickers. FNSKU sheets come from Seller Central.
-5. **Bagging bench (the old pack-out bench).**
-   1. Stand a 3" × 5" static-shielding bag open on the wire stand.
-   2. Slide the kit in: board on its spacer at the bottom, the cable and screw pouch above it.
-   3. Zip the bag.
-   4. Put the tscircuit sticker on the front and the FNSKU label on the back.
-   5. Lay the bag in the tote.
-6. **Ship-ready bench.** Stand the 30 bags in the 10 × 8 × 6 carton, put the FBA box ID label on the side, fold the flaps, tape the seam, and set the carton by the door.
+   Test one at a time (green circle) or all 30, and carry the passed tray to bagging (amber circle) whenever you like.
+3. **Labels.** The Epson prints 2" × 3" tscircuit stickers. FNSKU sheets come from Seller Central.
+4. **Bagging bench (where QC used to be).** For each unit:
+   1. Take a 2" × 3" pink pouch from its box, drop in the 4 long M3 screws side by side, zip it, and fold it in half over the screws.
+   2. Stand a 3" × 5" static-shielding bag open on the wire stand.
+   3. Put in a spacer, the tested board on top of it, a coiled cable beside them, and the folded screw pouch on the cable.
+   4. Zip the bag.
+   5. Put the tscircuit sticker on the front and the FNSKU label on the back.
+   6. Lay the bag in the tote.
+5. **Ship-ready bench.** Stand the 30 bags in the 10 × 8 × 6 carton, put the FBA box ID label on the side, fold the flaps, tape the seam, and set the carton by the door.
 
 ## Sources
 

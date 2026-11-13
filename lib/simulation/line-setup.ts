@@ -24,7 +24,8 @@ import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
 import { ESD_BAG, setEsdBagFilled } from "lib/models/esd-bag"
 import { createM3Screw, LONG_SCREW_SHANK_M } from "lib/models/nema17-motor"
-import { createPartKit, setPartKitLayout } from "lib/models/part-kit"
+import { createPartKit } from "lib/models/part-kit"
+import { createScrewPouch } from "lib/models/screw-pouch"
 import { BOX_POCKETS, POCKET_FLOOR_YM } from "lib/models/white-mailer-box"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
@@ -183,7 +184,26 @@ function packUnitInstantly(
   unit.nextStepIndex = 0
 }
 
-/** Bag a tested unit with its sticker and FNSKU label, and lay the bag in the tote. */
+/** Bare-unit line: a board passed its spin test, from the untested tray to the passed tray. */
+function testBoardInstantly(
+  params: { unitIndex: number },
+  ctx: SimContext,
+): void {
+  const { world } = ctx
+  const unit = world.units[params.unitIndex]
+  releaseSlot({ container: world.finishedRack, unitIndex: params.unitIndex })
+  const slotIndex = reserveSlot({
+    container: world.readyRack,
+    unitIndex: params.unitIndex,
+  })
+  world.readyRack.group.add(unit.pcb.group)
+  unit.pcb.group.position.copy(world.readyRack.slots[slotIndex].position)
+  unit.pcb.group.quaternion.identity()
+  unit.stage = "tested"
+  unit.nextStepIndex = 0
+}
+
+/** Bare-unit line: screws in a folded pouch; spacer, board, cable and pouch zipped in the bag; labels on; bag in the tote. */
 function bagUnitInstantly(
   params: { unitIndex: number },
   ctx: SimContext,
@@ -193,14 +213,36 @@ function bagUnitInstantly(
   const { bag } = unit
   if (!bag) return
   releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
+  const pouch = createScrewPouch()
+  pouch.topFlap.rotation.x = Math.PI
+  unit.screwPouch = pouch
+  unit.longScrews = pouch.screwSpots.map((spot) => {
+    const screw = createM3Screw({ shankLengthM: LONG_SCREW_SHANK_M })
+    pouch.group.add(screw)
+    screw.position.copy(spot.position)
+    screw.quaternion.copy(spot.quaternion)
+    return screw
+  })
   setEsdBagFilled({ bag, isFilled: true })
-  const { kit } = unit
-  if (kit) {
-    bag.group.add(kit.group)
-    kit.group.position.copy(bag.contentsSpot.position)
-    kit.group.quaternion.copy(bag.contentsSpot.quaternion)
-    setPartKitLayout({ kit, layout: "bag" })
+  const contents = createPartKit()
+  unit.kit = contents
+  bag.group.add(contents.group)
+  contents.group.position.copy(bag.contentsSpot.position)
+  contents.group.quaternion.copy(bag.contentsSpot.quaternion)
+  const place = (part: Object3D, spot: Object3D) => {
+    contents.group.add(part)
+    part.position.copy(spot.position)
+    part.quaternion.copy(spot.quaternion)
   }
+  const spacer = world.spacerStock.pop() ?? createBackfaceSpacer()
+  unit.spacer = spacer
+  place(spacer, contents.spacerSpot)
+  place(unit.pcb.group, contents.pcbSpot)
+  const coil = createCoiledJstCable()
+  place(coil, contents.cableSpot)
+  contents.cable = coil
+  place(pouch.group, contents.pouchSpot)
+  contents.screwPouch = pouch.group
   const sticker = takeNextLabel(world)
   if (sticker) {
     bag.group.add(sticker)
@@ -225,67 +267,6 @@ function bagUnitInstantly(
     .add(new Vector3(0, ESD_BAG.filledDepthM / 2, ESD_BAG.heightM / 2))
   bag.group.quaternion.copy(BAG_LYING_QUATERNION)
   unit.stage = "packed"
-  unit.nextStepIndex = 0
-}
-
-/** Kit a unit's board, spacer, four long screws and cable, and put the kit in the rack. */
-function kitUnitInstantly(
-  params: { unitIndex: number },
-  ctx: SimContext,
-): void {
-  const { world } = ctx
-  const unit = world.units[params.unitIndex]
-  releaseSlot({ container: world.motorFoamStand, unitIndex: params.unitIndex })
-  const kit = createPartKit()
-  unit.kit = kit
-  const place = (part: Object3D, spot: Object3D) => {
-    kit.group.add(part)
-    part.position.copy(spot.position)
-    part.quaternion.copy(spot.quaternion)
-    kit.placed.push({ part, spot })
-  }
-  const spacer = world.spacerStock.pop() ?? createBackfaceSpacer()
-  unit.spacer = spacer
-  place(spacer, kit.spacerSpot)
-  place(unit.pcb.group, kit.pcbSpot)
-  place(kit.screwPouch, kit.pouchSpot)
-  unit.longScrews = kit.screwSpots.map((spot) => {
-    const screw = createM3Screw({ shankLengthM: LONG_SCREW_SHANK_M })
-    kit.screwPouch.add(screw)
-    screw.position.copy(spot.position)
-    screw.quaternion.copy(spot.quaternion)
-    return screw
-  })
-  const coil = createCoiledJstCable()
-  place(coil, kit.cableSpot)
-  kit.cable = coil
-  const slotIndex = reserveSlot({
-    container: world.finishedRack,
-    unitIndex: params.unitIndex,
-  })
-  world.finishedRack.group.add(kit.group)
-  kit.group.position.copy(world.finishedRack.slots[slotIndex].position)
-  unit.stage = "assembled"
-  unit.nextStepIndex = 0
-}
-
-/** A kitted board passed its spin test on the test motor: kit to the ready rack. */
-function testKitInstantly(
-  params: { unitIndex: number },
-  ctx: SimContext,
-): void {
-  const { world } = ctx
-  const unit = world.units[params.unitIndex]
-  const { kit } = unit
-  if (!kit) return
-  releaseSlot({ container: world.finishedRack, unitIndex: params.unitIndex })
-  const slotIndex = reserveSlot({
-    container: world.readyRack,
-    unitIndex: params.unitIndex,
-  })
-  world.readyRack.group.add(kit.group)
-  kit.group.position.copy(world.readyRack.slots[slotIndex].position)
-  unit.stage = "tested"
   unit.nextStepIndex = 0
 }
 
@@ -318,31 +299,42 @@ export function setUpLineAt(
   const unitIndices = ctx.world.units
     .slice(0, ctx.progress.unitCount)
     .map((_, unitIndex) => unitIndex)
-  if (depth >= 1) {
-    for (const unitIndex of unitIndices)
-      if (ctx.world.productLine === "bagged")
-        kitUnitInstantly({ unitIndex }, ctx)
-      else assembleUnitInstantly({ unitIndex }, ctx)
-    moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: true }, ctx)
-  }
-  if (depth >= 2) {
-    for (const unitIndex of unitIndices)
-      if (ctx.world.productLine === "bagged")
-        testKitInstantly({ unitIndex }, ctx)
-      else testUnitInstantly({ unitIndex }, ctx)
-    moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: false }, ctx)
-    moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
-  }
-  if (depth >= 3) {
-    for (const unitIndex of unitIndices)
-      if (ctx.world.productLine === "bagged")
-        bagUnitInstantly({ unitIndex }, ctx)
-      else packUnitInstantly({ unitIndex }, ctx)
-    moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: false }, ctx)
-    moveShuttle({ shuttle: TOTE_SHUTTLE, toNextBench: true }, ctx)
+  if (ctx.world.productLine === "bagged") {
+    // No assembly bench: boards start in the untested tray at QC.
+    if (depth >= 2) {
+      for (const unitIndex of unitIndices)
+        testBoardInstantly({ unitIndex }, ctx)
+      moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
+    }
+    if (depth >= 3) {
+      for (const unitIndex of unitIndices) bagUnitInstantly({ unitIndex }, ctx)
+      moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: false }, ctx)
+      moveShuttle({ shuttle: TOTE_SHUTTLE, toNextBench: true }, ctx)
+    }
+  } else {
+    if (depth >= 1) {
+      for (const unitIndex of unitIndices)
+        assembleUnitInstantly({ unitIndex }, ctx)
+      moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: true }, ctx)
+    }
+    if (depth >= 2) {
+      for (const unitIndex of unitIndices) testUnitInstantly({ unitIndex }, ctx)
+      moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: false }, ctx)
+      moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
+    }
+    if (depth >= 3) {
+      for (const unitIndex of unitIndices) packUnitInstantly({ unitIndex }, ctx)
+      moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: false }, ctx)
+      moveShuttle({ shuttle: TOTE_SHUTTLE, toNextBench: true }, ctx)
+    }
   }
   const start = LINE_STARTS[params.startId]
-  const pose = getStationStandPose(start.station)
+  // The bare-unit line has no assembly bench: its first stop is QC.
+  const station =
+    start.tableId === "assembly_bench" && !ctx.tableLayout.assembly_bench
+      ? LINE_STARTS.qc.station
+      : start.station
+  const pose = getStationStandPose(station, ctx.tableLayout)
   ctx.operator.position.set(pose.x, 0, pose.z)
   ctx.operator.ccwYawRadians = pose.ccwYawRadians
   ctx.world.root.updateMatrixWorld(true)

@@ -1,4 +1,8 @@
-import { TABLE_PLACEMENTS, WORK_TABLE } from "lib/layout/station-layout"
+import {
+  getLayoutPlacements,
+  type TablePlacement,
+  WORK_TABLE,
+} from "lib/layout/station-layout"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import { runInParallel, type SimTask, tween } from "lib/tasks/coroutines"
@@ -19,8 +23,12 @@ export interface ParkedObject {
 }
 
 /** Rest height under a point: a bench top if it's over one, otherwise the floor. */
-function getSurfaceHeightM(point: Vector3): number {
-  for (const table of Object.values(TABLE_PLACEMENTS)) {
+function getSurfaceHeightM(params: {
+  point: Vector3
+  tables: TablePlacement[]
+}): number {
+  const { point } = params
+  for (const table of params.tables) {
     const dx = point.x - table.centerXM
     const dz = point.z - table.centerZM
     const cos = Math.cos(table.ccwYawRadians)
@@ -82,7 +90,10 @@ export function parkHeldWork(ctx: SimContext): ParkedObject[] {
     world.root.attach(object)
     object.updateWorldMatrix(true, true)
     const bounds = new Box3().setFromObject(object)
-    const surfaceM = getSurfaceHeightM(bounds.getCenter(new Vector3()))
+    const surfaceM = getSurfaceHeightM({
+      point: bounds.getCenter(new Vector3()),
+      tables: getLayoutPlacements(ctx.tableLayout),
+    })
     object.position.y -= bounds.min.y - surfaceM - 0.0005
   }
   for (const hand of operator.hands) hand.heldObject = null

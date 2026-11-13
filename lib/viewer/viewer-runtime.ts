@@ -56,10 +56,6 @@ import {
 } from "three"
 
 const MAX_FRAME_SECONDS = 0.05
-const BARE_UNIT_BENCH_LABELS: Partial<Record<TableId, string>> = {
-  assembly_bench: "Kitting bench",
-  pack_out_bench: "Bagging bench",
-}
 const HUD_INTERVAL_MS = 100
 const ZOOM_PER_WHEEL_PX = 0.0012
 const LABEL_HEIGHT_M = 1.62
@@ -191,7 +187,10 @@ export class ViewerRuntime {
     addSceneLighting(scene)
     scene.add(this.stationRing)
     for (const { pad, mesh } of [...this.equipmentPads, ...this.assemblyPads]) {
-      const pose = getStationStandPose(pad.station)
+      const pose = getStationStandPose(
+        pad.station,
+        this.simulation.ctx.tableLayout,
+      )
       mesh.position.set(pose.x, 0.011, pose.z)
       scene.add(mesh)
     }
@@ -427,16 +426,13 @@ export class ViewerRuntime {
       this.printerSigns = []
       this.stationSigns = []
       for (const tableId of Object.keys(world.tables) as TableId[]) {
-        const placement = TABLE_PLACEMENTS[tableId]
-        // The bare-unit line kits at the assembly bench and bags at pack-out.
-        const benchLabel =
-          world.productLine === "bagged"
-            ? (BARE_UNIT_BENCH_LABELS[tableId] ?? placement.label)
-            : placement.label
+        // The line's own layout: the bare-unit line numbers its benches from QC.
+        const placement = this.simulation.ctx.tableLayout[tableId]
+        if (!placement) continue
         const text =
           placement.lineOrder > 0
-            ? `${placement.lineOrder} · ${benchLabel}`
-            : benchLabel
+            ? `${placement.lineOrder} · ${placement.label}`
+            : placement.label
         const label = createLabelSprite({ text, widthM: 0.72 })
         label.position.set(0, LABEL_HEIGHT_M, -0.3)
         world.tables[tableId].add(label)
@@ -524,7 +520,8 @@ export class ViewerRuntime {
       if (this.closeUpStationKey !== stationKey) {
         this.closeUpStationKey = stationKey
         this.cameraRig.ccwYawRadians =
-          getStationStandPose(hint.station).ccwYawRadians +
+          getStationStandPose(hint.station, this.simulation.ctx.tableLayout)
+            .ccwYawRadians +
           Math.PI +
           hint.view.azimuthRadians
         this.cameraRig.pitchRadians = hint.view.elevationRadians
@@ -566,7 +563,10 @@ export class ViewerRuntime {
       (mode === "game" || progress.isJobActive)
     this.stationRing.visible = Boolean(isVisible)
     if (!nextStep || !isVisible) return
-    const pose = getStationStandPose(nextStep.station)
+    const pose = getStationStandPose(
+      nextStep.station,
+      this.simulation.ctx.tableLayout,
+    )
     this.stationRing.position.set(pose.x, 0.012, pose.z)
     this.stationRing.material.opacity = 0.55 + 0.3 * Math.sin(nowMs * 0.005)
   }
@@ -577,7 +577,10 @@ export class ViewerRuntime {
     // One at a time: green circle builds a motor, amber circle takes the rack.
     const onAssemblyPad = getAssemblyPadAtOperator(ctx)
     for (const { pad, mesh } of this.assemblyPads) {
-      mesh.visible = ctx.mode === "game" && ctx.progress.isOneAtATime
+      mesh.visible =
+        ctx.mode === "game" &&
+        ctx.progress.isOneAtATime &&
+        Boolean(ctx.tableLayout.assembly_bench)
       if (!mesh.visible) continue
       const color = pad.id === "assemble" ? 0x2fb36b : 0xe39b1b
       mesh.material.color.setHex(color)

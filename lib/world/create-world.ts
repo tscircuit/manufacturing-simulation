@@ -1,9 +1,14 @@
 import type { ProductLine } from "lib/job/job-plan"
 import { MOTOR_IN_CRADLE_POSITION } from "lib/job/unit-poses"
 import {
+  BARE_UNIT_TABLE_LAYOUT,
   BATCH_SIZE,
+  KIT_TABLE_LAYOUT,
+  STATIONS,
+  type Station,
   TABLE_PLACEMENTS,
   type TableId,
+  type TablePlacement,
   WORK_TABLE,
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
@@ -12,6 +17,7 @@ import {
   createBambuPrinter,
   populatePlate,
 } from "lib/models/bambu-printer"
+import { createBoardTray } from "lib/models/board-tray"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
   COILED_USB_CABLE,
@@ -49,6 +55,7 @@ import { createPartsBin, PARTS_BIN } from "lib/models/parts-bin"
 import { type CablePlug, createJstPlug, createUsbCPlug } from "lib/models/plugs"
 import { createQcCradle } from "lib/models/qc-cradle"
 import { createQcLaptop, type QcLaptop } from "lib/models/qc-laptop"
+import type { ScrewPouch } from "lib/models/screw-pouch"
 import { createScrewdriver, type Screwdriver } from "lib/models/screwdriver"
 import {
   BAG_SHIPPING_CARTON,
@@ -147,8 +154,10 @@ export interface AssemblyUnit {
   /** Bare-unit line: the ESD bag it ships in, and the FNSKU label on the bag. */
   bag: EsdBag | null
   fnskuLabel: Group | null
-  /** Bare-unit line: the board, spacer, screws and cable gathered at the kitting bench. */
+  /** Bare-unit line: where the spacer, board, cable and screw pouch lie in the bag. */
   kit: PartKit | null
+  /** Bare-unit line: the pink pouch the four screws go in. */
+  screwPouch: ScrewPouch | null
 }
 
 /** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
@@ -190,6 +199,12 @@ export interface ManufacturingWorld {
   fnskuSheets: LabelSheet[]
   /** Bare-unit line: the FBA box ID label, put on the carton's side before sealing. */
   boxIdLabel: Group | null
+  /** Where the printers' spacers are poured: the assembly bench, or the bagging bench on the bare-unit line. */
+  spacerHome: {
+    station: Station
+    basketSpot: Vector3
+    usedTubSpot: Vector3
+  }
   /** Bare-unit line: the one motor kept at QC to spin-test each board, and its cable to the board. */
   testMotor: Nema17Motor | null
   testMotorCable: MotorCable | null
@@ -231,8 +246,12 @@ export function scatter(seed: number): number {
   return x - Math.floor(x)
 }
 
-function createPlacedTable(tableId: TableId): Group {
-  const placement = TABLE_PLACEMENTS[tableId]
+function createPlacedTable(params: {
+  tableId: TableId
+  placement: TablePlacement | undefined
+}): Group {
+  const { tableId } = params
+  const placement = params.placement ?? TABLE_PLACEMENTS[tableId]
   const table = createStandingDesk()
   table.name = tableId
   table.position.set(placement.centerXM, 0, placement.centerZM)
@@ -619,6 +638,73 @@ export const QC_TEST_PLUG_REST = new Vector3(
   QC_BENCH_SPOTS.cradle.z + 0.06,
 )
 
+/** Where each board lies beside the test motor while it is tested, on an ESD mat. */
+export const BOARD_TEST_SPOT = new Vector3(
+  QC_BENCH_SPOTS.cradle.x + 0.08,
+  TOP + 0.0012,
+  QC_BENCH_SPOTS.cradle.z + 0.02,
+)
+
+/**
+ * Bare-unit line: boards start in an untested ESD tray on the QC bench and
+ * go to a passed tray after the spin test; the spacer basket, long-screw bin
+ * and cable bin move to the bagging bench with a box of screw pouches.
+ */
+function setUpBareUnitBenches(params: {
+  qcBench: Group
+  baggingBench: Group
+  assemblyBench: ReturnType<typeof populateAssemblyBench>
+  kitReadyRack: MotorRack
+}): { untested: MotorRack; passed: MotorRack } {
+  const { qcBench, baggingBench, assemblyBench } = params
+  qcBench.remove(params.kitReadyRack.group)
+  const untested = createBoardTray({ rimColor: 0xd9a400 })
+  untested.group.position.copy(QC_BENCH_SPOTS.incomingRack)
+  const passed = createBoardTray({ rimColor: 0x1d9f5a })
+  passed.group.position.copy(QC_BENCH_SPOTS.readyRack)
+  qcBench.add(untested.group, passed.group)
+  for (const [index, pcb] of assemblyBench.pcbs.entries()) {
+    untested.group.add(pcb.group)
+    pcb.group.position.copy(untested.slots[index].position)
+    pcb.group.quaternion.identity()
+  }
+  // ESD mat the board lies on next to the test motor.
+  qcBench.add(
+    createBoxMesh({
+      size: [0.12, 0.0012, 0.1],
+      material: createStandardMaterial({ color: 0x3a6e9a, roughness: 0.9 }),
+      position: [BOARD_TEST_SPOT.x, TOP + 0.0006, BOARD_TEST_SPOT.z],
+    }),
+  )
+  const spots = BAGGING_BENCH_SPOTS
+  for (const [object, spot] of [
+    [assemblyBench.spacerBasket, spots.spacerBasket],
+    [assemblyBench.longScrewBin, spots.longScrewBin],
+    [assemblyBench.cableBin, spots.cableBin],
+  ] as const) {
+    baggingBench.add(object)
+    object.position.copy(spot)
+  }
+  // Open box of flat pink screw pouches.
+  const box = new Group()
+  box.position.copy(spots.pouchBox)
+  const cardboard = createStandardMaterial({ color: 0xc49a6c, roughness: 0.95 })
+  box.add(
+    createBoxMesh({
+      size: [0.07, 0.03, 0.09],
+      material: cardboard,
+      position: [0, 0.015, 0],
+    }),
+    createBoxMesh({
+      size: [0.056, 0.012, 0.08],
+      material: createStandardMaterial({ color: 0xf3a1c0, roughness: 0.4 }),
+      position: [0, 0.025, 0],
+    }),
+  )
+  baggingBench.add(box)
+  return { untested, passed }
+}
+
 /** Bare-unit line: 4" x 6" FBA box ID label waiting (unseen) on the carton's long side. */
 function addBoxIdLabel(carton: ShippingCarton): Group {
   const spec = BAG_SHIPPING_CARTON
@@ -809,14 +895,28 @@ export function createWorld(
   const productLine = params.productLine ?? "kit"
   const isBagged = productLine === "bagged"
   const root = new Group()
+  const layout = isBagged ? BARE_UNIT_TABLE_LAYOUT : KIT_TABLE_LAYOUT
   const tableIds = Object.keys(TABLE_PLACEMENTS) as TableId[]
   const tables = Object.fromEntries(
-    tableIds.map((tableId) => [tableId, createPlacedTable(tableId)]),
+    tableIds.map((tableId) => [
+      tableId,
+      createPlacedTable({ tableId, placement: layout[tableId] }),
+    ]),
   ) as Record<TableId, Group>
-  for (const table of Object.values(tables)) root.add(table)
+  // A bench missing from the layout (the bare-unit line's assembly bench) is
+  // built but left off the floor.
+  for (const tableId of tableIds) if (layout[tableId]) root.add(tables[tableId])
   const assemblyBench = populateAssemblyBench(tables.assembly_bench, isBagged)
   const qcBench = populateQcBench(tables.qc_bench)
   const testFixture = isBagged ? addQcTestMotor(tables.qc_bench) : null
+  const bareUnitTrays = isBagged
+    ? setUpBareUnitBenches({
+        qcBench: tables.qc_bench,
+        baggingBench: tables.pack_out_bench,
+        assemblyBench,
+        kitReadyRack: qcBench.readyRack,
+      })
+    : null
   const packOutBench = isBagged
     ? populateBaggingBench(tables.pack_out_bench)
     : {
@@ -851,8 +951,10 @@ export function createWorld(
       bag: packOutBench.bags[unitIndex] ?? null,
       fnskuLabel: null,
       kit: null,
+      screwPouch: null,
     })
     assemblyBench.motorFoamStand.occupants[unitIndex] = unitIndex
+    if (bareUnitTrays) bareUnitTrays.untested.occupants[unitIndex] = unitIndex
   }
   const cables = [qcBench.qcDataCable.cable, qcBench.qcPowerCable.cable]
   if (testFixture) cables.push(testFixture.cable.cable)
@@ -864,8 +966,19 @@ export function createWorld(
     tables,
     units,
     motorFoamStand: assemblyBench.motorFoamStand,
-    finishedRack: assemblyBench.finishedRack,
-    readyRack: qcBench.readyRack,
+    finishedRack: bareUnitTrays?.untested ?? assemblyBench.finishedRack,
+    readyRack: bareUnitTrays?.passed ?? qcBench.readyRack,
+    spacerHome: isBagged
+      ? {
+          station: STATIONS.packOut,
+          basketSpot: BAGGING_BENCH_SPOTS.spacerBasket,
+          usedTubSpot: BAGGING_BENCH_SPOTS.usedTubs,
+        }
+      : {
+          station: STATIONS.assembly,
+          basketSpot: ASSEMBLY_BENCH_SPOTS.spacerBasket,
+          usedTubSpot: ASSEMBLY_BENCH_SPOTS.emptyTubs,
+        },
     spacerBasket: assemblyBench.spacerBasket,
     spacerStock: assemblyBench.spacerStock,
     screwdriver: assemblyBench.screwdriver,

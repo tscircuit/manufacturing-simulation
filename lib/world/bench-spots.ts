@@ -70,9 +70,19 @@ export const PACK_OUT_BENCH_SPOTS = {
  * sheets, and the tote. The ready rack and tote spots match the kit's.
  */
 export const BAGGING_BENCH_SPOTS = {
+  /** Where the tray of boards that passed QC arrives. */
   incomingRack: PACK_OUT_BENCH_SPOTS.incomingRack,
-  bagTray: new Vector3(0.24, TOP, -0.2),
-  bagStand: new Vector3(0.0, TOP, 0.16),
+  bagTray: new Vector3(0.26, TOP, -0.22),
+  cableBin: new Vector3(0.1, TOP, -0.21),
+  longScrewBin: new Vector3(-0.04, TOP, -0.21),
+  /** Open box of flat pink 2" x 3" screw pouches. */
+  pouchBox: new Vector3(-0.17, TOP, -0.22),
+  /** Where each pouch is filled with screws and folded. */
+  pouchFill: new Vector3(-0.12, TOP, 0.15),
+  spacerBasket: new Vector3(0.27, TOP, 0.13),
+  /** Tubs set aside after refilling the spacer basket. */
+  usedTubs: new Vector3(0.56, TOP, -0.2),
+  bagStand: new Vector3(0.05, TOP, 0.16),
   stickerSheets: PACK_OUT_BENCH_SPOTS.labelSheets,
   fnskuSheets: new Vector3(-0.3, TOP, 0.2),
   tote: PACK_OUT_BENCH_SPOTS.tote,

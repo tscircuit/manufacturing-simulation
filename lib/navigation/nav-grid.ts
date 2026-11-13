@@ -1,4 +1,8 @@
 import { FLOOR_PLAN } from "lib/layout/floor-plan"
+import {
+  TABLE_PLACEMENTS,
+  type TablePlacement,
+} from "lib/layout/station-layout"
 import type { FloorPoint } from "lib/navigation/floor-point"
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 
@@ -13,12 +17,16 @@ export interface NavGrid {
   columnCount: number
   rowCount: number
   blockedCells: Uint8Array
+  /** The benches the grid was built around, for straight-line checks. */
+  tables: TablePlacement[]
 }
 
 export function createNavGrid(params: {
   cellSizeM: number
   clearanceM: number
+  tables?: TablePlacement[]
 }): NavGrid {
+  const tables = params.tables ?? Object.values(TABLE_PLACEMENTS)
   const { cellSizeM, clearanceM } = params
   const columnCount = Math.ceil(FLOOR_PLAN.widthM / cellSizeM)
   const rowCount = Math.ceil(FLOOR_PLAN.eastLengthM / cellSizeM)
@@ -26,6 +34,7 @@ export function createNavGrid(params: {
   for (let row = 0; row < rowCount; row++) {
     for (let column = 0; column < columnCount; column++) {
       const isFree = isFloorPointFree({
+        tables,
         x: (column + 0.5) * cellSizeM,
         z: (row + 0.5) * cellSizeM,
         clearanceM,
@@ -33,7 +42,7 @@ export function createNavGrid(params: {
       blockedCells[row * columnCount + column] = isFree ? 0 : 1
     }
   }
-  return { cellSizeM, columnCount, rowCount, blockedCells }
+  return { cellSizeM, columnCount, rowCount, blockedCells, tables }
 }
 
 export function isCellOpen(cell: GridCell, navGrid: NavGrid): boolean {

@@ -1,6 +1,7 @@
 import {
   type Station,
   TABLE_PLACEMENTS,
+  type TableLayout,
   WORK_TABLE,
 } from "lib/layout/station-layout"
 
@@ -11,8 +12,11 @@ export interface StandPose {
 }
 
 /** World position and heading for an operator standing at a station. */
-export function getStationStandPose(station: Station): StandPose {
-  const table = TABLE_PLACEMENTS[station.tableId]
+export function getStationStandPose(
+  station: Station,
+  layout: TableLayout = TABLE_PLACEMENTS,
+): StandPose {
+  const table = layout[station.tableId] ?? TABLE_PLACEMENTS[station.tableId]
   const localX = station.alongTableM
   const localZ = WORK_TABLE.depthM / 2 + station.standoffFromEdgeM
   const cos = Math.cos(table.ccwYawRadians)

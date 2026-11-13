@@ -30,7 +30,7 @@ export interface EsdBag {
   flatBody: Mesh
   /** The bag puffed out around the unit. */
   filledBody: Mesh
-  zip: Mesh
+  zip: Group
   /** The printed ESD warning mark on the front film. */
   esdMark: Mesh
   /** Where the parts kit sits inside, its stack facing the front. */
@@ -51,6 +51,17 @@ const BAG_FILM_MATERIAL = createStandardMaterial({
   depthWrite: false,
 })
 const ZIP_MATERIAL = createStandardMaterial({ color: 0x6b7076, roughness: 0.6 })
+const BAG_SEAL_MATERIAL = createStandardMaterial({
+  color: 0x7c8187,
+  metalness: 0.5,
+  roughness: 0.4,
+  transparent: true,
+  opacity: 0.75,
+})
+/** Flat heat seal down each side and across the bottom. */
+const BAG_SEAL_WIDTH_M = 0.004
+/** The flat lip above the zip. */
+const BAG_LIP_M = 0.006
 const ESD_MARK_MATERIAL = createStandardMaterial({
   color: 0xf2c230,
   roughness: 0.6,
@@ -64,17 +75,56 @@ export function createEsdBag(): EsdBag {
     material: BAG_FILM_MATERIAL,
     position: [0, b.heightM / 2, 0],
   })
+  // Filled, the film pillows out between the flat heat seals at the sides and bottom.
   const filledBody = createBoxMesh({
-    size: [b.widthM - 0.004, b.heightM, b.filledDepthM],
+    size: [
+      b.widthM - 2 * BAG_SEAL_WIDTH_M,
+      b.heightM - BAG_SEAL_WIDTH_M - BAG_LIP_M,
+      b.filledDepthM,
+    ],
     material: BAG_FILM_MATERIAL,
-    position: [0, b.heightM / 2, 0],
+    position: [
+      0,
+      BAG_SEAL_WIDTH_M + (b.heightM - BAG_SEAL_WIDTH_M - BAG_LIP_M) / 2,
+      0,
+    ],
   })
   filledBody.visible = false
-  const zip = createBoxMesh({
-    size: [b.widthM, 0.003, 0.003],
-    material: ZIP_MATERIAL,
-    position: [0, b.heightM - b.zipFromTopM, 0],
-  })
+  // Heat seals down both sides and across the bottom, and the lip above the zip.
+  for (const side of [-1, 1])
+    group.add(
+      createBoxMesh({
+        size: [BAG_SEAL_WIDTH_M, b.heightM, 0.0008],
+        material: BAG_SEAL_MATERIAL,
+        position: [
+          side * (b.widthM / 2 - BAG_SEAL_WIDTH_M / 2),
+          b.heightM / 2,
+          0,
+        ],
+      }),
+    )
+  group.add(
+    createBoxMesh({
+      size: [b.widthM, BAG_SEAL_WIDTH_M, 0.0008],
+      material: BAG_SEAL_MATERIAL,
+      position: [0, BAG_SEAL_WIDTH_M / 2, 0],
+    }),
+    createBoxMesh({
+      size: [b.widthM, BAG_LIP_M, 0.0008],
+      material: BAG_SEAL_MATERIAL,
+      position: [0, b.heightM - BAG_LIP_M / 2, 0],
+    }),
+  )
+  // Zip track: two ridges just under the lip.
+  const zip = new Group()
+  for (const offsetM of [0, 0.0022])
+    zip.add(
+      createBoxMesh({
+        size: [b.widthM - 2 * BAG_SEAL_WIDTH_M, 0.0012, 0.0035],
+        material: ZIP_MATERIAL,
+        position: [0, b.heightM - b.zipFromTopM - offsetM, 0],
+      }),
+    )
   // The printed ESD warning mark in the bottom corner of the front.
   const esdMark = createBoxMesh({
     size: [0.014, 0.012, 0.0004],

@@ -1,5 +1,9 @@
 import { FLOOR_PLAN, getRoomLengthAtX } from "lib/layout/floor-plan"
-import { TABLE_PLACEMENTS, WORK_TABLE } from "lib/layout/station-layout"
+import {
+  TABLE_PLACEMENTS,
+  type TablePlacement,
+  WORK_TABLE,
+} from "lib/layout/station-layout"
 
 const WASHROOM_WALL_MARGIN_M = 0.05
 
@@ -11,6 +15,8 @@ export function isFloorPointFree(params: {
   x: number
   z: number
   clearanceM: number
+  /** The benches on the floor; defaults to the full kit line's. */
+  tables?: TablePlacement[]
 }): boolean {
   const { x, z, clearanceM } = params
   if (x < clearanceM || x > FLOOR_PLAN.widthM - clearanceM) return false
@@ -27,7 +33,7 @@ export function isFloorPointFree(params: {
     return false
   }
 
-  for (const table of Object.values(TABLE_PLACEMENTS)) {
+  for (const table of params.tables ?? Object.values(TABLE_PLACEMENTS)) {
     const dx = x - table.centerXM
     const dz = z - table.centerZM
     const cos = Math.cos(table.ccwYawRadians)

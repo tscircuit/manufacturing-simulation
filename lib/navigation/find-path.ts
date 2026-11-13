@@ -1,3 +1,4 @@
+import type { TablePlacement } from "lib/layout/station-layout"
 import type { FloorPoint } from "lib/navigation/floor-point"
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 import { MinHeap } from "lib/navigation/min-heap"
@@ -18,6 +19,7 @@ const DIAGONAL_COST = Math.SQRT2
 export function hasLineOfSight(params: {
   from: FloorPoint
   to: FloorPoint
+  tables?: TablePlacement[]
 }): boolean {
   const { from, to } = params
   const distanceM = Math.hypot(to.x - from.x, to.z - from.z)
@@ -28,6 +30,7 @@ export function hasLineOfSight(params: {
       x: from.x + (to.x - from.x) * t,
       z: from.z + (to.z - from.z) * t,
       clearanceM: LINE_OF_SIGHT_CLEARANCE_M,
+      tables: params.tables,
     })
     if (!isFree) return false
   }
@@ -114,6 +117,7 @@ function searchGrid(
 function simplifyPath(params: {
   from: FloorPoint
   waypoints: FloorPoint[]
+  tables: TablePlacement[]
 }): FloorPoint[] {
   const { waypoints } = params
   const simplified: FloorPoint[] = []
@@ -123,7 +127,11 @@ function simplifyPath(params: {
     let furthest = waypoints.length - 1
     while (
       furthest > index &&
-      !hasLineOfSight({ from: current, to: waypoints[furthest] })
+      !hasLineOfSight({
+        from: current,
+        to: waypoints[furthest],
+        tables: params.tables,
+      })
     ) {
       furthest--
     }
@@ -143,11 +151,11 @@ export function findPath(
   navGrid: NavGrid,
 ): FloorPoint[] {
   const { from, to } = params
-  if (hasLineOfSight({ from, to })) return [to]
+  if (hasLineOfSight({ from, to, tables: navGrid.tables })) return [to]
   const startCell = findNearestOpenCell(getCellAtPoint(from, navGrid), navGrid)
   const goalCell = findNearestOpenCell(getCellAtPoint(to, navGrid), navGrid)
   const gridCells = searchGrid({ startCell, goalCell }, navGrid)
   const waypoints = gridCells.map((cell) => getCellCenter(cell, navGrid))
   waypoints.push(to)
-  return simplifyPath({ from, waypoints })
+  return simplifyPath({ from, waypoints, tables: navGrid.tables })
 }

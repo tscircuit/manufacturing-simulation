@@ -91,6 +91,31 @@ export const TABLE_PLACEMENTS: Record<TableId, TablePlacement> = {
   }),
 }
 
+/** Which benches stand where. A bench missing from the layout isn't on the floor. */
+export type TableLayout = Partial<Record<TableId, TablePlacement>>
+
+/** The full kit line: assembly, QC, pack-out and ship-ready, plus printers and labels. */
+export const KIT_TABLE_LAYOUT: TableLayout = TABLE_PLACEMENTS
+
+/**
+ * The bare-unit line has no assembly bench: boards start at QC. QC, bagging
+ * and ship-ready move up the window wall into the first three places.
+ */
+export const BARE_UNIT_TABLE_LAYOUT: TableLayout = {
+  qc_bench: placeOnLine({ lineOrder: 1, label: "QC bench" }),
+  pack_out_bench: placeOnLine({ lineOrder: 2, label: "Bagging bench" }),
+  ship_ready_bench: placeOnLine({ lineOrder: 3, label: "Ship-ready bench" }),
+  printer_bench: TABLE_PLACEMENTS.printer_bench,
+  label_bench: TABLE_PLACEMENTS.label_bench,
+}
+
+/** Placements in a layout, for checking where the floor is free. */
+export function getLayoutPlacements(layout: TableLayout): TablePlacement[] {
+  return Object.values(layout).filter(
+    (placement): placement is TablePlacement => placement !== undefined,
+  )
+}
+
 /** A place to stand at a table, measured in the table's local frame. */
 export interface Station {
   tableId: TableId

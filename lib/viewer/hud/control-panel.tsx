@@ -9,6 +9,12 @@ import type { ScenarioId } from "lib/simulation/scenarios"
 import type { SimulationMode } from "lib/simulation/sim-context"
 import type { ReactNode, Ref } from "react"
 
+const BARE_UNIT_START_LABELS: Record<LineStartId, string> = {
+  assembly: "QC: boards in the untested tray",
+  qc: "QC: boards in the untested tray",
+  pack_out: "Bagging: passed boards in the tray",
+  ship_ready: "Ship-ready: bagged, in the tote",
+}
 const SPEED_OPTIONS = [0.5, 1, 2, 4, 8, 16]
 const LINE_START_IDS: LineStartId[] = [
   "assembly",
@@ -141,10 +147,14 @@ export function ControlPanel(props: {
               <option value="" disabled>
                 Choose a bench…
               </option>
-              {LINE_START_IDS.map((startId) => (
+              {LINE_START_IDS.filter(
+                // The bare-unit line has no assembly bench.
+                (startId) =>
+                  props.productLine !== "bagged" || startId !== "assembly",
+              ).map((startId) => (
                 <option key={startId} value={startId}>
                   {props.productLine === "bagged"
-                    ? LINE_STARTS[startId].label.replace("boxed", "bagged")
+                    ? BARE_UNIT_START_LABELS[startId]
                     : LINE_STARTS[startId].label}
                 </option>
               ))}
@@ -197,8 +207,10 @@ export function ControlPanel(props: {
             <dd>18′3½″ × 47′5¼″</dd>
             <dt>Tables</dt>
             <dd>
-              {Object.keys(TABLE_PLACEMENTS).length} × 6′ standing desks,{" "}
-              {tableHeightInches}″ high
+              {props.productLine === "bagged"
+                ? 5
+                : Object.keys(TABLE_PLACEMENTS).length}{" "}
+              × 6′ standing desks, {tableHeightInches}″ high
             </dd>
           </dl>
         </div>

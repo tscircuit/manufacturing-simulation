@@ -28,7 +28,7 @@ export function getEquipmentPadAtOperator(
 ): EquipmentPad | null {
   const { x, z } = ctx.operator.position
   for (const pad of EQUIPMENT_PADS) {
-    const pose = getStationStandPose(pad.station)
+    const pose = getStationStandPose(pad.station, ctx.tableLayout)
     if (Math.hypot(x - pose.x, z - pose.z) <= EQUIPMENT_PAD_RADIUS_M) return pad
   }
   return null
@@ -54,9 +54,11 @@ export const ASSEMBLY_PADS: AssemblyPad[] = [
 export const ASSEMBLY_PAD_RADIUS_M = 0.26
 
 export function getAssemblyPadAtOperator(ctx: SimContext): AssemblyPad | null {
+  // Only the full kit line has an assembly bench.
+  if (!ctx.tableLayout.assembly_bench) return null
   const { x, z } = ctx.operator.position
   for (const pad of ASSEMBLY_PADS) {
-    const pose = getStationStandPose(pad.station)
+    const pose = getStationStandPose(pad.station, ctx.tableLayout)
     if (Math.hypot(x - pose.x, z - pose.z) <= ASSEMBLY_PAD_RADIUS_M) return pad
   }
   return null
