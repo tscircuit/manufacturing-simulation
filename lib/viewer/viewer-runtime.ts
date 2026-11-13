@@ -56,6 +56,10 @@ import {
 } from "three"
 
 const MAX_FRAME_SECONDS = 0.05
+const BARE_UNIT_BENCH_LABELS: Partial<Record<TableId, string>> = {
+  assembly_bench: "Kitting bench",
+  pack_out_bench: "Bagging bench",
+}
 const HUD_INTERVAL_MS = 100
 const ZOOM_PER_WHEEL_PX = 0.0012
 const LABEL_HEIGHT_M = 1.62
@@ -424,10 +428,15 @@ export class ViewerRuntime {
       this.stationSigns = []
       for (const tableId of Object.keys(world.tables) as TableId[]) {
         const placement = TABLE_PLACEMENTS[tableId]
+        // The bare-unit line kits at the assembly bench and bags at pack-out.
+        const benchLabel =
+          world.productLine === "bagged"
+            ? (BARE_UNIT_BENCH_LABELS[tableId] ?? placement.label)
+            : placement.label
         const text =
           placement.lineOrder > 0
-            ? `${placement.lineOrder} · ${placement.label}`
-            : placement.label
+            ? `${placement.lineOrder} · ${benchLabel}`
+            : benchLabel
         const label = createLabelSprite({ text, widthM: 0.72 })
         label.position.set(0, LABEL_HEIGHT_M, -0.3)
         world.tables[tableId].add(label)

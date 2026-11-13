@@ -55,6 +55,9 @@ export interface JobPlan {
 /** Build a line's plan. Only the pack-out work, the carton loading and the sealing differ between products. */
 export function createJobPlan(params: {
   productLine: ProductLine
+  /** Defaults to the kit's assembly and QC. */
+  assemblyStage?: JobStage
+  qcStage?: JobStage
   packOutStage: JobStage
   loadCartonStage: JobStage
   sealAndShipStep: JobStep
@@ -86,7 +89,7 @@ export function createJobPlan(params: {
   })
   // Rows are added in the order the timing table shows them.
   const assembly = addUnitStage({
-    stage: ASSEMBLY_STAGE,
+    stage: params.assemblyStage ?? ASSEMBLY_STAGE,
     tableId: "assembly_bench",
     fromStage: "raw",
     toStage: "assembled",
@@ -100,7 +103,7 @@ export function createJobPlan(params: {
     runCount: null,
   })
   const qc = addUnitStage({
-    stage: QC_STAGE,
+    stage: params.qcStage ?? QC_STAGE,
     tableId: "qc_bench",
     fromStage: "assembled",
     toStage: "tested",

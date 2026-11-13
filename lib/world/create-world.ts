@@ -1,4 +1,5 @@
 import type { ProductLine } from "lib/job/job-plan"
+import { MOTOR_IN_CRADLE_POSITION } from "lib/job/unit-poses"
 import {
   BATCH_SIZE,
   TABLE_PLACEMENTS,
@@ -43,6 +44,7 @@ import {
   type Nema17Motor,
 } from "lib/models/nema17-motor"
 import { createPackingTote, type PackingTote } from "lib/models/packing-tote"
+import type { PartKit } from "lib/models/part-kit"
 import { createPartsBin, PARTS_BIN } from "lib/models/parts-bin"
 import { type CablePlug, createJstPlug, createUsbCPlug } from "lib/models/plugs"
 import { createQcCradle } from "lib/models/qc-cradle"
@@ -87,6 +89,7 @@ import {
   BAG_LYING_QUATERNION,
   BAGGING_BENCH_SPOTS,
   LABEL_BENCH_SPOTS,
+  MOTOR_ON_SIDE_QUATERNION,
   PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
   PRINTER_BENCH_SPOTS,
@@ -144,6 +147,8 @@ export interface AssemblyUnit {
   /** Bare-unit line: the ESD bag it ships in, and the FNSKU label on the bag. */
   bag: EsdBag | null
   fnskuLabel: Group | null
+  /** Bare-unit line: the board, spacer, screws and cable gathered at the kitting bench. */
+  kit: PartKit | null
 }
 
 /** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
@@ -185,6 +190,9 @@ export interface ManufacturingWorld {
   fnskuSheets: LabelSheet[]
   /** Bare-unit line: the FBA box ID label, put on the carton's side before sealing. */
   boxIdLabel: Group | null
+  /** Bare-unit line: the one motor kept at QC to spin-test each board, and its cable to the board. */
+  testMotor: Nema17Motor | null
+  testMotorCable: MotorCable | null
   packingTote: PackingTote
   carton: ShippingCarton
   printers: BambuPrinter[]
@@ -315,7 +323,12 @@ export function setOutMotorCable(params: {
   return { cable, motorPlug, boardPlug }
 }
 
-function populateAssemblyBench(table: Group) {
+/**
+ * `isKitting`: the bare-unit line has no motors at this bench. The foam stand
+ * stays (hidden) as the queue of units still to kit, and the motors are made
+ * but never put on the bench.
+ */
+function populateAssemblyBench(table: Group, isKitting = false) {
   const spots = ASSEMBLY_BENCH_SPOTS
   const spacerBasket = createSpacerBasket(ASSEMBLY_SPACER_BASKET)
   spacerBasket.position.copy(spots.spacerBasket)
@@ -337,9 +350,10 @@ function populateAssemblyBench(table: Group) {
   const motors = motorFoamStand.slots.map((slot) => {
     const motor = createNema17Motor()
     motor.group.position.copy(slot.position)
-    motorFoamStand.group.add(motor.group)
+    if (!isKitting) motorFoamStand.group.add(motor.group)
     return motor
   })
+  motorFoamStand.group.visible = !isKitting
   const finishedRack = createMotorRack()
   finishedRack.group.position.copy(spots.finishedRack)
   table.add(motorFoamStand.group, finishedRack.group)
@@ -564,6 +578,47 @@ function populateShipReadyBench(
   return carton
 }
 
+/**
+ * Bare-unit line: the one motor kept at QC, lying in the cradle, with its
+ * own cable plugged into its socket and the board end resting on the bench.
+ * Each board is spin-tested on it.
+ */
+function addQcTestMotor(table: Group): {
+  motor: Nema17Motor
+  cable: MotorCable
+} {
+  const motor = createNema17Motor()
+  table.add(motor.group)
+  motor.group.position.copy(MOTOR_IN_CRADLE_POSITION)
+  motor.group.quaternion.copy(MOTOR_ON_SIDE_QUATERNION)
+  const motorPlug = createJstPlug({ pinCount: 6 })
+  motor.group.add(motorPlug.group)
+  motorPlug.group.position.copy(motor.cableSocket.position)
+  motorPlug.group.quaternion.copy(motor.cableSocket.quaternion)
+  const boardPlug = createJstPlug({ pinCount: 4 })
+  table.add(boardPlug.group)
+  boardPlug.group.position.copy(QC_TEST_PLUG_REST)
+  boardPlug.group.quaternion.copy(PLUG_LYING_QUATERNION)
+  const cable = createFlexCable({
+    startAnchor: motorPlug.wireAnchor,
+    endAnchor: boardPlug.wireAnchor,
+    color: 0x1f2226,
+    radiusM: 0.0012,
+    minYM: TOP + 0.004,
+    slackOffset: new Vector3(0, 0.02, 0.04),
+    leadLengthM: 0.012,
+  })
+  cable.slackFrame = table
+  return { motor, cable: { cable, motorPlug, boardPlug } }
+}
+
+/** Where the test motor's board plug rests between tests, beside the cradle. */
+export const QC_TEST_PLUG_REST = new Vector3(
+  QC_BENCH_SPOTS.cradle.x + 0.09,
+  TOP + 0.0031,
+  QC_BENCH_SPOTS.cradle.z + 0.06,
+)
+
 /** Bare-unit line: 4" x 6" FBA box ID label waiting (unseen) on the carton's long side. */
 function addBoxIdLabel(carton: ShippingCarton): Group {
   const spec = BAG_SHIPPING_CARTON
@@ -759,8 +814,9 @@ export function createWorld(
     tableIds.map((tableId) => [tableId, createPlacedTable(tableId)]),
   ) as Record<TableId, Group>
   for (const table of Object.values(tables)) root.add(table)
-  const assemblyBench = populateAssemblyBench(tables.assembly_bench)
+  const assemblyBench = populateAssemblyBench(tables.assembly_bench, isBagged)
   const qcBench = populateQcBench(tables.qc_bench)
+  const testFixture = isBagged ? addQcTestMotor(tables.qc_bench) : null
   const packOutBench = isBagged
     ? populateBaggingBench(tables.pack_out_bench)
     : {
@@ -794,10 +850,12 @@ export function createWorld(
       label: null,
       bag: packOutBench.bags[unitIndex] ?? null,
       fnskuLabel: null,
+      kit: null,
     })
     assemblyBench.motorFoamStand.occupants[unitIndex] = unitIndex
   }
   const cables = [qcBench.qcDataCable.cable, qcBench.qcPowerCable.cable]
+  if (testFixture) cables.push(testFixture.cable.cable)
   for (const cable of cables) root.add(cable.wire)
   root.updateMatrixWorld(true)
   return {
@@ -821,6 +879,8 @@ export function createWorld(
     qcPowerCable: qcBench.qcPowerCable,
     labelSheets: packOutBench.labelSheets,
     fnskuSheets: packOutBench.fnskuSheets,
+    testMotor: testFixture?.motor ?? null,
+    testMotorCable: testFixture?.cable ?? null,
     boxIdLabel,
     packingTote: packOutBench.packingTote,
     carton,

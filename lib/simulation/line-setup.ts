@@ -20,9 +20,11 @@ import {
   type TableId,
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
+import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
 import { ESD_BAG, setEsdBagFilled } from "lib/models/esd-bag"
 import { createM3Screw, LONG_SCREW_SHANK_M } from "lib/models/nema17-motor"
+import { createPartKit, setPartKitLayout } from "lib/models/part-kit"
 import { BOX_POCKETS, POCKET_FLOOR_YM } from "lib/models/white-mailer-box"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
@@ -32,7 +34,7 @@ import {
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
 import { scatter, setOutMotorCable } from "lib/world/create-world"
-import { Vector3 } from "three"
+import { type Object3D, Vector3 } from "three"
 
 /** The line benches a session can start at, each with a full batch ready for it. */
 export type LineStartId = "assembly" | "qc" | "pack_out" | "ship_ready"
@@ -192,9 +194,13 @@ function bagUnitInstantly(
   if (!bag) return
   releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
   setEsdBagFilled({ bag, isFilled: true })
-  bag.group.add(unit.motor.group)
-  unit.motor.group.position.copy(bag.contentsSpot.position)
-  unit.motor.group.quaternion.copy(bag.contentsSpot.quaternion)
+  const { kit } = unit
+  if (kit) {
+    bag.group.add(kit.group)
+    kit.group.position.copy(bag.contentsSpot.position)
+    kit.group.quaternion.copy(bag.contentsSpot.quaternion)
+    setPartKitLayout({ kit, layout: "bag" })
+  }
   const sticker = takeNextLabel(world)
   if (sticker) {
     bag.group.add(sticker)
@@ -219,6 +225,67 @@ function bagUnitInstantly(
     .add(new Vector3(0, ESD_BAG.filledDepthM / 2, ESD_BAG.heightM / 2))
   bag.group.quaternion.copy(BAG_LYING_QUATERNION)
   unit.stage = "packed"
+  unit.nextStepIndex = 0
+}
+
+/** Kit a unit's board, spacer, four long screws and cable, and put the kit in the rack. */
+function kitUnitInstantly(
+  params: { unitIndex: number },
+  ctx: SimContext,
+): void {
+  const { world } = ctx
+  const unit = world.units[params.unitIndex]
+  releaseSlot({ container: world.motorFoamStand, unitIndex: params.unitIndex })
+  const kit = createPartKit()
+  unit.kit = kit
+  const place = (part: Object3D, spot: Object3D) => {
+    kit.group.add(part)
+    part.position.copy(spot.position)
+    part.quaternion.copy(spot.quaternion)
+    kit.placed.push({ part, spot })
+  }
+  const spacer = world.spacerStock.pop() ?? createBackfaceSpacer()
+  unit.spacer = spacer
+  place(spacer, kit.spacerSpot)
+  place(unit.pcb.group, kit.pcbSpot)
+  place(kit.screwPouch, kit.pouchSpot)
+  unit.longScrews = kit.screwSpots.map((spot) => {
+    const screw = createM3Screw({ shankLengthM: LONG_SCREW_SHANK_M })
+    kit.screwPouch.add(screw)
+    screw.position.copy(spot.position)
+    screw.quaternion.copy(spot.quaternion)
+    return screw
+  })
+  const coil = createCoiledJstCable()
+  place(coil, kit.cableSpot)
+  kit.cable = coil
+  const slotIndex = reserveSlot({
+    container: world.finishedRack,
+    unitIndex: params.unitIndex,
+  })
+  world.finishedRack.group.add(kit.group)
+  kit.group.position.copy(world.finishedRack.slots[slotIndex].position)
+  unit.stage = "assembled"
+  unit.nextStepIndex = 0
+}
+
+/** A kitted board passed its spin test on the test motor: kit to the ready rack. */
+function testKitInstantly(
+  params: { unitIndex: number },
+  ctx: SimContext,
+): void {
+  const { world } = ctx
+  const unit = world.units[params.unitIndex]
+  const { kit } = unit
+  if (!kit) return
+  releaseSlot({ container: world.finishedRack, unitIndex: params.unitIndex })
+  const slotIndex = reserveSlot({
+    container: world.readyRack,
+    unitIndex: params.unitIndex,
+  })
+  world.readyRack.group.add(kit.group)
+  kit.group.position.copy(world.readyRack.slots[slotIndex].position)
+  unit.stage = "tested"
   unit.nextStepIndex = 0
 }
 
@@ -253,11 +320,16 @@ export function setUpLineAt(
     .map((_, unitIndex) => unitIndex)
   if (depth >= 1) {
     for (const unitIndex of unitIndices)
-      assembleUnitInstantly({ unitIndex }, ctx)
+      if (ctx.world.productLine === "bagged")
+        kitUnitInstantly({ unitIndex }, ctx)
+      else assembleUnitInstantly({ unitIndex }, ctx)
     moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: true }, ctx)
   }
   if (depth >= 2) {
-    for (const unitIndex of unitIndices) testUnitInstantly({ unitIndex }, ctx)
+    for (const unitIndex of unitIndices)
+      if (ctx.world.productLine === "bagged")
+        testKitInstantly({ unitIndex }, ctx)
+      else testUnitInstantly({ unitIndex }, ctx)
     moveShuttle({ shuttle: FINISHED_RACK_SHUTTLE, toNextBench: false }, ctx)
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
   }

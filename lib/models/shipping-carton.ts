@@ -39,17 +39,17 @@ export const SHIPPING_CARTON = {
 } as const satisfies CartonSpec
 
 /**
- * FBA carton for 30 bare units in 4" x 6" ESD bags, standing on edge 5 along
- * by 6 across: 21 x 12 x 7 in inside. About 0.33 kg a bagged unit, so roughly
- * 23 lb packed, under the FBA 50 lb limit and 25 in per side.
+ * FBA carton for 30 bare units in 3" x 5" ESD bags, standing on edge 3 along
+ * by 10 across: 10 x 8 x 6 in inside. About 30 g a bagged kit, so roughly
+ * 2-3 lb packed, far under the FBA 50 lb limit and 25 in per side.
  */
 export const BAG_SHIPPING_CARTON = {
-  innerLengthM: 21 * METERS_PER_INCH,
-  innerWidthM: 12 * METERS_PER_INCH,
-  innerHeightM: 7 * METERS_PER_INCH,
+  innerLengthM: 10 * METERS_PER_INCH,
+  innerWidthM: 8 * METERS_PER_INCH,
+  innerHeightM: 6 * METERS_PER_INCH,
   boardThicknessM: 0.005,
-  columns: 5,
-  rows: 6,
+  columns: 3,
+  rows: 10,
   layers: 1,
   itemPitchXM: ESD_BAG.widthM + 0.002,
   itemPitchZM: ESD_BAG.filledDepthM + 0.002,

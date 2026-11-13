@@ -10,6 +10,7 @@ import { getCartonFocusPoint, SHIP_CLOSE_UP } from "lib/job/ship-ready-steps"
 import { TRANSFER_STEPS } from "lib/job/transfer-steps"
 import { STATIONS } from "lib/layout/station-layout"
 import { ESD_BAG, type EsdBag, setEsdBagFilled } from "lib/models/esd-bag"
+import { getPartKitSpotPositions, setPartKitLayout } from "lib/models/part-kit"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
@@ -94,7 +95,7 @@ function* slideZipClosed(
   })
 }
 
-/** Take a flat bag, stand it open, lower the tested unit in, and zip it shut. */
+/** Take a flat bag, stand it open, slide the tested parts kit in, and zip it shut. */
 function* bagTheUnit(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const unit = world.units[params.unitIndex]
@@ -102,7 +103,7 @@ function* bagTheUnit(params: UnitParams, ctx: SimContext): SimTask {
   const bench = world.tables.pack_out_bench
   releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
 
-  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a 4×6 ESD bag from the tray`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: taking a 3×5 ESD bag from the tray`
   yield* grabObject({
     hand: operator.leftHand,
     object: bag.group,
@@ -133,27 +134,36 @@ function* bagTheUnit(params: UnitParams, ctx: SimContext): SimTask {
     },
   })
 
-  ctx.statusText = `Unit ${params.unitIndex + 1}: lowering the tested unit into the bag`
+  const kit = unit.kit
+  if (!kit) throw new Error("The unit has no parts kit to bag")
+  ctx.statusText = `Unit ${params.unitIndex + 1}: board, spacer, 4 screws and cable into the bag`
   yield* grabObject({
     hand: operator.rightHand,
-    object: unit.motor.group,
-    localGripPoint: new Vector3(0, 0.03, 0.021),
-    fingerCurl: 0.6,
+    object: kit.group,
+    localGripPoint: new Vector3(0, 0.006, 0.02),
+    fingerCurl: 0.8,
     durationSeconds: 0.7,
   })
   yield* liftAndPlace(
     {
-      object: unit.motor.group,
+      object: kit.group,
       hand: operator.rightHand,
       parent: bag.group,
       localPosition: bag.contentsSpot.position,
       localQuaternion: bag.contentsSpot.quaternion,
-      liftHeightM: 0.2,
+      liftHeightM: 0.16,
       travelSeconds: 1,
     },
     ctx,
   )
   yield* releaseHand(operator.rightHand)
+  // In the bag the cable and screw pouch lie beside the board, not on it.
+  const from = getPartKitSpotPositions(kit)
+  yield* tween({
+    durationSeconds: 0.5,
+    onProgress: (progress) =>
+      setPartKitLayout({ kit, layout: "bag", progress, from }),
+  })
 
   ctx.statusText = `Unit ${params.unitIndex + 1}: pressing the zip closed`
   yield* slideZipClosed({ bag, hand: operator.rightHand }, ctx)
@@ -335,7 +345,7 @@ export const BAGGING_STAGE: JobStage = {
   isPerUnit: true,
   steps: [
     {
-      label: "Unit into an ESD bag, zip it",
+      label: "Kit into an ESD bag, zip it",
       station: STATIONS.packOut,
       closeUpView: BAG_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getBagFocusPoint(ctx),

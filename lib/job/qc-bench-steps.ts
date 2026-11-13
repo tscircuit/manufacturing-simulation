@@ -3,7 +3,11 @@ import { releaseSlot, reserveSlot } from "lib/job/container-slots"
 import type { JobStage, UnitParams } from "lib/job/job-step"
 import { MOTOR_IN_CRADLE_POSITION } from "lib/job/unit-poses"
 import { STATIONS } from "lib/layout/station-layout"
-import { STATUS_LED_COLORS } from "lib/models/controller-pcb"
+import {
+  type ControllerPcb,
+  STATUS_LED_COLORS,
+} from "lib/models/controller-pcb"
+import type { Nema17Motor } from "lib/models/nema17-motor"
 import { QC_DISPLAY_COLORS, type QcDisplayState } from "lib/models/qc-laptop"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
@@ -53,7 +57,7 @@ function getTrapezoidDistance(progress: number): number {
   return cruiseSpeed * (progress - ramp / 2)
 }
 
-function setQcDisplay(state: QcDisplayState, ctx: SimContext): void {
+export function setQcDisplay(state: QcDisplayState, ctx: SimContext): void {
   ctx.world.laptop.displayState = state
   ctx.world.laptop.display.material.color.setHex(QC_DISPLAY_COLORS[state])
 }
@@ -108,8 +112,20 @@ function* seatMotorAndPlugIn(params: UnitParams, ctx: SimContext): SimTask {
 }
 
 function* runSpinTest(params: UnitParams, ctx: SimContext): SimTask {
+  const unit = ctx.world.units[params.unitIndex]
+  yield* spinTestOnMotor(
+    { unitIndex: params.unitIndex, motor: unit.motor, pcb: unit.pcb },
+    ctx,
+  )
+}
+
+/** Start the test on the laptop, spin a motor through the board under test, and show the pass. */
+export function* spinTestOnMotor(
+  params: { unitIndex: number; motor: Nema17Motor; pcb: ControllerPcb },
+  ctx: SimContext,
+): SimTask {
   const { world, operator } = ctx
-  const unit = world.units[params.unitIndex]
+  const unit = { motor: params.motor, pcb: params.pcb }
   const hand = operator.rightHand
   ctx.statusText = `Unit ${params.unitIndex + 1}: starting the spin test on the laptop`
   yield* reachHand({

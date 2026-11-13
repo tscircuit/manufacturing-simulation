@@ -155,7 +155,10 @@ function getOneAtATimeAssemblyActions(
     return actions
   }
   actions.benchAction = {
-    label: `Assemble a motor (${inRack} in the rack)`,
+    label:
+      ctx.world.productLine === "bagged"
+        ? `Kit a unit (${inRack} in the rack)`
+        : `Assemble a motor (${inRack} in the rack)`,
     createTask: () => assembleOneMotor(ctx),
   }
   return actions

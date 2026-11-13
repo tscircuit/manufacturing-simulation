@@ -73,15 +73,15 @@ function drawBagLabel(): HTMLCanvasElement {
   context.fillStyle = INK
   context.font = "700 40px 'IBM Plex Sans', sans-serif"
   context.fillText("NEMA 17 Motor", 28, 160)
-  context.fillText("+ RP2040 Controller", 28, 208)
+  context.fillText("Controller (RP2040)", 28, 208)
   context.fillStyle = MUTED
-  context.font = "500 26px 'IBM Plex Sans', sans-serif"
+  context.font = "500 24px 'IBM Plex Sans', sans-serif"
   for (const [index, line] of [
-    "USB-C PD power · USB-C data",
-    "DRV8825 · 1.8° bipolar stepper",
-    "Tested before packing",
+    "Board, 4 mm spacer, 4× M3 long",
+    "screws, motor cable. Motor not",
+    "included. Tested before packing.",
   ].entries())
-    context.fillText(line, 28, 262 + index * 36)
+    context.fillText(line, 28, 258 + index * 34)
   // ESD warning mark: a yellow triangle with a hand.
   context.fillStyle = "#f2c230"
   context.beginPath()
@@ -121,7 +121,7 @@ function drawFnskuLabel(): HTMLCanvasElement {
       context.font = "600 26px 'IBM Plex Mono', monospace"
       context.fillText("X00TSC17RP", 150, 146)
       context.font = "500 20px 'IBM Plex Sans', sans-serif"
-      context.fillText("NEMA17 RP2040 Motor Controller", 40, 176)
+      context.fillText("NEMA17 Motor Controller Kit", 40, 176)
       context.fillText("New", width - 80, 176)
     },
   })

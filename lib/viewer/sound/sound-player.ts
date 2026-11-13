@@ -153,8 +153,11 @@ export class SoundPlayer {
       : Math.max(0, 1 - screwProgress / 0.2) * 0.8
 
     let fastestRevolutionsPerSecond = 0
-    for (const [index, unit] of world.units.entries()) {
-      const radians = unit.motor.rotor.rotation.y
+    // Every unit's motor, plus the bare-unit line's one test motor at QC.
+    const rotors = world.units.map((unit) => unit.motor.rotor)
+    if (world.testMotor) rotors.push(world.testMotor.rotor)
+    for (const [index, rotor] of rotors.entries()) {
+      const radians = rotor.rotation.y
       const previous = this.previousRotorRadians[index] ?? radians
       this.previousRotorRadians[index] = radians
       if (simDtSeconds <= 0) continue

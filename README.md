@@ -40,14 +40,15 @@ simulation.ctx.progress.cycleSeconds // total including walking
 
 ## Second line: the bare unit, bagged
 
-`pages/bare-unit-bagging.page.tsx` is a second simulation on the same floor, with the same printers, tools and operator. The full kit line is unchanged. It makes the bare unit: the tested NEMA17 with the controller board, no box, cables or charger.
+`pages/bare-unit-bagging.page.tsx` is a second simulation on the same floor, with the same printers, tools and operator. The full kit line is unchanged. It makes the bare unit, a motor controller kit with no motor. Each bag holds the board, one 4 mm spacer, four long M3 screws in a small pink anti-static pouch, and the motor-to-board cable.
 
-- **Assembly and QC:** the same as the kit, including one-at-a-time building with the two circles.
+- **Kitting bench (the assembly bench, no motors):** each unit gets a spacer, a board, a screw pouch and a cable, gathered into a kit and racked. You can kit one at a time with the two circles.
+- **QC:** one test motor stays in the cradle. Each board goes on it and gets the test motor's cable, DATA and PWR, then a spin test. The board then goes back into its kit.
 - **Label printer:** prints 2" × 3" tscircuit bag stickers. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
-- **Bagging bench (the pack-out bench):** the unit goes into a 4" × 6" metallized static-shielding zip bag on a wire stand. The tscircuit sticker goes on the front and the FNSKU label on the back, then the bag goes into the tote.
-- **Ship-ready:** 30 bags stand upright in a 21 × 12 × 7 in carton (about 23 lb). The FBA box ID label goes on the side, then the carton is sealed and shipped.
+- **Bagging bench (the pack-out bench):** the kit goes into a 3" × 5" metal-in static-shielding zip bag, with the board on its spacer at the bottom and the cable and screw pouch above. The tscircuit sticker goes on the front and the FNSKU label on the back, then the bag goes into the tote.
+- **Ship-ready:** 30 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The FBA box ID label goes on the side, then the carton is sealed and shipped.
 
-In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The Amazon packaging, labelling and FCC research behind it is in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
+In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the Amazon bags to buy, and the Amazon packaging, labelling and FCC research are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
 
 ### Amazon carton for 30
 

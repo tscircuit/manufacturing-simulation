@@ -3,19 +3,20 @@ import { METERS_PER_INCH } from "lib/units"
 import { Group, Matrix4, type Mesh, Object3D, Vector3 } from "three"
 
 /**
- * 4" x 6" reclosable metallized static-shielding bag (about 3 mil), sized for
- * one NEMA17 with the controller board on its back. The 4" opening is under
- * the 5" at which Amazon and several US states require a printed suffocation
- * warning. The bag is see-through enough to show the unit, and the FNSKU
- * label goes on the outside so it scans without reading through the film.
+ * 3" x 5" reclosable metallized static-shielding bag (about 3 mil), sized for
+ * the bare unit's parts kit: board, spacer, four screws and the coiled motor
+ * cable (no motor). The 3" opening is well under the 5" at which Amazon and
+ * several US states require a printed suffocation warning. The bag is
+ * see-through enough to show the parts, and the FNSKU label goes on the
+ * outside so it scans without reading through the film.
  */
 export const ESD_BAG = {
-  widthM: 4 * METERS_PER_INCH,
-  heightM: 6 * METERS_PER_INCH,
+  widthM: 3 * METERS_PER_INCH,
+  heightM: 5 * METERS_PER_INCH,
   filmThicknessM: 0.00008,
-  /** Depth once the motor is inside: its 42.3 mm body plus film. */
-  filledDepthM: 0.046,
-  zipFromTopM: 0.012,
+  /** Depth with the kit inside: its 10.4 mm board pile plus film and give. */
+  filledDepthM: 0.016,
+  zipFromTopM: 0.01,
 } as const
 
 /**
@@ -32,7 +33,7 @@ export interface EsdBag {
   zip: Mesh
   /** The printed ESD warning mark on the front film. */
   esdMark: Mesh
-  /** Where the unit sits inside: the motor's mounting face, shaft down. */
+  /** Where the parts kit sits inside, its stack facing the front. */
   contentsSpot: Object3D
   /** Front sticker and back FNSKU label poses, with the label's printed face out. */
   frontStickerSpot: Object3D
@@ -83,12 +84,13 @@ export function createEsdBag(): EsdBag {
   group.add(flatBody, filledBody, zip, esdMark)
 
   const contentsSpot = new Object3D()
-  // Shaft (24 mm) down, standing on the bottom of the bag, turned so the
-  // motor cable and its plugs run across the bag's 4" width, not into the film.
-  contentsSpot.position.set(0, 0.03, 0)
-  contentsSpot.rotation.y = Math.PI / 2
+  // The kit stands on edge facing the front: the board on its spacer at the
+  // bottom, the cable and screw pouch above it.
+  contentsSpot.position.set(0, 0.058, -0.0052)
+  contentsSpot.rotation.x = Math.PI / 2
   const frontStickerSpot = new Object3D()
-  frontStickerSpot.position.set(0, b.heightM * 0.5, b.filledDepthM / 2 + 0.0004)
+  // High on the front, so the board shows through below it.
+  frontStickerSpot.position.set(0, b.heightM * 0.6, b.filledDepthM / 2 + 0.0004)
   // Sticker local +Y is its printed face: turn it to face +Z, long side vertical, top up.
   frontStickerSpot.rotation.set(Math.PI / 2, 0, 0)
   const backLabelSpot = new Object3D()

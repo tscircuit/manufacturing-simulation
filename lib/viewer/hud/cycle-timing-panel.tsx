@@ -2,6 +2,13 @@ import { formatSeconds } from "lib/job/bench-work"
 import type { UnitStage } from "lib/world/create-world"
 import type { Ref } from "react"
 
+/** The bare-unit line kits instead of assembling, and bags instead of boxing. */
+const BARE_UNIT_STAGE_LABELS: Partial<Record<UnitStage, string>> = {
+  raw: "To kit",
+  assembled: "Kitted",
+  packed: "Bagged",
+}
+
 const STAGE_LABELS: Record<UnitStage, string> = {
   raw: "To assemble",
   assembled: "Assembled",
@@ -54,8 +61,8 @@ export function CycleTimingPanel(props: {
           <div className="stages">
             {hud.unitsByStage.map(({ stage, count }) => (
               <span key={stage} className="stage-cell">
-                {stage === "packed" && hud.productLine === "bagged"
-                  ? "Bagged"
+                {hud.productLine === "bagged"
+                  ? (BARE_UNIT_STAGE_LABELS[stage] ?? STAGE_LABELS[stage])
                   : STAGE_LABELS[stage]}{" "}
                 <b>{count}</b>
               </span>
