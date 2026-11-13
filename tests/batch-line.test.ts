@@ -70,6 +70,8 @@ test(
     expect(world.carton.group.position.y).toBeCloseTo(0, 5)
     expect(world.cartonLabel.group.visible).toBe(true)
     expect(world.cartonLabel.group.parent).toBe(world.carton.group)
+    expect(world.carrierLabel.group.visible).toBe(true)
+    expect(world.carrierLabel.group.parent).toBe(world.carton.group)
 
     // Racks and tote ended up where the line put them; hands are empty.
     expect(world.finishedRack.group.parent).toBe(world.tables.qc_bench)
@@ -82,62 +84,100 @@ test(
   { timeout: 120_000 },
 )
 
-test("the shared label printer prints a Box ID that is carried to Ship-ready", () => {
+test("the Epson prints both shipping labels in one trip before the carton ships", () => {
   const simulation = new ManufacturingSimulation()
   simulation.startAt("ship_ready")
   simulation.startScenario("run_batch")
   const { world, operator } = simulation.ctx
-  const label = world.cartonLabel.group
+  const boxId = world.cartonLabel.group
+  const carrier = world.carrierLabel.group
   const printer = world.labelPrinter.group
   const bench = world.tables.ship_ready_bench
   expect(printer.parent).toBe(world.tables.label_bench)
-  expect(label.parent).toBe(printer)
-  expect(label.visible).toBe(false)
+  expect(boxId.parent).toBe(printer)
+  expect(carrier.parent).toBe(printer)
+  expect(boxId.visible).toBe(false)
+  expect(carrier.visible).toBe(false)
 
-  let sawPrinting = false
-  let sawCarry = false
-  let sawLabelOnTable = false
+  const printed = new Set()
+  let sawBothCarried = false
+  let sawBothOnTable = false
+  let sawBoxIdAppliedFirst = false
+  let checkedTrayDuringCarrierPrint = false
   let printCues = 0
   for (let frame = 0; frame < 3_600 && simulation.isTaskRunning; frame++) {
     simulation.step(0.05)
     const cues = simulation.ctx.soundCues.splice(0)
-    if (label.visible && label.parent === printer) {
-      printCues += cues.filter((cue) => cue === "label_printer").length
-      sawPrinting ||=
-        label.position.z > INKJET_OUTPUT.zM - CARTON_LABEL.lengthM / 2 &&
-        label.position.z < INKJET_OUTPUT.zM + CARTON_LABEL.lengthM / 2
+    for (const label of [boxId, carrier]) {
+      if (label.visible && label.parent === printer) {
+        printCues += cues.filter((cue) => cue === "label_printer").length
+        if (
+          label.position.z > INKJET_OUTPUT.zM - CARTON_LABEL.lengthM / 2 &&
+          label.position.z < INKJET_OUTPUT.zM + CARTON_LABEL.lengthM / 2
+        )
+          printed.add(label)
+      }
     }
-    if (label.parent === operator.group && operator.walkSpeedMps > 0) {
-      sawCarry = true
-      expect(operator.rightHand.heldObject).toBe(label)
+    if (
+      carrier.visible &&
+      carrier.parent === printer &&
+      !checkedTrayDuringCarrierPrint
+    ) {
+      const sheetsBefore = world.labelPrinter.printedSheets.length
+      simulation.printLabelsNow()
+      expect(world.labelPrinter.printedSheets).toHaveLength(sheetsBefore)
+      checkedTrayDuringCarrierPrint = true
     }
-    if (label.parent === bench) {
-      sawLabelOnTable = true
-      expect(label.position.y).toBeCloseTo(WORK_TABLE.topHeightM, 6)
+    if (
+      boxId.parent === operator.group &&
+      carrier.parent === operator.group &&
+      operator.walkSpeedMps > 0
+    ) {
+      sawBothCarried = true
+      expect(operator.rightHand.heldObject).toBe(boxId)
+      expect(operator.leftHand.heldObject).toBe(carrier)
+    }
+    if (boxId.parent === bench && carrier.parent === bench) {
+      sawBothOnTable = true
+      expect(boxId.position.y).toBeCloseTo(WORK_TABLE.topHeightM, 6)
+      expect(carrier.position.y).toBeCloseTo(WORK_TABLE.topHeightM, 6)
       expect(world.carton.tape.scale.x).toBeCloseTo(1, 6)
     }
+    sawBoxIdAppliedFirst ||=
+      boxId.parent === world.carton.group && carrier.parent === bench
   }
-  expect(sawPrinting).toBe(true)
-  expect(sawCarry).toBe(true)
-  expect(sawLabelOnTable).toBe(true)
-  expect(printCues).toBe(1)
+  expect(printed.size).toBe(2)
+  expect(sawBothCarried).toBe(true)
+  expect(sawBothOnTable).toBe(true)
+  expect(sawBoxIdAppliedFirst).toBe(true)
+  expect(checkedTrayDuringCarrierPrint).toBe(true)
+  expect(printCues).toBe(2)
   expect(world.isCartonShipped).toBe(true)
-  expect(label.parent).toBe(world.carton.group)
-  expect(label.position.z).toBeGreaterThan(
-    SHIPPING_CARTON.innerWidthM / 2 + SHIPPING_CARTON.boardThicknessM,
+  expect(Math.abs(boxId.position.x - carrier.position.x)).toBeGreaterThan(
+    CARTON_LABEL.widthM,
   )
-  expect(label.position.y + CARTON_LABEL.lengthM / 2).toBeLessThan(
-    SHIPPING_CARTON.innerHeightM,
-  )
-  expect(new Vector3(0, 1, 0).applyQuaternion(label.quaternion).z).toBeCloseTo(
-    1,
-  )
+  for (const label of [boxId, carrier]) {
+    expect(label.parent).toBe(world.carton.group)
+    expect(label.position.z).toBeGreaterThan(
+      SHIPPING_CARTON.innerWidthM / 2 + SHIPPING_CARTON.boardThicknessM,
+    )
+    expect(label.position.y + CARTON_LABEL.lengthM / 2).toBeLessThan(
+      SHIPPING_CARTON.innerHeightM,
+    )
+    expect(Math.abs(label.position.x) + CARTON_LABEL.widthM / 2).toBeLessThan(
+      SHIPPING_CARTON.innerLengthM / 2,
+    )
+    expect(
+      new Vector3(0, 1, 0).applyQuaternion(label.quaternion).z,
+    ).toBeCloseTo(1)
+  }
 
   simulation.reset()
-  expect(simulation.ctx.world.cartonLabel.group.visible).toBe(false)
-  expect(simulation.ctx.world.cartonLabel.group.parent).toBe(
-    simulation.ctx.world.labelPrinter.group,
-  )
+  const freshWorld = simulation.ctx.world
+  for (const { group } of [freshWorld.cartonLabel, freshWorld.carrierLabel]) {
+    expect(group.visible).toBe(false)
+    expect(group.parent).toBe(freshWorld.labelPrinter.group)
+  }
 })
 
 test("the same run is deterministic", () => {

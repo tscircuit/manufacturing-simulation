@@ -168,6 +168,7 @@ export interface ManufacturingWorld {
   packingTote: PackingTote
   carton: ShippingCarton
   cartonLabel: ReturnType<typeof createCartonLabel>
+  carrierLabel: ReturnType<typeof createCartonLabel>
   printers: BambuPrinter[]
   /** Empty tubs on the printer bench; the last one is used next. */
   emptyTubs: Group[]
@@ -597,8 +598,10 @@ export function createWorld(): ManufacturingWorld {
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
   const cartonLabel = createCartonLabel()
+  const carrierLabel = createCartonLabel()
   cartonLabel.group.visible = false
-  labelPrinter.group.add(cartonLabel.group)
+  carrierLabel.group.visible = false
+  labelPrinter.group.add(cartonLabel.group, carrierLabel.group)
   const units: AssemblyUnit[] = []
   for (let unitIndex = 0; unitIndex < BATCH_SIZE; unitIndex++) {
     units.push({
@@ -644,6 +647,7 @@ export function createWorld(): ManufacturingWorld {
     packingTote: packOutBench.packingTote,
     carton,
     cartonLabel,
+    carrierLabel,
     printers: printerBench.printers,
     emptyTubs: printerBench.emptyTubs,
     usedTubs: [],
