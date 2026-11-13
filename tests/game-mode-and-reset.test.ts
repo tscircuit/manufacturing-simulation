@@ -68,7 +68,7 @@ test("E runs the whole assembly bench; E pauses it, the player can walk away, an
   const { ctx } = simulation
   standAt({ simulation, station: STATIONS.assembly })
   expect(simulation.getGameActions().benchAction?.label).toBe(
-    "Run the Assembly bench (30 units)",
+    "Run the Assembly bench (25 units)",
   )
   expect(simulation.runGameAction("bench")).toBe(true)
 

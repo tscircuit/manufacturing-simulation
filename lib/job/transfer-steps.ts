@@ -159,7 +159,7 @@ export const TRANSFER_STEPS = {
   carryTote: TOTE_STEPS.carry,
   returnTote: TOTE_STEPS.returnHome,
   sealAndShip: {
-    label: "Seal the carton, set it out to ship",
+    label: "Seal, label and ship the carton",
     station: STATIONS.shipReady,
     closeUpView: { ...SHIP_CLOSE_UP, distanceM: 1.5 },
     getFocusPoint: (_params: UnitParams, ctx: SimContext) =>

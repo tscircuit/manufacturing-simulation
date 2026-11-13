@@ -7,14 +7,18 @@ import {
   type UnitStagePlan,
 } from "lib/job/job-plan"
 import { runPendingSideJob } from "lib/job/side-jobs"
-import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
+import {
+  BATCH_SIZE,
+  TABLE_PLACEMENTS,
+  type TableId,
+} from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
 import { walkToStation } from "lib/tasks/operator-motions"
 import type { AssemblyUnit, UnitStage } from "lib/world/create-world"
 import type { Object3D } from "three"
 
-/** "1 unit", "30 units". */
+/** "1 unit", "25 units". */
 export function formatUnitCount(count: number): string {
   return `${count} unit${count === 1 ? "" : "s"}`
 }
@@ -286,7 +290,7 @@ export function getCarryWork(
     const count = countIn(world.carton)
     if (count > 0)
       return {
-        label: `Seal and ship the carton now (${count} boxes)`,
+        label: `Seal, label and ship the carton now (${count} boxes)`,
         item: item(TRANSFER_ROWS.sealAndShip),
       }
     if (
@@ -342,15 +346,11 @@ function isBetweenUnits(work: WorkItem | null, ctx: SimContext): boolean {
   return ctx.world.units[work.unitIndex].nextStepIndex === 0
 }
 
-/** The most motors one run can hold: the foam stand and the rack each take 30. */
-const MAX_JOB_UNITS = 30
-
 /** Whether another motor can be added to a one-at-a-time job and built now. */
 export function canAssembleAnother(ctx: SimContext): boolean {
   const { progress } = ctx
   return (
-    countUnitsAt({ stage: "raw" }, ctx) > 0 ||
-    progress.unitCount < MAX_JOB_UNITS
+    countUnitsAt({ stage: "raw" }, ctx) > 0 || progress.unitCount < BATCH_SIZE
   )
 }
 
@@ -362,7 +362,7 @@ export function canAssembleAnother(ctx: SimContext): boolean {
 export function* assembleOneMotor(ctx: SimContext): SimTask {
   const { progress } = ctx
   if (countUnitsAt({ stage: "raw" }, ctx) === 0) {
-    if (progress.unitCount >= MAX_JOB_UNITS) return
+    if (progress.unitCount >= BATCH_SIZE) return
     progress.unitCount += 1
   }
   const first = getNextUnitWork({ tableId: "assembly_bench" }, ctx)

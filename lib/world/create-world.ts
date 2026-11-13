@@ -10,6 +10,7 @@ import {
   createBambuPrinter,
   populatePlate,
 } from "lib/models/bambu-printer"
+import { createCartonLabel } from "lib/models/carton-label"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
   COILED_USB_CABLE,
@@ -166,6 +167,7 @@ export interface ManufacturingWorld {
   labelSheets: LabelSheet[]
   packingTote: PackingTote
   carton: ShippingCarton
+  cartonLabel: ReturnType<typeof createCartonLabel>
   printers: BambuPrinter[]
   /** Empty tubs on the printer bench; the last one is used next. */
   emptyTubs: Group[]
@@ -594,6 +596,9 @@ export function createWorld(): ManufacturingWorld {
   const carton = populateShipReadyBench(tables.ship_ready_bench)
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
+  const cartonLabel = createCartonLabel()
+  cartonLabel.group.visible = false
+  labelPrinter.group.add(cartonLabel.group)
   const units: AssemblyUnit[] = []
   for (let unitIndex = 0; unitIndex < BATCH_SIZE; unitIndex++) {
     units.push({
@@ -638,6 +643,7 @@ export function createWorld(): ManufacturingWorld {
     labelSheets: packOutBench.labelSheets,
     packingTote: packOutBench.packingTote,
     carton,
+    cartonLabel,
     printers: printerBench.printers,
     emptyTubs: printerBench.emptyTubs,
     usedTubs: [],

@@ -4,10 +4,10 @@ import { METERS_PER_INCH } from "lib/units"
 import { Group, type Mesh, Object3D } from "three"
 
 /**
- * Amazon FBA shipping carton for 30 packed units. The packed 7x4x3 mailers
+ * Amazon FBA shipping carton. The packed 7x4x3 mailers
  * (outer ~7.25 x 4.25 x 3.1 in) stack 2 x 3 x 5 = 30 in a 14.5 x 12.75 x
  * 15.6 in block, so a 15 x 13 x 17 in (inside) carton fits them with a little
- * room for void fill. About 37 lb packed, under the FBA 50 lb carton limit.
+ * room for void fill. The 25-unit batch leaves five positions open.
  */
 export const SHIPPING_CARTON = {
   innerLengthM: 15 * METERS_PER_INCH,

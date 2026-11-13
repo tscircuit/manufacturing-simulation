@@ -13,7 +13,7 @@ export type TableId =
  * Units per batch: the motor foam stand, both racks and the tote each hold a
  * full batch, and one Amazon carton ships it.
  */
-export const BATCH_SIZE = 30
+export const BATCH_SIZE = 25
 
 /**
  * Electric standing desk with a 72" x 30" top, set to 42" for a 6'2"
@@ -125,6 +125,11 @@ export const STATIONS = {
   shipReady: {
     tableId: "ship_ready_bench",
     alongTableM: 0.15,
+    standoffFromEdgeM: 0.3,
+  },
+  shipReadyLabel: {
+    tableId: "ship_ready_bench",
+    alongTableM: -0.15,
     standoffFromEdgeM: 0.3,
   },
   p2s: {

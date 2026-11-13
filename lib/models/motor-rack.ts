@@ -8,9 +8,9 @@ import {
 } from "lib/scene/primitives"
 import { Group, Object3D } from "three"
 
-/** One batch: 5 columns (along X) by 6 rows (along Z). */
+/** One batch in rows of five motors. */
 const RACK_COLUMNS = 5
-const RACK_ROWS = BATCH_SIZE / RACK_COLUMNS
+const RACK_ROWS = Math.ceil(BATCH_SIZE / RACK_COLUMNS)
 const SLOT_PITCH_M = 0.056
 
 export const MOTOR_RACK = {

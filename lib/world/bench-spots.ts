@@ -65,6 +65,7 @@ export const PACK_OUT_BENCH_SPOTS = {
 
 export const SHIP_READY_BENCH_SPOTS = {
   carton: new Vector3(0, TOP, 0),
+  cartonLabelRest: new Vector3(-0.27, TOP, 0.285),
   incomingTote: new Vector3(0.56, TOP, 0.1),
 }
 
