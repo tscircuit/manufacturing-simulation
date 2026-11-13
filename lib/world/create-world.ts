@@ -55,6 +55,7 @@ import {
   SPACER_TUB,
 } from "lib/models/spacer-basket"
 import { createStandingDesk } from "lib/models/standing-desk"
+import type { StickerKind } from "lib/models/sticker"
 import {
   createGanChargingStation,
   createUsbCharger,
@@ -133,14 +134,12 @@ export interface AssemblyUnit {
   fnskuLabel: Group | null
 }
 
-/** The shared printer for branding and sample FNSKU sheets. */
+/** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
 export interface LabelPrinterState {
   group: Group
   outputStack: Group
   /** Printed sheets waiting in the output tray, bottom first. */
   printedSheets: LabelSheet[]
-  /** Sheet being fed or carried to pack-out for the current job. */
-  activeFnskuSheet: LabelSheet | null
   secondsSinceLastSheet: number
 }
 
@@ -168,6 +167,7 @@ export interface ManufacturingWorld {
   qcPowerCable: QcCable
   /** Label sheets on the pack-out bench, top sheet first; used labels are removed from each sheet. */
   labelSheets: LabelSheet[]
+  /** Preprinted FNSKU sheets at pack-out, top sheet first. */
   fnskuLabelSheets: LabelSheet[]
   packingTote: PackingTote
   carton: ShippingCarton
@@ -197,6 +197,7 @@ const BOXES_PER_STACK = 6
 const COILS_PER_STACK = 20
 const CHARGERS_PER_STACK = 10
 const LABEL_SHEET_COUNT = 3
+const FNSKU_LABEL_SHEET_COUNT = 2
 const EMPTY_TUB_COUNT = 3
 const TUB_NESTING_M = 0.012
 const CABLE_RADIUS_M = 0.0018
@@ -479,6 +480,23 @@ function addStacks<T extends Object3D>(params: {
   return items
 }
 
+function addLabelSheetStack(params: {
+  table: Group
+  position: Vector3
+  kind: StickerKind
+  sheetCount: number
+}): LabelSheet[] {
+  const { table, position, kind, sheetCount } = params
+  return Array.from({ length: sheetCount }, (_, index) => {
+    const sheet = createLabelSheet(kind)
+    sheet.group.position.copy(position)
+    sheet.group.position.y +=
+      (sheetCount - 1 - index) * LABEL_SHEET_STACK_PITCH_M
+    table.add(sheet.group)
+    return sheet
+  })
+}
+
 function populatePackOutBench(table: Group) {
   const spots = PACK_OUT_BENCH_SPOTS
   const boxes: WhiteMailerBox[] = []
@@ -516,15 +534,18 @@ function populatePackOutBench(table: Group) {
     heightM: USB_CHARGER.heightM,
     create: () => createUsbCharger().group,
   })
-  const labelSheets: LabelSheet[] = []
-  for (let level = 0; level < LABEL_SHEET_COUNT; level++) {
-    const sheet = createLabelSheet()
-    sheet.group.position.copy(spots.labelSheets)
-    sheet.group.position.y +=
-      (LABEL_SHEET_COUNT - 1 - level) * LABEL_SHEET_STACK_PITCH_M
-    table.add(sheet.group)
-    labelSheets.push(sheet)
-  }
+  const labelSheets = addLabelSheetStack({
+    table,
+    position: spots.labelSheets,
+    kind: "tscircuit",
+    sheetCount: LABEL_SHEET_COUNT,
+  })
+  const fnskuLabelSheets = addLabelSheetStack({
+    table,
+    position: spots.fnskuLabelSheets,
+    kind: "fnsku",
+    sheetCount: FNSKU_LABEL_SHEET_COUNT,
+  })
   const packingTote = createPackingTote()
   packingTote.group.position.copy(spots.tote)
   table.add(packingTote.group)
@@ -533,6 +554,7 @@ function populatePackOutBench(table: Group) {
     coils,
     chargers,
     labelSheets,
+    fnskuLabelSheets,
     packingTote,
   }
 }
@@ -580,7 +602,6 @@ function populateLabelBench(table: Group): LabelPrinterState {
     group: printer,
     outputStack,
     printedSheets: [],
-    activeFnskuSheet: null,
     secondsSinceLastSheet: 0,
   }
 }
@@ -642,7 +663,7 @@ export function createWorld(): ManufacturingWorld {
     qcDataCable: qcBench.qcDataCable,
     qcPowerCable: qcBench.qcPowerCable,
     labelSheets: packOutBench.labelSheets,
-    fnskuLabelSheets: [],
+    fnskuLabelSheets: packOutBench.fnskuLabelSheets,
     packingTote: packOutBench.packingTote,
     carton,
     printers: printerBench.printers,

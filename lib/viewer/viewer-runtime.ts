@@ -4,7 +4,6 @@ import { countLabelsAtPackOut, countLabelsOnSheets } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
-import type { LabelSheet } from "lib/models/label-sheet"
 import type { QcDisplayState } from "lib/models/qc-laptop"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
 import {
@@ -150,7 +149,6 @@ export class ViewerRuntime {
     pass: createQcScreenTexture("pass"),
   }
   private readonly fnskuStickerTexture = createFnskuLabelTexture()
-  private readonly texturedLabelSheets = new WeakSet<LabelSheet>()
   private shownQcDisplayState: QcDisplayState | null = null
   private texturedLabelSheetCount = -1
   private printerSigns: Array<{ text: string; sprite: Sprite }> = []
@@ -430,14 +428,10 @@ export class ViewerRuntime {
       }
     }
     // Label sheets keep coming out of the label printer; give new ones the artwork.
-    const { activeFnskuSheet, printedSheets } = world.labelPrinter
+    const { printedSheets } = world.labelPrinter
     if (printedSheets.length !== this.texturedLabelSheetCount) {
       this.texturedLabelSheetCount = printedSheets.length
       world.root.traverse(this.applyStickerArtwork)
-    }
-    if (activeFnskuSheet && !this.texturedLabelSheets.has(activeFnskuSheet)) {
-      activeFnskuSheet.group.traverse(this.applyStickerArtwork)
-      this.texturedLabelSheets.add(activeFnskuSheet)
     }
     this.updatePrinterSigns(world)
     // Signs would sit in front of the work in a close-up.
@@ -522,10 +516,6 @@ export class ViewerRuntime {
         mode: "close_up",
         isLandscape: window.innerWidth > window.innerHeight,
       })
-      if (hint.isCut) {
-        this.cameraRig.target.copy(hint.getFocusPoint())
-        this.cameraRig.distanceM = hint.view.distanceM
-      }
       this.didAutoCloseUp = true
       return
     }

@@ -2,12 +2,10 @@ import { getBenchOf, getOccupants, hasFreeSlot } from "lib/job/container-slots"
 import {
   type JobRow,
   LINE_TABLES,
-  PRINT_FNSKU_SHEET_ROW,
   TRANSFER_ROWS,
   UNIT_STAGES,
   type UnitStagePlan,
 } from "lib/job/job-plan"
-import { countLabelsOnSheets } from "lib/job/label-stock"
 import { runPendingSideJob } from "lib/job/side-jobs"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
@@ -396,17 +394,6 @@ export function* runBench(
       work = getNextUnitWork(params, ctx)
     }
     if (!work) break
-    if (
-      params.tableId === "pack_out_bench" &&
-      !ctx.world.units[work.unitIndex].fnskuLabel &&
-      countLabelsOnSheets(ctx.world.fnskuLabelSheets) === 0
-    ) {
-      ctx.statusText = "Walking to the label printer for FNSKU labels"
-      yield* runWorkItem(
-        { row: PRINT_FNSKU_SHEET_ROW, unitIndex: work.unitIndex, plan: null },
-        ctx,
-      )
-    }
     const blocker = getWorkBlocker(work, ctx)
     if (blocker) {
       ctx.statusText = blocker

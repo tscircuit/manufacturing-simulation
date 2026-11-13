@@ -21,8 +21,6 @@ export interface CameraHint {
   station: Station
   view: CloseUpView
   getFocusPoint: () => Vector3
-  /** Cut directly to distant work so a short operation stays in frame. */
-  isCut?: boolean
 }
 
 /** Printer or label work fitted in between units of a bench run. */

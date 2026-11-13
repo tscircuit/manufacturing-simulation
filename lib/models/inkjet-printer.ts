@@ -8,34 +8,15 @@ export const INKJET_PRINTER = {
   heightM: 0.179,
 } as const
 
-export const INKJET_OUTPUT = {
-  xM: -0.02,
-  yM: 0.052,
-  zM: INKJET_PRINTER.depthM / 2,
-} as const
-
 export function createInkjetPrinter(): Group {
   const printer = new Group()
   const { widthM, depthM, heightM } = INKJET_PRINTER
   const body = createStandardMaterial({ color: 0x24272b, roughness: 0.55 })
-  const { xM, yM, zM } = INKJET_OUTPUT
-  const slotHeightM = 0.007
-  const upperStartM = yM + slotHeightM
   printer.add(
     createBoxMesh({
-      size: [widthM, yM, depthM],
+      size: [widthM, heightM, depthM],
       material: body,
-      position: [0, yM / 2, 0],
-    }),
-    createBoxMesh({
-      size: [widthM, heightM - upperStartM, depthM],
-      material: body,
-      position: [0, (upperStartM + heightM) / 2, 0],
-    }),
-    createBoxMesh({
-      size: [widthM, slotHeightM, depthM - 0.02],
-      material: createStandardMaterial({ color: 0x16181b }),
-      position: [0, yM + slotHeightM / 2, -0.01],
+      position: [0, heightM / 2, 0],
     }),
     createBoxMesh({
       size: [widthM - 0.03, 0.006, depthM - 0.05],
@@ -52,7 +33,7 @@ export function createInkjetPrinter(): Group {
     createBoxMesh({
       size: [0.24, 0.004, 0.08],
       material: createStandardMaterial({ color: 0x1a1c1f }),
-      position: [xM, yM - 0.002, zM + 0.04],
+      position: [-0.02, 0.05, depthM / 2 + 0.04],
     }),
     createBoxMesh({
       size: [0.23, 0.11, 0.006],

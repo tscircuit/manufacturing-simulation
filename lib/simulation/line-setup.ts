@@ -21,14 +21,12 @@ import {
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
-import { createLabelSheet } from "lib/models/label-sheet"
 import { createM3Screw, LONG_SCREW_SHANK_M } from "lib/models/nema17-motor"
 import { BOX_POCKETS, POCKET_FLOOR_YM } from "lib/models/white-mailer-box"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
   IDENTITY_QUATERNION,
   MOTOR_IN_BOX_QUATERNION,
-  PACK_OUT_BENCH_SPOTS,
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
 import { scatter, setOutMotorCable } from "lib/world/create-world"
@@ -227,10 +225,6 @@ export function setUpLineAt(
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
   }
   if (depth >= 3) {
-    const sheet = createLabelSheet("fnsku")
-    sheet.group.position.copy(PACK_OUT_BENCH_SPOTS.fnskuLabelSheets)
-    ctx.world.tables.pack_out_bench.add(sheet.group)
-    ctx.world.fnskuLabelSheets.push(sheet)
     for (const unitIndex of unitIndices) packUnitInstantly({ unitIndex }, ctx)
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: false }, ctx)
     moveShuttle({ shuttle: TOTE_SHUTTLE, toNextBench: true }, ctx)
