@@ -90,6 +90,12 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 - **Labels printed** fills the Epson's tray; **Collect labels to pack-out** (or E at the label bench) carries them over.
 - The timing panel shows how many units are at each stage, how many labels are at pack-out, and the spacer and printer status.
 
+### FNSKU labels at pack-out
+
+Before packing starts, the operator prints a 30-up sample FNSKU sheet at the existing Epson and carries it to the pack-out bench. Each closed retail box gets the tscircuit label first, then one FNSKU label beside it. The timing panel tracks the print-and-delivery trip and both labeling steps in addition to the original cycle estimate above.
+
+The simulated sheet is marked **FNSKU SAMPLE**. For actual shipments that require an Amazon barcode, use **Send to Amazon → Print SKU labels** with a laser or thermal printer. [Amazon unit barcode requirements](https://sellercentral.amazon.com/help/hub/reference/external/G200141490)
+
 ### Sound
 
 Synthesized in the browser with WebAudio, with no audio files. It starts after your first click or key press. Everything plays through a small-office reverb. The operator's sounds are panned and get quieter as the camera moves away.

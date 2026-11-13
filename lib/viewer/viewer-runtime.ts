@@ -1,9 +1,10 @@
 import { countUnitsByStage, getNextLineWork } from "lib/job/bench-work"
 import { JOB_ROWS } from "lib/job/job-plan"
-import { countLabelsAtPackOut } from "lib/job/label-stock"
+import { countLabelsAtPackOut, countLabelsOnSheets } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
+import type { LabelSheet } from "lib/models/label-sheet"
 import type { QcDisplayState } from "lib/models/qc-laptop"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
 import {
@@ -25,6 +26,7 @@ import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
+import { createFnskuLabelTexture } from "lib/viewer/create-fnsku-label-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
 import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
 import type { HudSnapshot } from "lib/viewer/hud-snapshot"
@@ -44,6 +46,7 @@ import {
   Mesh,
   MeshBasicMaterial,
   type MeshStandardMaterial,
+  type Object3D,
   PCFSoftShadowMap,
   PerspectiveCamera,
   type Sprite,
@@ -146,6 +149,8 @@ export class ViewerRuntime {
     testing: createQcScreenTexture("testing"),
     pass: createQcScreenTexture("pass"),
   }
+  private readonly fnskuStickerTexture = createFnskuLabelTexture()
+  private readonly texturedLabelSheets = new WeakSet<LabelSheet>()
   private shownQcDisplayState: QcDisplayState | null = null
   private texturedLabelSheetCount = -1
   private printerSigns: Array<{ text: string; sprite: Sprite }> = []
@@ -232,6 +237,7 @@ export class ViewerRuntime {
     this.stickerTexture.dispose()
     for (const texture of Object.values(this.qcScreenTextures))
       texture.dispose()
+    this.fnskuStickerTexture.dispose()
     this.renderer.dispose()
   }
 
@@ -424,18 +430,14 @@ export class ViewerRuntime {
       }
     }
     // Label sheets keep coming out of the label printer; give new ones the artwork.
-    if (
-      world.labelPrinter.printedSheets.length !== this.texturedLabelSheetCount
-    ) {
-      this.texturedLabelSheetCount = world.labelPrinter.printedSheets.length
-      world.root.traverse((object) => {
-        if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
-        const material = object.material as MeshStandardMaterial
-        if (material.map === this.stickerTexture) return
-        material.map = this.stickerTexture
-        material.color.set(0xffffff)
-        material.needsUpdate = true
-      })
+    const { activeFnskuSheet, printedSheets } = world.labelPrinter
+    if (printedSheets.length !== this.texturedLabelSheetCount) {
+      this.texturedLabelSheetCount = printedSheets.length
+      world.root.traverse(this.applyStickerArtwork)
+    }
+    if (activeFnskuSheet && !this.texturedLabelSheets.has(activeFnskuSheet)) {
+      activeFnskuSheet.group.traverse(this.applyStickerArtwork)
+      this.texturedLabelSheets.add(activeFnskuSheet)
     }
     this.updatePrinterSigns(world)
     // Signs would sit in front of the work in a close-up.
@@ -448,6 +450,19 @@ export class ViewerRuntime {
     laptop.display.material.map = this.qcScreenTextures[laptop.displayState]
     laptop.display.material.color.set(0xffffff)
     laptop.display.material.needsUpdate = true
+  }
+
+  private readonly applyStickerArtwork = (object: Object3D): void => {
+    if (!(object instanceof Mesh)) return
+    const kind = object.userData.stickerKind
+    if (kind !== "tscircuit" && kind !== "fnsku") return
+    const texture =
+      kind === "fnsku" ? this.fnskuStickerTexture : this.stickerTexture
+    const material = object.material as MeshBasicMaterial | MeshStandardMaterial
+    if (material.map === texture) return
+    material.map = texture
+    material.color.set(0xffffff)
+    material.needsUpdate = true
   }
 
   /** A floating sign over each 3D printer with its plate status or print progress. */
@@ -507,6 +522,10 @@ export class ViewerRuntime {
         mode: "close_up",
         isLandscape: window.innerWidth > window.innerHeight,
       })
+      if (hint.isCut) {
+        this.cameraRig.target.copy(hint.getFocusPoint())
+        this.cameraRig.distanceM = hint.view.distanceM
+      }
       this.didAutoCloseUp = true
       return
     }
@@ -655,6 +674,7 @@ export class ViewerRuntime {
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
       unitsByStage: countUnitsByStage(ctx),
       labelsAtPackOut: countLabelsAtPackOut(ctx.world),
+      fnskuLabelsAtPackOut: countLabelsOnSheets(ctx.world.fnskuLabelSheets),
       printedLabelSheets: ctx.world.labelPrinter.printedSheets.length,
       spacersInBasket: ctx.world.spacerStock.length,
       printerLines: ctx.world.printers.map((printer) =>

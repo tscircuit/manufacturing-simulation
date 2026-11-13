@@ -44,6 +44,8 @@ export interface WhiteMailerBox {
   lidTip: Object3D
   /** Where the product label goes: near the left end of the closed lid, in lid coordinates. */
   stickerSpot: Object3D
+  /** Where the FNSKU goes, beside the product label. */
+  fnskuStickerSpot: Object3D
 }
 
 /** Pink anti-static foam color. */
@@ -146,8 +148,10 @@ export function createWhiteMailerBox(): WhiteMailerBox {
   lidTip.position.set(0, t, b.widthM)
   const stickerSpot = new Object3D()
   stickerSpot.position.set(-b.lengthM / 2 + 0.034, t, b.widthM / 2)
-  lid.add(lidTip, stickerSpot)
-  return { group, lid, lidTip, stickerSpot }
+  const fnskuStickerSpot = new Object3D()
+  fnskuStickerSpot.position.set(0.04, t, b.widthM / 2)
+  lid.add(lidTip, stickerSpot, fnskuStickerSpot)
+  return { group, lid, lidTip, stickerSpot, fnskuStickerSpot }
 }
 
 /** Height of the pocket floor (top of the bottom foam slab) above the box origin. */

@@ -60,6 +60,7 @@ export const PACK_OUT_BENCH_SPOTS = {
     new Vector3(-0.3, TOP, 0.15),
   ],
   labelSheets: new Vector3(-0.55, TOP, 0.2),
+  fnskuLabelSheets: new Vector3(0.23, TOP, 0.22),
   tote: new Vector3(-0.52, TOP, -0.15),
 }
 

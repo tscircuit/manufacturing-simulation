@@ -1,5 +1,6 @@
 import { ASSEMBLY_STAGE } from "lib/job/assembly-bench-steps"
 import type { JobStage, JobStep } from "lib/job/job-step"
+import { PRINT_FNSKU_SHEET_STEP } from "lib/job/label-collection"
 import { PACK_OUT_STAGE } from "lib/job/pack-out-steps"
 import { QC_STAGE } from "lib/job/qc-bench-steps"
 import { LOAD_CARTON_STAGE } from "lib/job/ship-ready-steps"
@@ -84,6 +85,10 @@ const carryReadyRack = addRow({
 const returnReadyRack = addRow({
   step: TRANSFER_STEPS.returnReadyRack,
   runCount: null,
+})
+export const PRINT_FNSKU_SHEET_ROW = addRow({
+  step: PRINT_FNSKU_SHEET_STEP,
+  runCount: 1,
 })
 const packOut = addUnitStage({
   stage: PACK_OUT_STAGE,

@@ -1,4 +1,4 @@
-import { createSticker } from "lib/models/sticker"
+import { createSticker, type StickerKind } from "lib/models/sticker"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
 import { Group } from "three"
@@ -17,18 +17,29 @@ export const LABEL_SHEET = {
   rowPitchM: 2 * METERS_PER_INCH,
   columnCount: 2,
   rowCount: 5,
+  labelYawRadians: -Math.PI / 2,
+} as const
+export const LABEL_SHEET_STACK_PITCH_M = 0.0006
+
+const FNSKU_LABEL_SHEET = {
+  ...LABEL_SHEET,
+  columnPitchM: 2.75 * METERS_PER_INCH,
+  rowPitchM: METERS_PER_INCH,
+  columnCount: 3,
+  rowCount: 10,
+  labelYawRadians: 0,
 } as const
 
 export interface LabelSheet {
   group: Group
-  /** Labels still on the backing, row by row from the back of the sheet. */
+  /** Labels still on the backing, starting at the front of the sheet. */
   labels: Group[]
 }
 
 /** Origin under the centre of the sheet; the sheet's long side runs along Z. */
-export function createLabelSheet(): LabelSheet {
+export function createLabelSheet(kind: StickerKind = "tscircuit"): LabelSheet {
   const group = new Group()
-  const s = LABEL_SHEET
+  const s = kind === "fnsku" ? FNSKU_LABEL_SHEET : LABEL_SHEET
   group.add(
     createBoxMesh({
       size: [s.widthM, s.backingThicknessM, s.lengthM],
@@ -37,16 +48,15 @@ export function createLabelSheet(): LabelSheet {
     }),
   )
   const labels: Group[] = []
-  for (let row = 0; row < s.rowCount; row++) {
-    for (let column = 0; column < s.columnCount; column++) {
-      const label = createSticker()
+  for (let row = s.rowCount - 1; row >= 0; row--) {
+    for (let column = s.columnCount - 1; column >= 0; column--) {
+      const label = createSticker(kind)
       label.position.set(
         (column - (s.columnCount - 1) / 2) * s.columnPitchM,
         s.backingThicknessM,
         (row - (s.rowCount - 1) / 2) * s.rowPitchM,
       )
-      // Pre-cut 4" wide on the sheet: the label's 4" side runs along X.
-      label.rotation.y = -Math.PI / 2
+      label.rotation.y = s.labelYawRadians
       group.add(label)
       labels.push(label)
     }

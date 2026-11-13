@@ -24,6 +24,7 @@ import { createInkjetPrinter } from "lib/models/inkjet-printer"
 import {
   createLabelSheet,
   LABEL_SHEET,
+  LABEL_SHEET_STACK_PITCH_M,
   type LabelSheet,
 } from "lib/models/label-sheet"
 import {
@@ -129,14 +130,17 @@ export interface AssemblyUnit {
   charger: Group
   /** Peeled from the top label sheet at pack-out. */
   label: Group | null
+  fnskuLabel: Group | null
 }
 
-/** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
+/** The shared printer for branding and sample FNSKU sheets. */
 export interface LabelPrinterState {
   group: Group
   outputStack: Group
   /** Printed sheets waiting in the output tray, bottom first. */
   printedSheets: LabelSheet[]
+  /** Sheet being fed or carried to pack-out for the current job. */
+  activeFnskuSheet: LabelSheet | null
   secondsSinceLastSheet: number
 }
 
@@ -164,6 +168,7 @@ export interface ManufacturingWorld {
   qcPowerCable: QcCable
   /** Label sheets on the pack-out bench, top sheet first; used labels are removed from each sheet. */
   labelSheets: LabelSheet[]
+  fnskuLabelSheets: LabelSheet[]
   packingTote: PackingTote
   carton: ShippingCarton
   printers: BambuPrinter[]
@@ -515,12 +520,11 @@ function populatePackOutBench(table: Group) {
   for (let level = 0; level < LABEL_SHEET_COUNT; level++) {
     const sheet = createLabelSheet()
     sheet.group.position.copy(spots.labelSheets)
-    sheet.group.position.y += (LABEL_SHEET_COUNT - 1 - level) * 0.0006
+    sheet.group.position.y +=
+      (LABEL_SHEET_COUNT - 1 - level) * LABEL_SHEET_STACK_PITCH_M
     table.add(sheet.group)
     labelSheets.push(sheet)
   }
-  // Peel from the front row first.
-  for (const sheet of labelSheets) sheet.labels.reverse()
   const packingTote = createPackingTote()
   packingTote.group.position.copy(spots.tote)
   table.add(packingTote.group)
@@ -576,6 +580,7 @@ function populateLabelBench(table: Group): LabelPrinterState {
     group: printer,
     outputStack,
     printedSheets: [],
+    activeFnskuSheet: null,
     secondsSinceLastSheet: 0,
   }
 }
@@ -611,6 +616,7 @@ export function createWorld(): ManufacturingWorld {
       ],
       charger: packOutBench.chargers[unitIndex],
       label: null,
+      fnskuLabel: null,
     })
     assemblyBench.motorFoamStand.occupants[unitIndex] = unitIndex
   }
@@ -636,6 +642,7 @@ export function createWorld(): ManufacturingWorld {
     qcDataCable: qcBench.qcDataCable,
     qcPowerCable: qcBench.qcPowerCable,
     labelSheets: packOutBench.labelSheets,
+    fnskuLabelSheets: [],
     packingTote: packOutBench.packingTote,
     carton,
     printers: printerBench.printers,

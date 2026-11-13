@@ -57,12 +57,14 @@ export function CycleTimingPanel(props: {
               </span>
             ))}
           </div>
-          <span>Labels at pack-out</span>
+          <span>tscircuit labels at pack-out</span>
           <span className="t">
             {hud.labelsAtPackOut}
             {hud.printedLabelSheets > 0 &&
               ` +${hud.printedLabelSheets} sheets printed`}
           </span>
+          <span>FNSKU labels at pack-out</span>
+          <span className="t">{hud.fnskuLabelsAtPackOut}</span>
           <span>Spacers in basket</span>
           <span className="t">{hud.spacersInBasket}</span>
           {hud.printerLines.map((line) => (

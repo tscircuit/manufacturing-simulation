@@ -21,12 +21,14 @@ import {
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
+import { createLabelSheet } from "lib/models/label-sheet"
 import { createM3Screw, LONG_SCREW_SHANK_M } from "lib/models/nema17-motor"
 import { BOX_POCKETS, POCKET_FLOOR_YM } from "lib/models/white-mailer-box"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
   IDENTITY_QUATERNION,
   MOTOR_IN_BOX_QUATERNION,
+  PACK_OUT_BENCH_SPOTS,
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
 import { scatter, setOutMotorCable } from "lib/world/create-world"
@@ -134,7 +136,7 @@ function testUnitInstantly(
   unit.nextStepIndex = 0
 }
 
-/** Box a tested unit with its cables, charger and label, and put the box in the tote. */
+/** Box and label a tested unit, then put the box in the tote. */
 function packUnitInstantly(
   params: { unitIndex: number },
   ctx: SimContext,
@@ -160,12 +162,19 @@ function packUnitInstantly(
   unit.charger.position.set(charger.x, POCKET_FLOOR_YM, charger.z)
   unit.charger.quaternion.identity()
   box.lid.rotation.x = 0
-  const label = takeNextLabel(world)
+  const label = takeNextLabel(world.labelSheets)
   if (label) {
     box.lid.add(label)
     label.position.copy(box.stickerSpot.position)
     label.quaternion.copy(IDENTITY_QUATERNION)
     unit.label = label
+  }
+  const fnskuLabel = takeNextLabel(world.fnskuLabelSheets)
+  if (fnskuLabel) {
+    box.lid.add(fnskuLabel)
+    fnskuLabel.position.copy(box.fnskuStickerSpot.position)
+    fnskuLabel.quaternion.copy(IDENTITY_QUATERNION)
+    unit.fnskuLabel = fnskuLabel
   }
   const slotIndex = reserveSlot({
     container: world.packingTote,
@@ -218,6 +227,10 @@ export function setUpLineAt(
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
   }
   if (depth >= 3) {
+    const sheet = createLabelSheet("fnsku")
+    sheet.group.position.copy(PACK_OUT_BENCH_SPOTS.fnskuLabelSheets)
+    ctx.world.tables.pack_out_bench.add(sheet.group)
+    ctx.world.fnskuLabelSheets.push(sheet)
     for (const unitIndex of unitIndices) packUnitInstantly({ unitIndex }, ctx)
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: false }, ctx)
     moveShuttle({ shuttle: TOTE_SHUTTLE, toNextBench: true }, ctx)

@@ -1,11 +1,15 @@
 import { getLabelFocusPoint, getPackingFocusPoint } from "lib/job/bench-frames"
 import { releaseSlot, reserveSlot } from "lib/job/container-slots"
 import type { JobStage, UnitParams } from "lib/job/job-step"
-import { countLabelsAtPackOut, takeNextLabel } from "lib/job/label-stock"
+import {
+  countLabelsAtPackOut,
+  countLabelsOnSheets,
+  takeNextLabel,
+} from "lib/job/label-stock"
 import { MOTOR_IN_BOX_POSITION } from "lib/job/unit-poses"
 import { STATIONS } from "lib/layout/station-layout"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
-import { STICKER } from "lib/models/sticker"
+import { FNSKU_STICKER, STICKER } from "lib/models/sticker"
 import {
   BOX_POCKETS,
   POCKET_FLOOR_YM,
@@ -15,7 +19,7 @@ import {
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
-import { type SimTask, tween } from "lib/tasks/coroutines"
+import { type SimTask, tween, waitSeconds } from "lib/tasks/coroutines"
 import {
   grabObject,
   liftAndPlace,
@@ -36,6 +40,16 @@ const PACK_CLOSE_UP = {
   azimuthRadians: 1.2,
   elevationRadians: 0.95,
   distanceM: 0.65,
+}
+const BRANDING_CLOSE_UP = {
+  azimuthRadians: 1.3,
+  elevationRadians: 0.72,
+  distanceM: 1.1,
+}
+const FNSKU_CLOSE_UP = {
+  azimuthRadians: -0.62,
+  elevationRadians: 1.05,
+  distanceM: 0.64,
 }
 const LABEL_PEEL_QUATERNION = new Quaternion().setFromAxisAngle(
   new Vector3(1, 0, 0),
@@ -188,26 +202,26 @@ function* addCablesAndCharger(params: UnitParams, ctx: SimContext): SimTask {
   )
 }
 
-function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
-  const { world, operator } = ctx
-  const unit = world.units[params.unitIndex]
-  const { box } = unit
-  const hand = operator.rightHand
-  ctx.statusText = `Unit ${params.unitIndex + 1}: closing the lid and tucking the front`
-  playCue("box_close", ctx)
-  yield* openOrCloseLid({ box, hand: operator.leftHand, isOpening: false })
-
-  const label = takeNextLabel(world)
-  if (!label) throw new Error("No labels left at pack-out")
-  unit.label = label
-
-  ctx.statusText = `Unit ${params.unitIndex + 1}: peeling a 2×4 label off the sheet`
+function* peelAndApplyLabel(
+  params: {
+    label: Group
+    lid: Group
+    localPosition: Vector3
+    hand: OperatorHand
+    lengthM: number
+    unitIndex: number
+    name: string
+  },
+  ctx: SimContext,
+): SimTask {
+  const { label, lid, localPosition, hand, lengthM, unitIndex, name } = params
   const sheet = label.parent
   if (!sheet) throw new Error("Label must start on its sheet")
+  ctx.statusText = `Unit ${unitIndex + 1}: peeling the ${name} label from its sheet`
   yield* grabObject({
     hand,
     object: label,
-    localGripPoint: new Vector3(0, 0.001, STICKER.lengthM / 2 - 0.01),
+    localGripPoint: new Vector3(0, 0.001, lengthM * 0.4),
     fingerCurl: 1,
     durationSeconds: 0.7,
   })
@@ -222,15 +236,13 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
     },
     ctx,
   )
-  ctx.statusText = `Unit ${params.unitIndex + 1}: sticking the label on the lid`
+  ctx.statusText = `Unit ${unitIndex + 1}: applying the ${name} label to the lid`
   yield* moveObject(
     {
       object: label,
       hand,
-      parent: box.lid,
-      localPosition: box.stickerSpot.position
-        .clone()
-        .add(new Vector3(0, 0.012, 0)),
+      parent: lid,
+      localPosition: localPosition.clone().add(new Vector3(0, 0.012, 0)),
       localQuaternion: IDENTITY_QUATERNION,
       durationSeconds: 0.9,
       arcHeightM: 0.06,
@@ -241,14 +253,14 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
     {
       object: label,
       hand,
-      parent: box.lid,
-      localPosition: box.stickerSpot.position,
+      parent: lid,
+      localPosition,
       localQuaternion: IDENTITY_QUATERNION,
       durationSeconds: 0.3,
     },
     ctx,
   )
-  const halfLabelM = STICKER.lengthM / 2 - 0.008
+  const halfLabelM = lengthM * 0.4
   yield* reachHand({
     hand,
     getTarget: trackObjectPoint({
@@ -267,6 +279,55 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
     arcHeightM: 0,
   })
   yield* releaseHand(hand)
+}
+
+function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
+  ctx.statusText = `Unit ${params.unitIndex + 1}: closing the lid and tucking the front`
+  playCue("box_close", ctx)
+  yield* openOrCloseLid({
+    box: unit.box,
+    hand: operator.leftHand,
+    isOpening: false,
+  })
+
+  const label = takeNextLabel(world.labelSheets)
+  if (!label) throw new Error("No tscircuit labels left at pack-out")
+  yield* peelAndApplyLabel(
+    {
+      ...params,
+      label,
+      lid: unit.box.lid,
+      localPosition: unit.box.stickerSpot.position,
+      hand: operator.rightHand,
+      lengthM: STICKER.lengthM,
+      name: "tscircuit",
+    },
+    ctx,
+  )
+  unit.label = label
+}
+
+function* applyFnskuLabel(params: UnitParams, ctx: SimContext): SimTask {
+  const { world, operator } = ctx
+  const unit = world.units[params.unitIndex]
+  const label = takeNextLabel(world.fnskuLabelSheets)
+  if (!label) throw new Error("No FNSKU labels left at pack-out")
+  yield* peelAndApplyLabel(
+    {
+      ...params,
+      label,
+      lid: unit.box.lid,
+      localPosition: unit.box.fnskuStickerSpot.position,
+      hand: operator.leftHand,
+      lengthM: FNSKU_STICKER.lengthM,
+      name: "FNSKU",
+    },
+    ctx,
+  )
+  unit.fnskuLabel = label
+  yield* waitSeconds(0.4)
 }
 
 function* boxIntoTote(params: UnitParams, ctx: SimContext): SimTask {
@@ -319,14 +380,9 @@ export const PACK_OUT_STAGE: JobStage = {
       run: addCablesAndCharger,
     },
     {
-      label: "Close the box, apply the label",
+      label: "Close the box, apply the tscircuit label",
       station: STATIONS.packOutLabels,
-      closeUpView: {
-        ...PACK_CLOSE_UP,
-        azimuthRadians: 1.3,
-        elevationRadians: 0.72,
-        distanceM: 1.1,
-      },
+      closeUpView: BRANDING_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getLabelFocusPoint(ctx),
       run: closeBoxAndApplyLabel,
       getBlocker: (_params, ctx) =>
@@ -335,14 +391,21 @@ export const PACK_OUT_STAGE: JobStage = {
           : "No labels left at pack-out. Collect printed sheets from the label printer.",
     },
     {
+      label: "Apply the FNSKU label",
+      station: STATIONS.packOut,
+      closeUpView: FNSKU_CLOSE_UP,
+      getFocusPoint: (_params, ctx) =>
+        getLabelFocusPoint(ctx, PACK_OUT_BENCH_SPOTS.fnskuLabelSheets),
+      run: applyFnskuLabel,
+      getBlocker: (_params, ctx) =>
+        countLabelsOnSheets(ctx.world.fnskuLabelSheets) > 0
+          ? null
+          : "No FNSKU labels left at pack-out.",
+    },
+    {
       label: "Packed box into the tote",
       station: STATIONS.packOutLabels,
-      closeUpView: {
-        ...PACK_CLOSE_UP,
-        azimuthRadians: 1.3,
-        elevationRadians: 0.72,
-        distanceM: 1.1,
-      },
+      closeUpView: BRANDING_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getLabelFocusPoint(ctx),
       run: boxIntoTote,
     },
