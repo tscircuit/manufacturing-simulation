@@ -46,7 +46,7 @@ The packed mailer is about 7.25 × 4.25 × 3.1 in. Thirty stack 2 × 3 × 5 into
 
 Spacers per plate is how many 42 × 42 mm spacers fit on the bed at a 46–48 mm pitch: 5 × 5 on the P2S (256 × 256 mm) and 7 × 7 on the H2S (340 × 320 mm). Plate times (2 h 10 m and 4 h) are estimates for ~2.6 g PLA parts, not slicer output.
 
-The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The label artwork is `label-preview.png` from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging). Parts follow the lab inventory where it lists them; the laptop, charging station and printers are simplified models.
+The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The combined unit label uses branding from the original `label-preview.png`. Parts follow the lab inventory where it lists them; the laptop, charging station and printers are simplified models. [tscircuit product packaging](https://github.com/tscircuit/product-packaging)
 
 ### Controller board
 
@@ -92,9 +92,7 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 
 ### FNSKU labels at pack-out
 
-Pack-out starts with preprinted 30-up FNSKU sheets beside the tscircuit label stock. Each closed NEMA17 retail box gets the tscircuit label first, then one copy of the same FNSKU label on the lid. The timing panel tracks both labeling steps and the remaining stock.
-
-The simulated sheet is marked **FNSKU SAMPLE**. For actual shipments that require an Amazon barcode, use **Send to Amazon → Print SKU labels** with a laser or thermal printer. [Amazon unit barcode requirements](https://sellercentral.amazon.com/help/hub/reference/external/G200141490)
+The pack-out bench starts with preprinted 2×3" stickers. Each sticker combines the tscircuit logo, the NEMA17 product text, and a barcode block marked **FNSKU SAMPLE**. The operator applies one sticker to each retail box. The 10-label sheet shown in the simulation models the layout for these combined stickers. For actual shipments that require an Amazon barcode, use the FNSKU artwork from **Send to Amazon → Print SKU labels** and print with a laser or thermal printer. [Amazon unit barcode requirements](https://sellercentral.amazon.com/help/hub/reference/external/G200141490)
 
 ### Sound
 

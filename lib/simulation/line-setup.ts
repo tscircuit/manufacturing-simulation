@@ -134,7 +134,7 @@ function testUnitInstantly(
   unit.nextStepIndex = 0
 }
 
-/** Box and label a tested unit, then put the box in the tote. */
+/** Box a tested unit with its cables, charger and label, and put the box in the tote. */
 function packUnitInstantly(
   params: { unitIndex: number },
   ctx: SimContext,
@@ -160,19 +160,12 @@ function packUnitInstantly(
   unit.charger.position.set(charger.x, POCKET_FLOOR_YM, charger.z)
   unit.charger.quaternion.identity()
   box.lid.rotation.x = 0
-  const label = takeNextLabel(world.labelSheets)
+  const label = takeNextLabel(world)
   if (label) {
     box.lid.add(label)
     label.position.copy(box.stickerSpot.position)
     label.quaternion.copy(IDENTITY_QUATERNION)
     unit.label = label
-  }
-  const fnskuLabel = takeNextLabel(world.fnskuLabelSheets)
-  if (fnskuLabel) {
-    box.lid.add(fnskuLabel)
-    fnskuLabel.position.copy(box.fnskuStickerSpot.position)
-    fnskuLabel.quaternion.copy(IDENTITY_QUATERNION)
-    unit.fnskuLabel = fnskuLabel
   }
   const slotIndex = reserveSlot({
     container: world.packingTote,

@@ -111,11 +111,8 @@ export function getShipReadyFocusPoint(ctx: SimContext): Vector3 {
 }
 
 /** Between the label sheets and the box, so both are in frame while labelling. */
-export function getLabelFocusPoint(
-  ctx: SimContext,
-  labelSheet = PACK_OUT_BENCH_SPOTS.labelSheets,
-): Vector3 {
-  const { packing } = PACK_OUT_BENCH_SPOTS
+export function getLabelFocusPoint(ctx: SimContext): Vector3 {
+  const { packing, labelSheets: labelSheet } = PACK_OUT_BENCH_SPOTS
   return getTablePoint(
     {
       tableId: "pack_out_bench",

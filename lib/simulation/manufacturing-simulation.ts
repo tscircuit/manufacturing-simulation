@@ -46,7 +46,7 @@ import { Scene, type Vector3 } from "three"
 
 const NAV_GRID_CELL_SIZE_M = 0.1
 const NAV_GRID_CLEARANCE_M = 0.27
-/** About how long the Epson takes per AveneMark sheet, including feeding. */
+/** Estimated seconds per simulated sheet, including feeding. */
 const LABEL_SHEET_PRINT_SECONDS = 45
 const MOVED_WHILE_PAUSED_M = 0.02
 

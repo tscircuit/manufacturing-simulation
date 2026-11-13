@@ -3,30 +3,17 @@ import { METERS_PER_INCH } from "lib/units"
 import { Group, Mesh, MeshBasicMaterial, PlaneGeometry } from "three"
 
 /**
- * 2" x 4" tscircuit product label. Origin at the centre of its adhesive side;
- * the 4" side runs along Z and the top of the printing faces -Z.
+ * 2" x 3" NEMA17 label with tscircuit branding and a sample FNSKU.
+ * The adhesive face is at local Y = 0 and the artwork top faces -Z.
  */
 export const STICKER = {
   widthM: 2 * METERS_PER_INCH,
-  lengthM: 4 * METERS_PER_INCH,
+  lengthM: 3 * METERS_PER_INCH,
   thicknessM: 0.0003,
 } as const
 
-export type StickerKind = "tscircuit" | "fnsku"
-
-/** Landscape 2⅝" × 1" unit label for the US Letter 30-up sheet. */
-export const FNSKU_STICKER = {
-  widthM: 2.625 * METERS_PER_INCH,
-  lengthM: METERS_PER_INCH,
-  thicknessM: STICKER.thicknessM,
-} as const
-
-/**
- * The viewer textures the printed face using its sticker kind.
- */
-export function createSticker(kind: StickerKind = "tscircuit"): Group {
-  const { widthM, lengthM, thicknessM } =
-    kind === "fnsku" ? FNSKU_STICKER : STICKER
+export function createSticker(): Group {
+  const { widthM, lengthM, thicknessM } = STICKER
   const sticker = new Group()
   sticker.add(
     createBoxMesh({
@@ -37,13 +24,11 @@ export function createSticker(kind: StickerKind = "tscircuit"): Group {
   )
   const face = new Mesh(
     new PlaneGeometry(widthM, lengthM),
-    kind === "fnsku"
-      ? new MeshBasicMaterial({ color: 0xffffff, toneMapped: false })
-      : createStandardMaterial({ color: 0xf4f6fa, roughness: 0.35 }),
+    new MeshBasicMaterial({ color: 0xffffff, toneMapped: false }),
   )
   face.rotation.x = -Math.PI / 2
   face.position.y = thicknessM + 0.00005
-  face.userData.stickerKind = kind
+  face.userData.isStickerFace = true
   sticker.add(face)
   return sticker
 }

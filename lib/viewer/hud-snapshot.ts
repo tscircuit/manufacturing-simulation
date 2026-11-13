@@ -34,7 +34,6 @@ export interface HudSnapshot {
   screwdriverPromptLabel: string | null
   unitsByStage: Array<{ stage: UnitStage; count: number }>
   labelsAtPackOut: number
-  fnskuLabelsAtPackOut: number
   /** Printed label sheets waiting in the Epson's tray. */
   printedLabelSheets: number
   spacersInBasket: number
