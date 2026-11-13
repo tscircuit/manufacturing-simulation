@@ -12,6 +12,13 @@ import { Group, Object3D, Vector3 } from "three"
 export const MAX_PRINTED_LABEL_SHEETS = 6
 const SHEET_THICKNESS_M = 0.0006
 
+export function isPrintingShippingLabel(ctx: SimContext): boolean {
+  const { labelPrinter, cartonLabel, carrierLabel } = ctx.world
+  return [cartonLabel, carrierLabel].some(
+    ({ group }) => group.visible && group.parent === labelPrinter.group,
+  )
+}
+
 /** Add one printed sheet to the top of the label printer's output tray. */
 export function printLabelSheet(ctx: SimContext): boolean {
   const { labelPrinter } = ctx.world
@@ -31,6 +38,7 @@ export function printLabelSheet(ctx: SimContext): boolean {
 
 /** Fill the output tray now, as if the printer had been running a while. */
 export function printLabelsNow(ctx: SimContext): void {
+  if (isPrintingShippingLabel(ctx)) return
   while (printLabelSheet(ctx)) {
     // Keep printing until the tray is full.
   }

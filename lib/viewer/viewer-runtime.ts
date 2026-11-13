@@ -142,7 +142,8 @@ export class ViewerRuntime {
   private floorTexture: Texture | null = null
   /** The approved NEMA17 label artwork from tscircuit/product-packaging. */
   private readonly stickerTexture = loadLabelTexture()
-  private readonly cartonLabelTexture = createCartonLabelTexture()
+  private readonly cartonLabelTexture = createCartonLabelTexture("box_id")
+  private readonly carrierLabelTexture = createCartonLabelTexture("carrier")
   private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
     idle: createQcScreenTexture("idle"),
     testing: createQcScreenTexture("testing"),
@@ -233,6 +234,7 @@ export class ViewerRuntime {
     this.floorTexture?.dispose()
     this.stickerTexture.dispose()
     this.cartonLabelTexture.dispose()
+    this.carrierLabelTexture.dispose()
     for (const texture of Object.values(this.qcScreenTextures))
       texture.dispose()
     this.renderer.dispose()
@@ -412,6 +414,8 @@ export class ViewerRuntime {
       this.decoratedWorld = world
       world.cartonLabel.face.material.map = this.cartonLabelTexture
       world.cartonLabel.face.material.needsUpdate = true
+      world.carrierLabel.face.material.map = this.carrierLabelTexture
+      world.carrierLabel.face.material.needsUpdate = true
       this.shownQcDisplayState = null
       this.texturedLabelSheetCount = -1
       this.printerSigns = []

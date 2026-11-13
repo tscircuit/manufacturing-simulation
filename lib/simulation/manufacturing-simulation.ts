@@ -1,5 +1,9 @@
 import { JOB_ROWS } from "lib/job/job-plan"
-import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
+import {
+  isPrintingShippingLabel,
+  printLabelSheet,
+  printLabelsNow,
+} from "lib/job/label-collection"
 import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
 import { getSideJobAt, runPendingSideJob } from "lib/job/side-jobs"
 import { BATCH_SIZE, OPERATOR_START } from "lib/layout/station-layout"
@@ -493,12 +497,8 @@ export class ManufacturingSimulation {
   private advanceEquipment(dtSeconds: number): void {
     const { ctx } = this
     advancePrinters({ dtSeconds, populate: populatePlate }, ctx)
-    const { labelPrinter, cartonLabel } = ctx.world
-    if (
-      cartonLabel.group.visible &&
-      cartonLabel.group.parent === labelPrinter.group
-    )
-      return
+    if (isPrintingShippingLabel(ctx)) return
+    const { labelPrinter } = ctx.world
     labelPrinter.secondsSinceLastSheet += dtSeconds
     if (labelPrinter.secondsSinceLastSheet < LABEL_SHEET_PRINT_SECONDS) return
     labelPrinter.secondsSinceLastSheet = 0
