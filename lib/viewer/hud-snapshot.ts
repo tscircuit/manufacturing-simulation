@@ -14,6 +14,7 @@ export interface HudSnapshot {
   speed: number
   cameraMode: CameraMode
   isAutoCloseUp: boolean
+  isSoundOn: boolean
   steps: Array<{
     label: string
     seconds: number

@@ -14,6 +14,7 @@ import {
 } from "lib/models/white-mailer-box"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import { type SimTask, tween } from "lib/tasks/coroutines"
 import {
   grabObject,
@@ -193,6 +194,7 @@ function* closeBoxAndApplyLabel(params: UnitParams, ctx: SimContext): SimTask {
   const { box } = unit
   const hand = operator.rightHand
   ctx.statusText = `Unit ${params.unitIndex + 1}: closing the lid and tucking the front`
+  playCue("box_close", ctx)
   yield* openOrCloseLid({ box, hand: operator.leftHand, isOpening: false })
 
   const label = takeNextLabel(world)

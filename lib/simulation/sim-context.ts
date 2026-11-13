@@ -1,6 +1,7 @@
 import type { Station } from "lib/layout/station-layout"
 import type { NavGrid } from "lib/navigation/nav-grid"
 import type { Operator } from "lib/operator/create-operator"
+import type { SoundCue } from "lib/simulation/sound-cues"
 import type { SimTask } from "lib/tasks/coroutines"
 import type { ManufacturingWorld } from "lib/world/create-world"
 import type { Scene, Vector3 } from "three"
@@ -59,4 +60,6 @@ export interface SimContext {
   mode: SimulationMode
   statusText: string
   cameraHint: CameraHint | null
+  /** Sounds asked for since the viewer last drained them. */
+  soundCues: SoundCue[]
 }

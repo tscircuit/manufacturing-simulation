@@ -6,6 +6,7 @@ import { STATIONS } from "lib/layout/station-layout"
 import { STATUS_LED_COLORS } from "lib/models/controller-pcb"
 import { QC_DISPLAY_COLORS, type QcDisplayState } from "lib/models/qc-laptop"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import {
   runInParallel,
   type SimTask,
@@ -88,6 +89,8 @@ function* seatMotorAndPlugIn(params: UnitParams, ctx: SimContext): SimTask {
     ctx,
   )
   unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.idle)
+  // The RP2040's buzzer (BZ1) chirps when the QC firmware comes up.
+  playCue("board_chirp", ctx)
 }
 
 function* runSpinTest(params: UnitParams, ctx: SimContext): SimTask {
@@ -117,6 +120,7 @@ function* runSpinTest(params: UnitParams, ctx: SimContext): SimTask {
     },
   })
   setQcDisplay("pass", ctx)
+  playCue("qc_pass", ctx)
   unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.idle)
   ctx.statusText = `Unit ${params.unitIndex + 1}: spin test passed`
   yield* waitSeconds(0.5)

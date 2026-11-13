@@ -272,8 +272,8 @@ export function setOutMotorCable(params: {
 }): MotorCable {
   const { world } = params
   const { cableBin } = world
-  const motorPlug = createJstPlug()
-  const boardPlug = createJstPlug()
+  const motorPlug = createJstPlug({ pinCount: 6 })
+  const boardPlug = createJstPlug({ pinCount: 4 })
   for (const [index, plug] of [motorPlug, boardPlug].entries()) {
     plug.group.position.set(-0.015 + index * 0.03, 0.022, 0.035)
     plug.group.quaternion.copy(PLUG_LYING_QUATERNION)

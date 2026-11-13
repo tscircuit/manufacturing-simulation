@@ -1,6 +1,7 @@
 import { STATIONS } from "lib/layout/station-layout"
 import { createLabelSheet, LABEL_SHEET } from "lib/models/label-sheet"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import { pickUpInFront, setDownFromCarry } from "lib/tasks/carry-motions"
 import type { SimTask } from "lib/tasks/coroutines"
 import { walkToStation } from "lib/tasks/operator-motions"
@@ -24,6 +25,7 @@ export function printLabelSheet(ctx: SimContext): boolean {
     (labelPrinter.printedSheets.length % 2 === 0 ? 1 : -1) * 0.03
   labelPrinter.outputStack.add(sheet.group)
   labelPrinter.printedSheets.push(sheet)
+  playCue("label_printer", ctx)
   return true
 }
 

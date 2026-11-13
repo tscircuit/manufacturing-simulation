@@ -98,6 +98,10 @@ export function ManufacturingSimulationViewer() {
             <CameraBar
               cameraMode={hud.cameraMode}
               isAutoCloseUp={hud.isAutoCloseUp}
+              isSoundOn={hud.isSoundOn}
+              onSoundChange={(isSoundOn) =>
+                runtimeRef.current?.setSoundOn(isSoundOn)
+              }
               onCameraModeChange={(mode) =>
                 runtimeRef.current?.setCameraMode(mode)
               }

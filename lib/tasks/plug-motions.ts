@@ -1,6 +1,7 @@
 import type { CablePlug } from "lib/models/plugs"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import type { SimTask } from "lib/tasks/coroutines"
 import { grabObject, moveObject, releaseHand } from "lib/tasks/operator-motions"
 import { type Object3D, type Quaternion, Vector3 } from "three"
@@ -54,6 +55,7 @@ export function* plugIn(
     },
     ctx,
   )
+  playCue("plug_click", ctx)
   yield* releaseHand(hand)
 }
 
@@ -78,6 +80,7 @@ export function* unplug(
     fingerCurl: 0.95,
     durationSeconds: 0.55,
   })
+  playCue("plug_pull", ctx)
   const pulledOut = new Vector3(0, PLUG_LEAD_IN_M, 0)
     .applyQuaternion(plug.group.quaternion)
     .add(plug.group.position)

@@ -5,6 +5,7 @@ import { SHIPPING_CARTON_CAPACITY } from "lib/models/shipping-carton"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import { pickUpInFront, setDownFromCarry } from "lib/tasks/carry-motions"
 import {
   runInParallel,
@@ -97,6 +98,7 @@ export function* sealAndShip(_params: UnitParams, ctx: SimContext): SimTask {
     foldFlap({ flap: carton.leftFlap, axis: "z", hand: leftHand }),
     foldFlap({ flap: carton.rightFlap, axis: "z", hand: rightHand }),
   ])
+  playCue("flap_fold", ctx)
   yield* runInParallel([
     foldFlap({ flap: carton.backFlap, axis: "x", hand: leftHand }),
     foldFlap({ flap: carton.frontFlap, axis: "x", hand: rightHand }),
@@ -116,6 +118,7 @@ export function* sealAndShip(_params: UnitParams, ctx: SimContext): SimTask {
     },
     durationSeconds: 0.5,
   })
+  playCue("tape_gun", ctx)
   yield* tween({
     durationSeconds: 1.4,
     onProgress: (progress) => {

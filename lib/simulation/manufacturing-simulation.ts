@@ -131,6 +131,7 @@ export class ManufacturingSimulation {
       mode: "simulation",
       statusText: "",
       cameraHint: null,
+      soundCues: [],
     }
     scene.add(this.ctx.world.root)
     this.reset()
@@ -157,6 +158,7 @@ export class ManufacturingSimulation {
     ctx.scene.add(ctx.world.root)
     ctx.progress = createJobProgress(this.unitCount)
     ctx.cameraHint = null
+    ctx.soundCues.length = 0
     resetOperator({
       operator: ctx.operator,
       x: OPERATOR_START.xM,

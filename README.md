@@ -29,7 +29,7 @@ simulation.ctx.progress.cycleSeconds // total including walking
 - **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK, and works upright at 42" standing desks (only a slight lean). Shaped limbs, a smooth head with hair, and both hands on the handles when carrying a rack, tote, tub or carton.
 - **Batch:** 30 units travel the line together, one rack or tote per bench, and ship in one Amazon carton.
 - **Line:** four 6' standing desks (42" high) along the window wall. The printer and label benches are standing desks too.
-  1. **Assembly bench:** a foam stand of 30 NEMA17 motors, the spacer basket, three stacks of controller PCBs, a SKIL Twist 2.0 4V screwdriver ([Ace 2033885](https://www.acehardware.com/p/2033885)) held by its grip with the bit on the screw while the other hand braces the side of the motor, clear of the screws, a jig, an empty 30-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 6-pin motor cables (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The rack goes to QC when all 30 are done, or earlier with R.
+  1. **Assembly bench:** a foam stand of 30 NEMA17 motors, the spacer basket, three stacks of RP2040 motor controller boards, a SKIL Twist 2.0 4V screwdriver ([Ace 2033885](https://www.acehardware.com/p/2033885)) held by its grip with the bit on the screw while the other hand braces the side of the motor, clear of the screws, a jig, an empty 30-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 motor cables, 6-pin at the motor and PHR-4 at the board (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The rack goes to QC when all 30 are done, or earlier with R.
   2. **QC bench:** each unit goes into a cradle with two USB-C cables (laptop data and the 10-port GaN charging station for power), spins, and moves to a second rack, which is carried to pack-out.
   3. **Pack-out bench:** each unit goes into a 7×4×3" white mailer with pink anti-static foam, with 2 coiled USB-C cables, a 45 W charger and a 2×4" label peeled from a stack of AveneMark sheets, then into a 30-box tote that is carried to ship-ready.
   4. **Ship-ready bench:** all 30 boxes go into the Amazon carton, which is folded, taped and set out by the door.
@@ -46,7 +46,17 @@ The packed mailer is about 7.25 × 4.25 × 3.1 in. Thirty stack 2 × 3 × 5 into
 
 Spacers per plate is how many 42 × 42 mm spacers fit on the bed at a 46–48 mm pitch: 5 × 5 on the P2S (256 × 256 mm) and 7 × 7 on the H2S (340 × 320 mm). Plate times (2 h 10 m and 4 h) are estimates for ~2.6 g PLA parts, not slicer output.
 
-The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The label artwork is `label-preview.png` from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging). Parts follow the lab inventory where it lists them; the PCB, laptop, charging station and printers are simplified models. Table positions are placeholders until the real layout is measured.
+The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. The label artwork is `label-preview.png` from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging). Parts follow the lab inventory where it lists them; the laptop, charging station and printers are simplified models.
+
+### Controller board
+
+The PCB is [imrishabh18/rp2040-motor-controller](https://tscircuit.com/imrishabh18/rp2040-motor-controller) v1.0.55, built from its `circuit.json` (`lib/models/rp2040-board-layout.ts`):
+
+- 42.3 × 42.32 mm, 1.6 mm, with the chamfered outline and four 3.3 mm mounting holes on the 31 mm NEMA17 square.
+- All 103 populated top-side parts at their placed positions (RP2040, DRV8825, CH224K, INA240s, buttons, crystal, passives), plus the 9 mm buzzer and the RGB status LED.
+- **Cables:** both HRO TYPE-C-31-M-12 USB-C ports are on one edge. QC plugs the laptop's cable into **DATA** and the charging station's cable into **PWR**. The motor cable's PHR-4 slides into the side-entry S4B-PH-K-S (J1, pins A+ A− B+ B−) parallel to the board. The board is turned on the motor so J1 faces the motor's own 6-pin socket.
+
+Parts are drawn as boxes sized from their footprints, merged into one mesh per material and shared by all 30 boards. Table positions are placeholders until the real layout is measured.
 
 ## Controls
 
@@ -57,6 +67,7 @@ The spacer follows `backface-spacer-4mm.scad` from motorcontrol.tscircuit.com. T
 | Right-drag or Shift-drag | Pan |
 | 1 / 2 / 3 | Overview / Follow / Close-up camera |
 | G | Toggle game mode |
+| M | Sound on or off |
 | WASD or arrows | Walk (game mode) |
 | E | At a bench, run all of its remaining work without stopping. At the printers, collect finished plates into a tub; at the assembly bench with a tub, refill the spacer basket. While anything runs, E pauses it in place; walk away if you like, and E again walks back and carries on (game mode) |
 | R | Carry what's ready to the next bench now, even a part-filled rack or tote; take an empty one back; or seal and ship (game mode) |
@@ -72,6 +83,10 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 - **Printers and labels during a run:** pause a bench run (E), walk to the printer or label bench, and press E: the operator finishes the unit in hand, collects the plates and refills the spacer basket (or takes the label sheets to pack-out), then carries on with the bench. In simulation mode, the Collect buttons do the same without stopping the batch.
 - **Labels printed** fills the Epson's tray; **Collect labels to pack-out** (or E at the label bench) carries them over.
 - The timing panel shows how many units are at each stage, how many labels are at pack-out, and the spacer and printer status.
+
+### Sound
+
+Synthesized in the browser with WebAudio, with no audio files. It starts after your first click or key press. You hear footsteps, the SKIL screwdriver's whine while driving, screws dropping into the bin, USB-C and JST clicks, the board's buzzer chirp when QC powers it, the stepper whine in the spin test and the laptop's pass chime. Pack-out and ship-ready add the box lid, carton flaps and tape gun. The Epson's carriage runs as each label sheet prints, the Bambu printers beep when a plate finishes, and spacers clatter when poured. Volume falls off as the camera moves away from the operator. Use the Sound checkbox or M to mute.
 
 When the operator stands between the camera and the work, or the camera is zoomed inside him, his body fades out so the work stays visible.
 

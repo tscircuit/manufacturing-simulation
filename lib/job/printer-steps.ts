@@ -13,6 +13,7 @@ import {
   type SpacerContainerSize,
 } from "lib/models/spacer-basket"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import { pickUpInFront } from "lib/tasks/carry-motions"
 import { runInParallel, type SimTask, tween } from "lib/tasks/coroutines"
 import {
@@ -70,6 +71,7 @@ export function advancePrinters(
     printer.isPrinting = false
     params.populate(printer)
     printer.statusLight.material.color.setHex(PRINTER_STATUS_COLORS.ready)
+    playCue("print_done", ctx)
   }
 }
 
@@ -178,6 +180,7 @@ function* collectPlate(
   const spacers = [...printer.plateSpacers]
   printer.plateSpacers.length = 0
   const firstPileIndex = world.tubSpacers.length
+  playCue("pour_spacers", ctx)
   yield* runInParallel([
     pourSpacers(
       {
@@ -295,6 +298,7 @@ export function* refillSpacerBasket(ctx: SimContext): SimTask {
     },
     ctx,
   )
+  playCue("pour_spacers", ctx)
   yield* pourSpacers(
     {
       spacers: pouring,

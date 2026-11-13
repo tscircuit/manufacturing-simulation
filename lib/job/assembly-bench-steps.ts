@@ -16,6 +16,7 @@ import {
 } from "lib/models/nema17-motor"
 import { FORWARD_FINGER_DIRECTION } from "lib/operator/operator-body"
 import type { SimContext } from "lib/simulation/sim-context"
+import { playCue } from "lib/simulation/sound-cues"
 import {
   runInParallel,
   type SimTask,
@@ -175,6 +176,7 @@ function* removeStockScrews(params: UnitParams, ctx: SimContext): SimTask {
           .slerp(restQuaternion, progress)
       },
     })
+    playCue("screw_drop", ctx)
     world.removedStockScrews.push(screw)
   }
   ctx.statusText = "Setting the screwdriver down"

@@ -3,7 +3,7 @@ import type { HudSnapshot } from "lib/viewer/hud-snapshot"
 const SIMULATION_HINT =
   "Drag to orbit · scroll or pinch to zoom · right-drag to pan"
 const GAME_HINT =
-  "WASD or arrows to walk · E run the bench, again to pause and resume · R carry what is ready to the next bench · F screwdriver · drag to orbit · scroll to zoom"
+  "WASD or arrows to walk · E run the bench, again to pause and resume · R carry what is ready to the next bench · F screwdriver · M sound · drag to orbit · scroll to zoom"
 
 export function StatusBar(props: { hud: HudSnapshot }) {
   const { hud } = props

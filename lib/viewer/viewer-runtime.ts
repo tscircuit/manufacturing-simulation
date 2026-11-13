@@ -24,6 +24,7 @@ import {
   getOperatorObstruction,
   updateMaterialOpacity,
 } from "lib/viewer/operator-fade"
+import { SoundPlayer } from "lib/viewer/sound-player"
 import { createStationRing } from "lib/viewer/station-ring"
 import type { ManufacturingWorld } from "lib/world/create-world"
 import {
@@ -111,6 +112,7 @@ export class ViewerRuntime {
   private isPaused = false
   private speed = 1
   private isAutoCloseUp = true
+  private readonly soundPlayer = new SoundPlayer()
   private decoratedWorld: ManufacturingWorld | null = null
   private previousCameraHint: CameraHint | null = null
   private didAutoCloseUp = false
@@ -167,6 +169,9 @@ export class ViewerRuntime {
     canvas.addEventListener("contextmenu", this.preventDefault)
     canvas.addEventListener("wheel", this.handleWheel, { passive: false })
     window.addEventListener("keydown", this.handleKeyDown)
+    // Browsers only start audio from a gesture.
+    window.addEventListener("pointerdown", this.unlockSound)
+    window.addEventListener("keydown", this.unlockSound)
     window.addEventListener("keyup", this.handleKeyUp)
     window.addEventListener("blur", this.clearKeys)
     this.simulation.startScenario("walk_floor")
@@ -189,6 +194,9 @@ export class ViewerRuntime {
     canvas.removeEventListener("contextmenu", this.preventDefault)
     canvas.removeEventListener("wheel", this.handleWheel)
     window.removeEventListener("keydown", this.handleKeyDown)
+    window.removeEventListener("pointerdown", this.unlockSound)
+    window.removeEventListener("keydown", this.unlockSound)
+    this.soundPlayer.dispose()
     window.removeEventListener("keyup", this.handleKeyUp)
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
@@ -272,6 +280,15 @@ export class ViewerRuntime {
     this.emitHud()
   }
 
+  setSoundOn(isSoundOn: boolean): void {
+    this.soundPlayer.setOn(isSoundOn)
+    this.emitHud()
+  }
+
+  private readonly unlockSound = (): void => {
+    this.soundPlayer.unlock()
+  }
+
   setAutoCloseUp(isAutoCloseUp: boolean): void {
     this.isAutoCloseUp = isAutoCloseUp
     this.emitHud()
@@ -328,6 +345,11 @@ export class ViewerRuntime {
       dtSeconds: realSeconds,
     })
     this.updateStationRing(nowMs)
+    this.soundPlayer.update({
+      ctx: this.simulation.ctx,
+      cameraPosition: this.camera.position,
+      isPaused: this.isPaused || this.simulation.isTaskPaused,
+    })
     if (nowMs - this.previousHudMs > HUD_INTERVAL_MS) this.emitHud()
     this.renderer.render(this.simulation.ctx.scene, this.camera)
   }
@@ -543,6 +565,7 @@ export class ViewerRuntime {
       speed: this.speed,
       cameraMode: this.cameraRig.mode,
       isAutoCloseUp: this.isAutoCloseUp,
+      isSoundOn: this.soundPlayer.isOn,
       steps,
       walkingSeconds: Math.max(0, progress.cycleSeconds - stepSeconds),
       cycleSeconds: progress.cycleSeconds,
@@ -609,6 +632,7 @@ export class ViewerRuntime {
       if (key === "f") this.runGameAction("screwdriver")
       if (key.startsWith("arrow") || key === " ") event.preventDefault()
     }
+    if (key === "m") this.setSoundOn(!this.soundPlayer.isOn)
     if (key === "1") this.setCameraMode("overview")
     if (key === "2") this.setCameraMode("follow")
     if (key === "3") this.setCameraMode("close_up")
