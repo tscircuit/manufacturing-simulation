@@ -6,7 +6,7 @@ import {
 import { LINE_STARTS, type LineStartId } from "lib/simulation/line-setup"
 import type { ScenarioId } from "lib/simulation/scenarios"
 import type { SimulationMode } from "lib/simulation/sim-context"
-import type { Ref } from "react"
+import type { ReactNode, Ref } from "react"
 
 const SPEED_OPTIONS = [0.5, 1, 2, 4, 8, 16]
 const LINE_START_IDS: LineStartId[] = [
@@ -31,11 +31,14 @@ export function ControlPanel(props: {
   onStartAt: (startId: LineStartId) => void
   onPrintsReady: () => void
   onLabelsPrinted: () => void
+  onToggle?: () => void
+  /** Extra controls shown at the end, e.g. the camera bar on phones. */
+  children?: ReactNode
 }) {
   const tableHeightInches = Math.round(WORK_TABLE.topHeightM / 0.0254)
   return (
     <section className="panel ctl">
-      <details open ref={props.detailsRef}>
+      <details open ref={props.detailsRef} onToggle={props.onToggle}>
         <summary>
           <span>
             <span className="eyebrow">2325 · Unit 322</span>
@@ -180,6 +183,7 @@ export function ControlPanel(props: {
               </button>
             </div>
           </div>
+          {props.children && <div className="grp">{props.children}</div>}
           <dl className="facts">
             <dt>Operator</dt>
             <dd>6′2″ · 1.88 m</dd>

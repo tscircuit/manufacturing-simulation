@@ -16,11 +16,12 @@ import type { HudSnapshot } from "lib/viewer/hud-snapshot"
 export function CycleTimingPanel(props: {
   detailsRef: Ref<HTMLDetailsElement>
   hud: HudSnapshot
+  onToggle?: () => void
 }) {
   const { hud } = props
   return (
     <section className="panel timing">
-      <details open ref={props.detailsRef}>
+      <details open ref={props.detailsRef} onToggle={props.onToggle}>
         <summary>
           <span>Batch timing</span>
           <span className="t">{formatSeconds(hud.cycleSeconds)}</span>
