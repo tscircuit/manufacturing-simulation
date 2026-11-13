@@ -22,48 +22,48 @@ This is a research summary from public sources as of November 2026, not legal ad
 
 How it packs:
 
-- **One stack** (board, spacer, cable and pouch on top of each other) is 51 × 46 mm and 20 mm thick. A flat bag needs about the contents' width plus their thickness plus a little more, which is about 77 mm, so it doesn't fit a 3" bag. It also presses the screws onto the board's components.
-- **Two piles side by side** (the board on its spacer, 10.4 mm; the cable with the folded pouch on top, about 12 mm) are 51 × 91 mm and 12 mm thick at most. That needs about **69 mm wide** (51 + 12 + 6) by **113 mm long** (91 + 6 for thickness + 13 for the zip + 3) inside a flat zip bag.
-- **A 3" × 5" bag (76 × 127 mm) fits with about 7 mm and 14 mm to spare.** That's snug but not tight. A 3" × 4" bag is too short, and 4" × 6" is more than twice the area needed.
+- **One stack** (board, spacer, cable and pouch on top of each other) is 51 × 46 mm and 20 mm thick. It doesn't fit an 80 mm bag, and it presses the screws onto the board's components.
+- **Two piles side by side** (the board on its spacer, 10.4 mm; the cable with the folded pouch on top, about 12 mm) are 51 × 91 mm and 12 mm thick at most. A flat zip bag needs about the contents' size plus their thickness, plus room for the zip:
+  - **Width:** 51 + 12 + 6 = **69 mm**.
+  - **Length:** 91 + 6 + 15 (the zip) + 3 = **115 mm**.
+
+### Does it fit the bag we ordered?
+
+We ordered the [Ellbest 3.15" × 4.72" (80 × 120 mm) resealable ESD shielding bags, 200 per pack](https://www.amazon.com/dp/B07QFZBT9Z). Translucent grey metallized PET, zip near the top.
+
+- **Parts: yes, snugly.** About 11 mm to spare across and about 5 mm along. Keep the two piles side by side (board at the bottom, cable and pouch above). Stacked, it won't close.
+- **The original 2" × 4" tscircuit label: only just.** Between the bottom seal (about 3 mm) and the zip (about 15 mm from the top) there is about 102 mm of flat front, and the label is 101.6 mm. It covers the whole front, and once the bag is filled its bottom edge sits on the curve of the bag and may lift or crease. Put it on squarely, just under the zip, and press the bottom edge down after filling.
+- I couldn't open the Amazon listing to confirm the exact zip position and seal widths, so pack one unit and check before printing a full sheet run.
 
 ## Bags to buy on Amazon
 
 | Use | Pick | Why | Alternatives |
 | --- | --- | --- | --- |
-| **Outer bag** | [SCS 30035 transparent metal-in static shielding bag, ZipTop, 3" × 5", 100 per container](https://www.amazon.com/SCS-Transparent-Metal-Static-Shielding/dp/B01N4NNQVN) | SCS (Desco) is an ESD-standards brand. The metal-in film shields the board and is see-through, and the zip top recloses. | [Laddawn 4150 3" × 5" 3 mil reclosable static shielding bags (100)](https://www.amazon.com/Mil-Reclosable-Static-Shielding-Bags/dp/B01B1ZO2CY) |
-| **Screw pouch** | [APQ Supply 2" × 3" pink anti-static 4 mil reclosable bags](https://www.amazon.com/clp/B07S5GNRHL) | Static-dissipative pink film, so it won't charge up against the board inside the outer bag. 4 mil resists screw threads. | [Partners Brand 2½" × 3" pink anti-static 4 mil (PPBAS2105)](https://www.amazon.com/Select-Size-Partners-Brand-Anti-Static/dp/B01MTFPNEC) |
+| **Outer bag (ordered)** | [Ellbest 3.15" × 4.72" ESD shielding zip bags, 200 pack (B07QFZBT9Z)](https://www.amazon.com/dp/B07QFZBT9Z) | Already ordered. Metallized, see-through enough to show the parts, recloses, and the 80 mm opening needs no suffocation warning. | |
+| **Screw pouch** | [APQ Supply 2" × 3" pink anti-static 4 mil reclosable bags](https://www.amazon.com/clp/B07S5GNRHL) | Static-dissipative pink film, so it won't charge up against the board inside the outer bag. 4 mil resists screw threads. Folded in half it is 51 × 38 mm, which fits beside the board. | [Poly Bag Guy 2" × 3" 2 mil pink anti-static, 1000](https://www.amazon.com/Poly-Bag-Guy-PBGPBAS700-Anti-Static/dp/B07CLLQ1BS) (thinner, cheaper); [HRX Plastics 2.5" × 3" pink anti-static, 100](https://www.amazon.com/clp/B07CYLX7YW) |
+| **Bag holder** | Print one on the P2S or H2S: a base with two posts just outside the bag's 80 mm width that hold it upright and open. | The hands-free "baggy rack" stands on Amazon are made for sandwich, quart and gallon bags. Their clips don't grip anything as small as an 80 mm bag well. | If you'd rather buy one: [Ruibo adjustable baggy rack, 4 pack](https://www.amazon.com/Holder-plastic-Freezer-Planning-Holders/dp/B07PF9VLX2), at its lowest setting. Check the arms close down to 80 mm first. |
 
-I didn't find a 2" × 2" pink anti-static bag on Amazon, which is why the pouch is 2" × 3" folded in half. Confirm thickness, count and price on each listing before ordering. Then pack one unit and measure it.
+I didn't find a 2" × 2" pink anti-static bag on Amazon, which is why the pouch is 2" × 3" folded in half. Confirm thickness, count and price on each listing before ordering.
 
 ## The bag and its labels
 
 | Requirement | What applies | What we do |
 | --- | --- | --- |
-| **Bag type** | The board is static-sensitive. Metallized static-shielding bags block outside fields; pink anti-static bags only stop charge building up. Amazon wants poly bags clear except where it allows otherwise, with the barcode outside on an opaque bag. | 3" × 5" metal-in static-shielding zip bag, about 3 mil. It's see-through enough to show the parts. |
-| **Thickness** | Amazon's minimum for poly bags is 1.5 mil. | About 3 mil outer and 4 mil pouch. |
-| **Suffocation warning** | Needed when the bag's opening is 5" or more. It must be printed or labelled, prominent and legible, at 10 pt or larger for bags whose length plus width is under 29". Amazon's example: "Warning: To avoid danger of suffocation, keep this bag away from babies and children. Do not use this bag in cribs, beds, carriages, or playpens. This bag is not a toy." Several US states have their own rules for bags big enough to go over a child's head. | The 3" outer and 2" pouch openings are well under 5", so no warning is required. A 3" × 5" bag can't go over a child's head either. |
-| **Barcode** | Each unit needs exactly one scannable barcode, the FNSKU, on the outside, flat and unwrinkled. Amazon's FNSKU labels are 1" × 2" up to 2" × 3". | 1" × 2-5/8" FNSKU label (Avery 5160-size, 30 per sheet, printed from Seller Central) on the back. It fits the 3" width with about 3/16" each side. |
-| **Product sticker** | Not an Amazon requirement. It must not carry a second scannable barcode. | 2" × 3" tscircuit sticker on the front: product name, what's inside, "Motor not included", the ESD note, "not a toy", and tscircuit.com. No barcode. |
+| **Bag type** | The board is static-sensitive. Metallized static-shielding bags block outside fields; pink anti-static bags only stop charge building up. | Ellbest 80 × 120 mm metallized shielding zip bag, with a yellow ESD caution sticker on the back. |
+| **Thickness** | Amazon's minimum for poly bags is 1.5 mil. | The listing doesn't give one. Metallized shielding film is normally about 3 mil; check a bag with calipers. The pouch is 4 mil. |
+| **Suffocation warning** | Needed when the bag's opening is 5" or more. It must be printed or labelled, prominent and legible, at 10 pt or larger for bags whose length plus width is under 29". Amazon's example: "Warning: To avoid danger of suffocation, keep this bag away from babies and children. Do not use this bag in cribs, beds, carriages, or playpens. This bag is not a toy." Several US states have their own rules for bags big enough to go over a child's head. | The 80 mm (3.15") outer and 2" pouch openings are well under 5", so no warning is required. |
+| **Barcode** | Each unit needs exactly one scannable barcode, the FNSKU, on the outside, flat and unwrinkled. Amazon's FNSKU labels are 1" × 2" up to 2" × 3". | 1" × 2-5/8" FNSKU label (Avery 5160-size, 30 per sheet, printed from Seller Central) on the back. It fits the 80 mm width with about 7 mm each side, above the caution sticker. |
+| **Product label** | Not an Amazon requirement. It must not carry a second scannable barcode. | The original tscircuit 2" × 4" label from [tscircuit/product-packaging](https://github.com/tscircuit/product-packaging/tree/main/products/nema17), unchanged, on the same AveneMark sheets the kit uses. No extra text. |
 | **Closure** | The bag must be sealed so parts can't fall out. | Zip the pouch, then zip the outer bag. Add an impulse heat seal if tamper evidence becomes a problem. |
 
 Amazon ended its own US prep and labelling services for shipments created from January 1, 2026, so all of this must be done before the box leaves the lab.
-
-## The product and its listing
-
-- **FCC.** The board has a 12 MHz RP2040 and a stepper driver, so it's a digital device (an unintentional radiator) under FCC Part 15 Subpart B. Two routes:
-  - **Sell to the public (recommended):** test the board to Part 15B Class B emissions and issue a Supplier's Declaration of Conformity (SDoC), with a US responsible party. Amazon's FCC Radio Frequency Emission Compliance listing attribute needs it, and Amazon removes RF-device listings without valid compliance information.
-  - **Evaluation kit (47 CFR 2.803):** only allowed when sales are restricted to product developers, software developers and system integrators, which an open listing doesn't do. It also needs the FCC notice and the legend "For evaluation only; not FCC approved for resale".
-- **Choking hazard.** The CPSC small-parts warnings (16 CFR 1500.19) apply to toys and games for young children. A motor-controller kit for makers and engineers isn't a children's product, so no choking-hazard warning is required. The screws are small parts, though, so don't list it in Toys, say "not a toy" on the sticker, and consider "Not for children under 14" in the listing.
-- **Batteries and hazmat.** There are none, so no dangerous-goods review.
-- **Origin claims.** Only print "Made in USA" or "Assembled in USA" if it meets the FTC's rules. The parts are imported, so leave it off unless you've checked.
-- **Listing title.** Make it clear the motor isn't included, for example "NEMA 17 stepper motor controller board kit (RP2040, USB-C PD) – motor not included", to avoid "not as described" returns.
 
 ## Shipping to Amazon
 
 | Requirement | Amazon rule | Our carton |
 | --- | --- | --- |
 | **Size** | No side over 25". | 10 × 8 × 6 in inside. |
-| **Weight** | 50 lb standard. Over 50 lb needs "Team Lift" labels on the top and sides. | A bagged kit is about 23 g: board 8, spacer 2.6, screws 4.4, cable 5, bags 3.5. 30 of them plus the carton ≈ 2 lb. |
+| **Weight** | 50 lb standard. Over 50 lb needs "Team Lift" labels on the top and sides. | A bagged unit is about 23 g: board 8, spacer 2.6, screws 4.4, cable 5, bags 3.5. 30 of them plus the carton ≈ 2 lb. |
 | **Packing** | Bags shouldn't move, and loose fill such as packing peanuts or shredded paper isn't allowed. | 30 bags standing on edge, 3 along by 10 across. Fill the gap at the side with a sheet of kraft paper. |
 | **Box ID label** | Every carton gets its own FBA box ID label from the shipment in Seller Central. Never reuse one. Put it on a flat side, not across a seam, and don't cover it with the carrier label. | 4" × 6" label on a long side, applied before sealing. |
 | **Box contents** | Enter the SKU and quantity for each box in Seller Central. Wrong contents can bring fees or blocked shipments. | One SKU, 30 units per box. |
@@ -79,20 +79,23 @@ Amazon ended its own US prep and labelling services for shipments created from J
    4. Unplug everything and put the board in the passed tray (green rim).
 
    Test one at a time (green circle) or all 30, and carry the passed tray to bagging (amber circle) whenever you like.
-3. **Labels.** The Epson prints 2" × 3" tscircuit stickers. FNSKU sheets come from Seller Central.
+3. **Labels.** The Epson prints the original 2" × 4" tscircuit labels on AveneMark sheets, the same as the kit line. FNSKU sheets come from Seller Central.
 4. **Bagging bench (where QC used to be).** For each unit:
    1. Take a 2" × 3" pink pouch from its box, drop in the 4 long M3 screws side by side, zip it, and fold it in half over the screws.
-   2. Stand a 3" × 5" static-shielding bag open on the wire stand.
+   2. Stand an 80 × 120 mm Ellbest shielding bag open on the bag holder (caution sticker on the back).
    3. Put in a spacer, the tested board on top of it, a coiled cable beside them, and the folded screw pouch on the cable.
    4. Zip the bag.
-   5. Put the tscircuit sticker on the front and the FNSKU label on the back.
+   5. Put the original tscircuit 2" × 4" label on the front, just under the zip, and the FNSKU label on the back above the caution sticker.
    6. Lay the bag in the tote.
 5. **Ship-ready bench.** Stand the 30 bags in the 10 × 8 × 6 carton, put the FBA box ID label on the side, fold the flaps, tape the seam, and set the carton by the door.
 
 ## Sources
 
-- [SCS 30035 3" × 5" transparent metal-in static shielding ZipTop bags (Amazon)](https://www.amazon.com/SCS-Transparent-Metal-Static-Shielding/dp/B01N4NNQVN)
-- [Laddawn 4150 3" × 5" 3 mil reclosable static shielding bags (Amazon)](https://www.amazon.com/Mil-Reclosable-Static-Shielding-Bags/dp/B01B1ZO2CY)
+- [Ellbest 3.15" × 4.72" antistatic shielding bags, 200 (Amazon)](https://www.amazon.com/dp/B07QFZBT9Z)
+- [Poly Bag Guy 2" × 3" pink anti-static bags (Amazon)](https://www.amazon.com/Poly-Bag-Guy-PBGPBAS700-Anti-Static/dp/B07CLLQ1BS)
+- [HRX Plastics 2.5" × 3" pink anti-static bags (Amazon)](https://www.amazon.com/clp/B07CYLX7YW)
+- [Ruibo adjustable baggy rack (Amazon)](https://www.amazon.com/Holder-plastic-Freezer-Planning-Holders/dp/B07PF9VLX2)
+- [tscircuit/product-packaging: NEMA17 label](https://github.com/tscircuit/product-packaging/tree/main/products/nema17)
 - [APQ Supply 2" × 3" pink anti-static reclosable bags (Amazon)](https://www.amazon.com/clp/B07S5GNRHL)
 - [Partners Brand PPBAS2105 2½" × 3" pink anti-static 4 mil bags (Amazon)](https://www.amazon.com/Select-Size-Partners-Brand-Anti-Static/dp/B01MTFPNEC)
 
@@ -103,8 +106,3 @@ Amazon ended its own US prep and labelling services for shipments created from J
 - [Pattern: Amazon is ending FBA prep services in 2026](https://www.pattern.com/blog/amazon-is-ending-fba-prep-services-in-2026)
 - [Jungle Scout: Amazon FBA packaging requirements](https://www.junglescout.com/blog/amazon-packaging-requirements/)
 - [Amazon Seller Central: shipping and routing requirements](https://sellercentral.amazon.com/gp/help/external/G200141510) (login required)
-- [eCFR 47 CFR 2.803: marketing of RF devices before authorization (evaluation kits)](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-2/subpart-I/section-2.803)
-- [eCFR 47 CFR Part 15 Subpart B: unintentional radiators](https://www.ecfr.gov/current/title-47/chapter-I/subchapter-A/part-15/subpart-B)
-- [TÜV SÜD: Amazon's FCC RF emission compliance listing policy](https://www.tuvsud.com/en-us/services/product-certification/fcc-tcb/amazon-radio-frequency-emission-policy)
-- [ComplianceGate: Amazon electronics requirements](https://www.compliancegate.com/amazon-electronics-requirements/)
-- [CPSC: small parts and choking hazard labelling FAQs](https://cpsc.gov/FAQ/Small-Parts-and-Choking-Hazard-Labeling-FAQs)

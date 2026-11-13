@@ -38,19 +38,6 @@ export const LABEL_SHEET = {
 } as const satisfies LabelSheetSpec
 
 /**
- * The bare unit's bag sticker: 2" x 3" labels, 10 to a US Letter sheet
- * (2 columns x 5 rows), small enough for the front of a 4" x 6" ESD bag.
- */
-export const BAG_LABEL_SHEET = {
-  ...LABEL_SHEET,
-  columnPitchM: 3.25 * METERS_PER_INCH,
-  rowPitchM: 2.1 * METERS_PER_INCH,
-  labelWidthM: 2 * METERS_PER_INCH,
-  labelLengthM: 3 * METERS_PER_INCH,
-  artwork: "bag_label",
-} as const satisfies LabelSheetSpec
-
-/**
  * Amazon FNSKU labels as printed from Seller Central: 1" x 2-5/8" address
  * labels, 30 to a US Letter sheet (3 columns x 10 rows).
  */

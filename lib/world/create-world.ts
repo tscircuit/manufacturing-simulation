@@ -31,7 +31,6 @@ import { createEsdBag, ESD_BAG, type EsdBag } from "lib/models/esd-bag"
 import { createFlexCable, type FlexCable } from "lib/models/flex-cable"
 import { createInkjetPrinter } from "lib/models/inkjet-printer"
 import {
-  BAG_LABEL_SHEET,
   createLabelSheet,
   FNSKU_LABEL_SHEET,
   LABEL_SHEET,
@@ -744,8 +743,8 @@ function createUnusedKitParts() {
 }
 
 /**
- * Pack-out bench for bare units: flat ESD bags in a tray, a wire bag stand,
- * 2" x 3" product sticker sheets, FNSKU sheets and the tote.
+ * Pack-out bench for bare units: flat ESD bags in a tray, a printed bag holder,
+ * the original 2" x 4" tscircuit label sheets, FNSKU sheets and the tote.
  */
 function populateBaggingBench(table: Group) {
   const spots = BAGGING_BENCH_SPOTS
@@ -785,12 +784,9 @@ function populateBaggingBench(table: Group) {
     tray.add(bag.group)
     bags.push(bag)
   }
-  // Wire stand that holds a bag upright and open while the unit goes in.
-  const wire = createStandardMaterial({
-    color: 0x9aa3ad,
-    metalness: 0.8,
-    roughness: 0.35,
-  })
+  // 3D-printed bag holder (from the P2S/H2S) that holds a bag upright and
+  // open while the parts go in; kitchen baggy racks are too big for 80 mm bags.
+  const wire = createStandardMaterial({ color: 0x3a3f45, roughness: 0.8 })
   const stand = new Group()
   stand.position.copy(spots.bagStand)
   stand.add(
@@ -835,7 +831,7 @@ function populateBaggingBench(table: Group) {
     // Take from the top of the pile.
     bags: bags.reverse(),
     labelSheets: stackSheets({
-      spec: BAG_LABEL_SHEET,
+      spec: LABEL_SHEET,
       count: LABEL_SHEET_COUNT + 1,
       position: spots.stickerSheets,
     }),

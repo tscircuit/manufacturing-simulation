@@ -2,8 +2,6 @@ import type { StickerArtwork } from "lib/models/sticker"
 import { CanvasTexture, SRGBColorSpace, type Texture } from "three"
 
 const INK = "#111418"
-const MUTED = "#4a5560"
-const ACCENT = "#0f7a3d"
 
 /** Code 128-looking bars from a string, deterministic so every label matches. */
 function drawBars(params: {
@@ -56,51 +54,51 @@ function createLandscapeCanvas(params: {
   return canvas
 }
 
-/** The bag's 2" x 3" tscircuit sticker, upright on the front of the bag. */
-function drawBagLabel(): HTMLCanvasElement {
-  const canvas = document.createElement("canvas")
-  canvas.width = 400
-  canvas.height = 600
-  const context = canvas.getContext("2d")
-  if (!context) return canvas
-  context.fillStyle = "#ffffff"
-  context.fillRect(0, 0, 400, 600)
-  context.fillStyle = ACCENT
-  context.fillRect(0, 0, 400, 92)
-  context.fillStyle = "#ffffff"
-  context.font = "700 54px Montserrat, 'IBM Plex Sans', sans-serif"
-  context.fillText("tscircuit", 28, 64)
-  context.fillStyle = INK
-  context.font = "700 40px 'IBM Plex Sans', sans-serif"
-  context.fillText("NEMA 17 Motor", 28, 160)
-  context.fillText("Controller (RP2040)", 28, 208)
-  context.fillStyle = MUTED
-  context.font = "500 24px 'IBM Plex Sans', sans-serif"
-  for (const [index, line] of [
-    "Board, 4 mm spacer, 4× M3 long",
-    "screws, motor cable. Motor not",
-    "included. Tested before packing.",
-  ].entries())
-    context.fillText(line, 28, 258 + index * 34)
-  // ESD warning mark: a yellow triangle with a hand.
-  context.fillStyle = "#f2c230"
-  context.beginPath()
-  context.moveTo(60, 420)
-  context.lineTo(100, 490)
-  context.lineTo(20, 490)
-  context.closePath()
-  context.fill()
-  context.fillStyle = INK
-  context.font = "700 30px 'IBM Plex Sans', sans-serif"
-  context.fillText("✋", 44, 482)
-  context.font = "600 22px 'IBM Plex Sans', sans-serif"
-  context.fillText("Static sensitive: open", 118, 446)
-  context.fillText("at an ESD-safe bench", 118, 474)
-  context.fillStyle = MUTED
-  context.font = "500 20px 'IBM Plex Sans', sans-serif"
-  context.fillText("Development hardware, not a toy.", 28, 540)
-  context.fillText("tscircuit.com", 28, 570)
-  return canvas
+/**
+ * Yellow ESD caution sticker (2" x 1") that comes with the bags: the ESD
+ * hand-in-triangle symbol and the standard caution wording.
+ */
+function drawEsdCautionLabel(): HTMLCanvasElement {
+  return createLandscapeCanvas({
+    shortPx: 200,
+    longPx: 400,
+    draw: (context, width, height) => {
+      context.fillStyle = "#f5c518"
+      context.fillRect(0, 0, width, height)
+      context.strokeStyle = INK
+      context.lineWidth = 6
+      context.strokeRect(8, 8, width - 16, height - 16)
+      // ESD symbol: a triangle with a hand crossed out by a bar.
+      context.fillStyle = INK
+      context.beginPath()
+      context.moveTo(90, 34)
+      context.lineTo(156, 160)
+      context.lineTo(24, 160)
+      context.closePath()
+      context.fill()
+      context.fillStyle = "#f5c518"
+      context.beginPath()
+      context.moveTo(90, 62)
+      context.lineTo(136, 148)
+      context.lineTo(44, 148)
+      context.closePath()
+      context.fill()
+      context.fillStyle = INK
+      context.fillRect(80, 92, 20, 46)
+      context.fillRect(70, 108, 10, 24)
+      context.lineWidth = 7
+      context.beginPath()
+      context.moveTo(52, 144)
+      context.lineTo(130, 78)
+      context.stroke()
+      context.font = "800 40px 'IBM Plex Sans', sans-serif"
+      context.fillText("CAUTION", 176, 74)
+      context.font = "700 21px 'IBM Plex Sans', sans-serif"
+      context.fillText("ELECTROSTATIC", 176, 110)
+      context.fillText("SENSITIVE", 176, 136)
+      context.fillText("DEVICES", 176, 162)
+    },
+  })
 }
 
 /** Amazon FNSKU label, 1" x 2-5/8", as Seller Central prints it. */
@@ -169,7 +167,7 @@ export function createBagLabelTextures(): Record<
     return texture
   }
   return {
-    bag_label: make(drawBagLabel()),
+    esd_caution: make(drawEsdCautionLabel()),
     fnsku: make(drawFnskuLabel()),
     fba_box: make(drawBoxIdLabel()),
   }

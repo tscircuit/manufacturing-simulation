@@ -405,14 +405,14 @@ function* applyProductSticker(params: UnitParams, ctx: SimContext): SimTask {
   const label = takeNextLabel(world)
   if (!label) throw new Error("No bag stickers left at the bagging bench")
   unit.label = label
-  ctx.statusText = `Unit ${params.unitIndex + 1}: tscircuit 2×3 sticker on the front of the bag`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: tscircuit 2×4 label on the front of the bag`
   yield* peelAndApply(
     {
       label,
       bag,
       spot: bag.frontStickerSpot,
       hand: operator.rightHand,
-      labelLengthM: 3 * 0.0254,
+      labelLengthM: 4 * 0.0254,
     },
     ctx,
   )
@@ -535,7 +535,7 @@ export const BAGGING_STAGE: JobStage = {
           : "The spacer basket is empty. Collect prints from the 3D printers and refill it.",
     },
     {
-      label: "tscircuit sticker on the front",
+      label: "tscircuit label on the front",
       station: STATIONS.packOut,
       closeUpView: { ...BAG_CLOSE_UP, distanceM: 0.9 },
       getFocusPoint: (_params, ctx) => getBagFocusPoint(ctx),

@@ -26,7 +26,6 @@ export const BOARD_TRAY = {
 export function createBoardTray(params: { rimColor: number }): MotorRack {
   const group = new Group()
   const tray = createStandardMaterial({ color: 0x23262b, roughness: 0.7 })
-  const pocket = createStandardMaterial({ color: 0x16181b, roughness: 0.85 })
   const rim = createStandardMaterial({ color: params.rimColor, roughness: 0.5 })
   const { widthM, depthM, heightM, pocketDepthM, handleOverhangM } = BOARD_TRAY
   const floorY = heightM - pocketDepthM

@@ -1,9 +1,5 @@
 import { STATIONS } from "lib/layout/station-layout"
-import {
-  BAG_LABEL_SHEET,
-  createLabelSheet,
-  LABEL_SHEET,
-} from "lib/models/label-sheet"
+import { createLabelSheet, LABEL_SHEET } from "lib/models/label-sheet"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
 import { pickUpInFront, setDownFromCarry } from "lib/tasks/carry-motions"
@@ -21,10 +17,7 @@ export function printLabelSheet(ctx: SimContext): boolean {
   const { labelPrinter } = ctx.world
   if (labelPrinter.printedSheets.length >= MAX_PRINTED_LABEL_SHEETS)
     return false
-  // The bare-unit line prints the smaller 2" x 3" bag stickers.
-  const sheet = createLabelSheet(
-    ctx.world.productLine === "bagged" ? BAG_LABEL_SHEET : LABEL_SHEET,
-  )
+  const sheet = createLabelSheet(LABEL_SHEET)
   // Peel the front row first.
   sheet.labels.reverse()
   sheet.group.position.y = labelPrinter.printedSheets.length * SHEET_THICKNESS_M

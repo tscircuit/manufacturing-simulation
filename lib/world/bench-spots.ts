@@ -65,7 +65,7 @@ export const PACK_OUT_BENCH_SPOTS = {
 
 /**
  * The pack-out bench set up for bare units: a tray of flat 4" x 6" ESD bags,
- * a bag stand where each unit is bagged, the 2" x 3" product stickers (where
+ * a bag stand where each unit is bagged, the 2" x 4" tscircuit labels (where
  * the kit's label sheets go, so collected labels land there too), the FNSKU
  * sheets, and the tote. The ready rack and tote spots match the kit's.
  */

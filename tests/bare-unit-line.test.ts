@@ -20,10 +20,7 @@ const BAGGED_UNIT_KG = 0.025
 const CARTON_KG = 0.5
 const CABLE_COIL_M = 0.046
 const BOARD_LENGTH_M = 0.0423
-/** A reclosable bag's zip sits about half an inch below the top edge. */
-const ZIP_ALLOWANCE_M = 0.013
-
-test("the contents fit a 3 x 5 in bag snugly; bag, pouch and carton meet Amazon's limits", () => {
+test("the contents fit the Ellbest 80 x 120 mm bag snugly; bag, pouch and carton meet Amazon's limits", () => {
   // Two piles side by side: the board on its spacer, and the cable under the folded screw pouch.
   const contentsWidthM = Math.max(SCREW_POUCH.widthM, BOARD_LENGTH_M + 0.0013)
   const contentsLengthM =
@@ -34,12 +31,16 @@ test("the contents fit a 3 x 5 in bag snugly; bag, pouch and carton meet Amazon'
   )
   const neededWidthM = contentsWidthM + thicknessM + 0.006
   const neededLengthM =
-    contentsLengthM + thicknessM / 2 + ZIP_ALLOWANCE_M + 0.003
+    contentsLengthM + thicknessM / 2 + ESD_BAG.zipFromTopM + 0.003
   expect(neededWidthM).toBeLessThan(ESD_BAG.widthM)
   expect(neededLengthM).toBeLessThan(ESD_BAG.heightM)
   // Not too big: under 15 mm to spare each way.
   expect(ESD_BAG.widthM - neededWidthM).toBeLessThan(0.015)
   expect(ESD_BAG.heightM - neededLengthM).toBeLessThan(0.015)
+  // The original 2" x 4" label only just fits between the bottom seal and the zip.
+  const labelRoomM = ESD_BAG.heightM - ESD_BAG.zipFromTopM - ESD_BAG.sealWidthM
+  expect(4 * METERS_PER_INCH).toBeLessThan(labelRoomM)
+  expect(labelRoomM - 4 * METERS_PER_INCH).toBeLessThan(0.002)
   // Openings of 5" or more need a printed suffocation warning; both bags stay under it.
   expect(ESD_BAG.widthM).toBeLessThan(5 * METERS_PER_INCH)
   expect(SCREW_POUCH.widthM).toBeLessThan(5 * METERS_PER_INCH)

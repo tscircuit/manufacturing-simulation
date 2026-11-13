@@ -13,7 +13,7 @@ export const STICKER = {
 } as const
 
 /** Which printed design a sticker carries; the viewer picks the texture by this. */
-export type StickerArtwork = "kit_label" | "bag_label" | "fnsku" | "fba_box"
+export type StickerArtwork = "kit_label" | "esd_caution" | "fnsku" | "fba_box"
 
 /**
  * The printed face is a separate mesh tagged `isStickerFace` (and its

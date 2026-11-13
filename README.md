@@ -44,15 +44,15 @@ simulation.ctx.progress.cycleSeconds // total including walking
 
 - **No assembly bench:** that table is gone and the other benches shift up the line. QC sits where assembly used to be, the bagging bench where QC was.
 - **QC:** all 30 untested boards wait in a black ESD tray (amber rim). The one test motor stays in its cradle. Each board is set on the ESD mat beside it, never screwed on. The test motor's cable, DATA and PWR are plugged in, the motor is spun, and then everything is unplugged. The board goes into the passed tray (green rim). You can test one at a time and carry the passed tray to bagging whenever you like.
-- **Label printer:** prints 2" × 3" tscircuit bag stickers. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
+- **Label printer:** prints the original 2" × 4" tscircuit labels, the same sheets as the kit line. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
 - **Bagging bench:**
   1. Fill a 2" × 3" pink pouch with the 4 long screws, zip it and fold it in half.
-  2. Open a 3" × 5" metal-in static-shielding zip bag on the stand.
+  2. Open an Ellbest 80 × 120 mm shielding zip bag (yellow ESD caution sticker on the back) on the bag holder.
   3. Put in the spacer, the board on top of it, a coiled cable and the screw pouch (two piles side by side), then zip.
-  4. Put the tscircuit sticker on the front and the FNSKU label on the back, then lay the bag in the tote.
+  4. Put the tscircuit label on the front and the FNSKU label on the back, then lay the bag in the tote.
 - **Ship-ready:** 30 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The FBA box ID label goes on the side, then the carton is sealed and shipped.
 
-In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the Amazon bags to buy, and the Amazon packaging, labelling and FCC research are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
+In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the bags and bag holder to buy, and the Amazon packaging and labelling rules are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
 
 ### Amazon carton for 30
 
