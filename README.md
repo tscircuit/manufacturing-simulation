@@ -74,7 +74,16 @@ Parts are drawn as boxes sized from their footprints, merged into one mesh per m
 | F | Pick up or put back the screwdriver (game mode) |
 | C | Go back to the paused work and carry on (game mode) |
 
-Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) in game mode.
+### On a phone or tablet
+
+The page works on touch screens, best with the phone turned sideways (portrait shows a dismissible tip).
+
+- **Panels:** both start folded as small tabs at the top. Tap one to open it as a sheet; only one opens at a time.
+- **Status:** a short line at the top. Its prompts are buttons you can tap.
+- **Walking (game mode):** touch anywhere on the left half of the screen and a stick appears under your thumb; lift it and the stick goes away. While a menu is open, the stick is off and a tap says "Close the menu to walk".
+- **Looking around:** drag on the right half to orbit and pinch to zoom.
+- **Buttons, bottom-right:** a big E, then R, C and F when they apply, and a camera button that cycles Follow, Close-up and Room.
+- **Sound and auto close-up:** these are inside the Line simulation panel.
 
 ### Jumping around the line
 
