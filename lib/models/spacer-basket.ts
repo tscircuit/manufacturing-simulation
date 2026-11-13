@@ -1,5 +1,5 @@
-import { Group, Vector3 } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { Group, Object3D, Vector3 } from "three"
 
 /** Shallow open basket for printed spacers. Origin on its floor. */
 export const SPACER_BASKET = { wallThicknessM: 0.003 } as const
@@ -98,5 +98,15 @@ export function createSpacerBasket(params: {
       position: [widthM / 2, heightM / 2, 0],
     }),
   )
+  // Grip points on each end, for carrying with both hands.
+  for (const [name, sideX] of [
+    ["left_grip", -1],
+    ["right_grip", 1],
+  ] as const) {
+    const grip = new Object3D()
+    grip.name = name
+    grip.position.set((sideX * params.widthM) / 2, params.heightM, 0)
+    basket.add(grip)
+  }
   return basket
 }

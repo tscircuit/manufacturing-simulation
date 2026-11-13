@@ -1,4 +1,3 @@
-import { Group } from "three"
 import { BOLT_HOLE_CORNERS } from "lib/models/nema17-motor"
 import {
   createCircleHole,
@@ -7,6 +6,7 @@ import {
   createOctagonShape,
   createStandardMaterial,
 } from "lib/scene/primitives"
+import { Group } from "three"
 
 /** Dimensions from backface-spacer-4mm.scad on motorcontrol.tscircuit.com. */
 export const BACKFACE_SPACER = {

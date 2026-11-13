@@ -1,12 +1,11 @@
-import { Vector3 } from "three"
-import { STATIONS } from "lib/layout/station-layout"
 import { getQcFocusPoint } from "lib/job/bench-frames"
+import { releaseSlot, reserveSlot } from "lib/job/container-slots"
 import type { JobStage, UnitParams } from "lib/job/job-step"
+import { MOTOR_IN_CRADLE_POSITION } from "lib/job/unit-poses"
+import { STATIONS } from "lib/layout/station-layout"
 import { STATUS_LED_COLORS } from "lib/models/controller-pcb"
-import { QC_CRADLE } from "lib/models/qc-cradle"
 import { QC_DISPLAY_COLORS, type QcDisplayState } from "lib/models/qc-laptop"
 import type { SimContext } from "lib/simulation/sim-context"
-import { carryWithBothHands } from "lib/tasks/carry-motions"
 import {
   runInParallel,
   type SimTask,
@@ -25,10 +24,10 @@ import { plugIn, unplug } from "lib/tasks/plug-motions"
 import {
   IDENTITY_QUATERNION,
   MOTOR_ON_SIDE_QUATERNION,
-  PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
   QC_BENCH_SPOTS,
 } from "lib/world/bench-spots"
+import { Vector3 } from "three"
 
 /** From beside the operator, so neither the laptop nor the operator blocks the cradle. */
 const QC_CLOSE_UP = {
@@ -39,11 +38,6 @@ const QC_CLOSE_UP = {
 const SPIN_TEST_SECONDS = 3
 const SPIN_TEST_REVOLUTIONS = 9
 
-/** Motor lying in the cradle, back face (PCB) toward +X, mount face just behind the cradle centre. */
-const MOTOR_IN_CRADLE_POSITION = QC_BENCH_SPOTS.cradle
-  .clone()
-  .add(new Vector3(-0.02, QC_CRADLE.motorAxisHeightM, 0))
-
 function setQcDisplay(state: QcDisplayState, ctx: SimContext): void {
   ctx.world.laptop.displayState = state
   ctx.world.laptop.display.material.color.setHex(QC_DISPLAY_COLORS[state])
@@ -52,6 +46,7 @@ function setQcDisplay(state: QcDisplayState, ctx: SimContext): void {
 function* seatMotorAndPlugIn(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const unit = world.units[params.unitIndex]
+  releaseSlot({ container: world.finishedRack, unitIndex: params.unitIndex })
   ctx.statusText = `Unit ${params.unitIndex + 1}: taking it from the rack into the QC cradle`
   yield* grabObject({
     hand: operator.rightHand,
@@ -157,6 +152,10 @@ function* unplugAndRack(params: UnitParams, ctx: SimContext): SimTask {
   unit.pcb.statusLed.material.color.setHex(STATUS_LED_COLORS.off)
   setQcDisplay("idle", ctx)
 
+  const slotIndex = reserveSlot({
+    container: world.readyRack,
+    unitIndex: params.unitIndex,
+  })
   ctx.statusText = `Unit ${params.unitIndex + 1}: tested, into the ready rack`
   yield* grabObject({
     hand: operator.rightHand,
@@ -170,7 +169,7 @@ function* unplugAndRack(params: UnitParams, ctx: SimContext): SimTask {
       object: unit.motor.group,
       hand: operator.rightHand,
       parent: world.readyRack.group,
-      localPosition: world.readyRack.slots[params.unitIndex].position,
+      localPosition: world.readyRack.slots[slotIndex].position,
       localQuaternion: IDENTITY_QUATERNION,
       liftHeightM: 0.07,
       travelSeconds: 0.9,
@@ -178,26 +177,6 @@ function* unplugAndRack(params: UnitParams, ctx: SimContext): SimTask {
     ctx,
   )
   yield* releaseHand(operator.rightHand)
-}
-
-function* carryReadyRackToPackOut(
-  _params: UnitParams,
-  ctx: SimContext,
-): SimTask {
-  const { world } = ctx
-  ctx.statusText = "Carrying the rack of tested motors to pack-out"
-  yield* carryWithBothHands(
-    {
-      item: world.readyRack.group,
-      leftHandle: world.readyRack.leftHandle,
-      rightHandle: world.readyRack.rightHandle,
-      liftHeightM: 0.2,
-      toStation: STATIONS.packOut,
-      toParent: world.tables.pack_out_bench,
-      toPosition: PACK_OUT_BENCH_SPOTS.incomingRack,
-    },
-    ctx,
-  )
 }
 
 export const QC_STAGE: JobStage = {
@@ -224,21 +203,6 @@ export const QC_STAGE: JobStage = {
       closeUpView: { ...QC_CLOSE_UP, distanceM: 0.9 },
       getFocusPoint: (_params, ctx) => getQcFocusPoint(ctx),
       run: unplugAndRack,
-    },
-  ],
-}
-
-export const CARRY_READY_RACK_STAGE: JobStage = {
-  label: "Carry the ready rack to pack-out",
-  isPerUnit: false,
-  steps: [
-    {
-      label: "Carry the ready rack to pack-out",
-      station: STATIONS.qc,
-      closeUpView: { ...QC_CLOSE_UP, distanceM: 1.6 },
-      getFocusPoint: (_params, ctx) =>
-        ctx.world.readyRack.group.getWorldPosition(new Vector3()),
-      run: carryReadyRackToPackOut,
     },
   ],
 }

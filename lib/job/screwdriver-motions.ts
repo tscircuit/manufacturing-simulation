@@ -1,6 +1,5 @@
-import { Euler, Quaternion, Vector3 } from "three"
-import { STATIONS } from "lib/layout/station-layout"
 import { getScrewdriverFocusPoint } from "lib/job/bench-frames"
+import { STATIONS } from "lib/layout/station-layout"
 import { SCREWDRIVER_GRIP_OFFSET_M } from "lib/models/screwdriver"
 import type { SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
@@ -14,6 +13,7 @@ import {
   ASSEMBLY_BENCH_SPOTS,
   SCREWDRIVER_REST_QUATERNION,
 } from "lib/world/bench-spots"
+import { Euler, Quaternion, Vector3 } from "three"
 
 /** Right hand closes around the screwdriver grip. */
 export function* takeScrewdriver(ctx: SimContext): SimTask {

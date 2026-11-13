@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test"
-import { Vector3 } from "three"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { STATIONS } from "lib/layout/station-layout"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
+import { Vector3 } from "three"
 
 function standAt(params: {
   simulation: ManufacturingSimulation
@@ -68,7 +68,7 @@ test("E runs the whole assembly bench; E pauses it, the player can walk away, an
   const { ctx } = simulation
   standAt({ simulation, station: STATIONS.assembly })
   expect(simulation.getGameActions().benchAction?.label).toBe(
-    "Run the Assembly bench (211 steps left)",
+    "Run the Assembly bench (30 units)",
   )
   expect(simulation.runGameAction("bench")).toBe(true)
 
@@ -103,7 +103,9 @@ test("E runs the whole assembly bench; E pauses it, the player can walk away, an
   // Walks back, finishes unit 1 without any more key presses, and carries on to unit 2.
   stepUntil({
     simulation,
-    isDone: () => ctx.progress.completedWorkCount >= 8,
+    isDone: () =>
+      ctx.world.units[0].stage === "assembled" &&
+      ctx.world.units[1].nextStepIndex > 0,
     maxSeconds: 200,
   })
   const unit = ctx.world.units[0]

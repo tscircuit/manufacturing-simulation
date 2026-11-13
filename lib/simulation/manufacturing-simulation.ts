@@ -1,10 +1,9 @@
-import { Scene } from "three"
-import { JOB_ROWS, WORK_ITEMS } from "lib/job/job-plan"
-import { advancePrinters } from "lib/job/printer-steps"
+import { JOB_ROWS } from "lib/job/job-plan"
+import { printLabelSheet, printLabelsNow } from "lib/job/label-collection"
+import { advancePrinters, finishPrintsNow } from "lib/job/printer-steps"
 import { OPERATOR_START } from "lib/layout/station-layout"
 import { populatePlate } from "lib/models/bambu-printer"
 import { updateFlexCable } from "lib/models/flex-cable"
-import { createLabelSheet } from "lib/models/label-sheet"
 import { createRoomShell, type RoomShell } from "lib/models/room-shell"
 import { createNavGrid } from "lib/navigation/nav-grid"
 import {
@@ -19,7 +18,9 @@ import {
   getGameActions,
   type WalkInput,
 } from "lib/simulation/game-actions"
+import { type LineStartId, setUpLineAt } from "lib/simulation/line-setup"
 import {
+  collectLabelsScenario,
   pickUpScrewdriverScenario,
   refillSpacersScenario,
   runBatchScenario,
@@ -34,15 +35,16 @@ import type {
 import type { SimTask } from "lib/tasks/coroutines"
 import { walkTo } from "lib/tasks/operator-motions"
 import { createWorld } from "lib/world/create-world"
+import { Scene } from "three"
 
 const NAV_GRID_CELL_SIZE_M = 0.1
 const NAV_GRID_CLEARANCE_M = 0.27
+/** About how long the Epson takes per AveneMark sheet, including feeding. */
 const LABEL_SHEET_PRINT_SECONDS = 45
-const MAX_PRINTED_LABEL_SHEETS = 6
 const MOVED_WHILE_PAUSED_M = 0.02
 
-/** E runs the bench (or pauses a running task); F handles the screwdriver. */
-export type GameActionKind = "bench" | "screwdriver"
+/** E runs the bench (or pauses a running task); R moves what's ready on; F handles the screwdriver. */
+export type GameActionKind = "bench" | "carry" | "screwdriver"
 
 /** Where the operator was and what each hand was doing when the task was paused. */
 interface PausePose {
@@ -55,8 +57,7 @@ interface PausePose {
 
 function createJobProgress(): JobProgress {
   return {
-    completedWorkCount: 0,
-    activeWorkIndex: null,
+    activeRowIndex: null,
     rowSeconds: JOB_ROWS.map(() => 0),
     rowCompletedCounts: JOB_ROWS.map(() => 0),
     cycleSeconds: 0,
@@ -184,12 +185,35 @@ export class ManufacturingSimulation {
       this.startTask(refillSpacersScenario(this.ctx))
       return
     }
-    const canResumeBatch =
-      progress.completedWorkCount > 0 &&
-      !progress.isJobComplete &&
-      !progress.isHoldingLooseScrewdriver
-    if (!canResumeBatch) this.reset()
+    if (scenarioId === "collect_labels") {
+      this.startTask(collectLabelsScenario(this.ctx))
+      return
+    }
+    // Carry on from wherever the line is; start over once the carton has shipped.
+    if (progress.isJobComplete || progress.isHoldingLooseScrewdriver)
+      this.reset()
     this.startTask(runBatchScenario(this.ctx))
+  }
+
+  /** Start over with the whole batch ready for one bench, and the operator standing at it. */
+  startAt(startId: LineStartId): void {
+    const { mode } = this.ctx
+    this.reset()
+    this.ctx.mode = mode
+    setUpLineAt({ startId }, this.ctx)
+    this.ctx.progress.isJobActive = startId !== "assembly"
+    updateOperatorPose(this.ctx.operator, 1 / 60)
+    for (const cable of this.ctx.world.cables) updateFlexCable(cable)
+  }
+
+  /** Finish the running 3D prints now. */
+  finishPrintsNow(): void {
+    finishPrintsNow(this.ctx)
+  }
+
+  /** Fill the label printer's output tray now. */
+  printLabelsNow(): void {
+    printLabelsNow(this.ctx)
   }
 
   /** Switching to game mode stops any scenario that isn't mid-step. */
@@ -245,7 +269,7 @@ export class ManufacturingSimulation {
     )
   }
 
-  /** E ("bench") runs the bench or pauses/resumes; F ("screwdriver") handles the screwdriver. */
+  /** E ("bench") runs the bench or pauses/resumes; R ("carry") moves what's ready on; F handles the screwdriver. */
   runGameAction(actionKind: GameActionKind): boolean {
     if (this.activeTask && this.ctx.mode === "game") {
       if (actionKind !== "bench") return false
@@ -254,7 +278,11 @@ export class ManufacturingSimulation {
     }
     const actions = this.getGameActions()
     const action =
-      actionKind === "bench" ? actions.benchAction : actions.screwdriverAction
+      actionKind === "bench"
+        ? actions.benchAction
+        : actionKind === "carry"
+          ? actions.carryAction
+          : actions.screwdriverAction
     if (!action) return false
     this.startTask(action.createTask())
     return true
@@ -277,9 +305,8 @@ export class ManufacturingSimulation {
     }
     const { progress } = ctx
     if (progress.isJobActive) progress.cycleSeconds += dtSeconds
-    if (progress.activeWorkIndex !== null)
-      progress.rowSeconds[WORK_ITEMS[progress.activeWorkIndex].row.rowIndex] +=
-        dtSeconds
+    if (progress.activeRowIndex !== null)
+      progress.rowSeconds[progress.activeRowIndex] += dtSeconds
     updateOperatorPose(ctx.operator, dtSeconds)
     for (const cable of ctx.world.cables) updateFlexCable(cable)
   }
@@ -314,13 +341,7 @@ export class ManufacturingSimulation {
     labelPrinter.secondsSinceLastSheet += dtSeconds
     if (labelPrinter.secondsSinceLastSheet < LABEL_SHEET_PRINT_SECONDS) return
     labelPrinter.secondsSinceLastSheet = 0
-    if (labelPrinter.printedSheets.length >= MAX_PRINTED_LABEL_SHEETS) return
-    const sheet = createLabelSheet()
-    sheet.group.position.y = labelPrinter.printedSheets.length * 0.0006
-    sheet.group.rotation.y =
-      (labelPrinter.printedSheets.length % 2 === 0 ? 1 : -1) * 0.03
-    labelPrinter.outputStack.add(sheet.group)
-    labelPrinter.printedSheets.push(sheet.group)
+    printLabelSheet(ctx)
   }
 
   /** Step until the running task finishes or `maxSeconds` of simulated time pass. */

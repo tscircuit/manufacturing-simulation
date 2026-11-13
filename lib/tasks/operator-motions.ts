@@ -1,4 +1,3 @@
-import { type Object3D, Quaternion, Vector3 } from "three"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import type { Station } from "lib/layout/station-layout"
 import { findPath } from "lib/navigation/find-path"
@@ -11,6 +10,7 @@ import {
 } from "lib/operator/operator-body"
 import type { SimContext } from "lib/simulation/sim-context"
 import { type SimTask, tween, waitSeconds } from "lib/tasks/coroutines"
+import { type Object3D, Quaternion, Vector3 } from "three"
 
 const TURN_RATE_WHILE_WALKING_RADIANS_PER_SECOND = 6
 const TURN_RATE_IN_PLACE_RADIANS_PER_SECOND = 4

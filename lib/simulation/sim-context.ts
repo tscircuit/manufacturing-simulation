@@ -1,8 +1,8 @@
-import type { Scene, Vector3 } from "three"
 import type { Station } from "lib/layout/station-layout"
 import type { NavGrid } from "lib/navigation/nav-grid"
 import type { Operator } from "lib/operator/create-operator"
 import type { ManufacturingWorld } from "lib/world/create-world"
+import type { Scene, Vector3 } from "three"
 
 export type SimulationMode = "simulation" | "game"
 
@@ -22,9 +22,8 @@ export interface CameraHint {
 }
 
 export interface JobProgress {
-  /** Work items done so far, in line order (see WORK_ITEMS). */
-  completedWorkCount: number
-  activeWorkIndex: number | null
+  /** Timing row of the step running now. */
+  activeRowIndex: number | null
   /** Time spent in each timing row, summed over every unit, excluding walking between stations. */
   rowSeconds: number[]
   /** How many times each timing row has finished. */

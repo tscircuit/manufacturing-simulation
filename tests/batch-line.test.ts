@@ -1,9 +1,9 @@
 import { expect, test } from "bun:test"
-import { Box3, Vector3 } from "three"
+import { JOB_ROWS } from "lib/job/job-plan"
 import { BATCH_SIZE, OUTBOUND_SPOT } from "lib/layout/station-layout"
-import { JOB_ROWS, WORK_ITEMS } from "lib/job/job-plan"
 import { SHIPPING_CARTON_CAPACITY } from "lib/models/shipping-carton"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
+import { Box3, Vector3 } from "three"
 
 test(
   "a batch of 30 runs bench to bench and ships in one sealed Amazon carton",
@@ -15,8 +15,9 @@ test(
 
     expect(simulation.isTaskRunning).toBe(false)
     expect(progress.isJobComplete).toBe(true)
-    expect(progress.completedWorkCount).toBe(WORK_ITEMS.length)
+    expect(world.units.every((unit) => unit.stage === "shipped")).toBe(true)
     for (const row of JOB_ROWS) {
+      if (row.runCount === null) continue
       expect(progress.rowCompletedCounts[row.rowIndex]).toBe(row.runCount)
       expect(progress.rowSeconds[row.rowIndex]).toBeGreaterThan(0.5)
     }
@@ -32,7 +33,7 @@ test(
       expect(unit.motorCable?.motorPlug.group.parent).toBe(motor)
       expect(unit.motorCable?.boardPlug.group.parent).toBe(unit.pcb.group)
       expect(motor.parent).toBe(unit.box.group)
-      expect(unit.label.parent).toBe(unit.box.lid)
+      expect(unit.label?.parent).toBe(unit.box.lid)
       expect(unit.box.group.parent).toBe(world.carton.group)
       const boxBounds = new Box3()
         .setFromObject(unit.box.group)
@@ -73,7 +74,7 @@ test("the same run is deterministic", () => {
     simulation.startScenario("run_batch")
     simulation.runUntilIdle({ dtSeconds: 0.05, maxSeconds: 120 })
     return [
-      simulation.ctx.progress.completedWorkCount,
+      simulation.ctx.progress.rowCompletedCounts,
       simulation.ctx.progress.cycleSeconds,
     ]
   })

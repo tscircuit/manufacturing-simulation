@@ -1,5 +1,5 @@
-import { ExtrudeGeometry, Group, type Material, Mesh, Shape } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { ExtrudeGeometry, Group, type Material, Mesh, Shape } from "three"
 
 /**
  * Akro-Mils 30210 AkroBin, 5-3/8" x 4-1/8" x 3", black. Origin on the floor

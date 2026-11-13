@@ -1,5 +1,5 @@
-import { type Material, Vector3 } from "three"
 import type { Operator } from "lib/operator/create-operator"
+import { type Material, Vector3 } from "three"
 
 const BODY_RADIUS_M = 0.24
 const CAMERA_CLEARANCE_M = 0.6

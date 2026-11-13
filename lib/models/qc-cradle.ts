@@ -1,5 +1,5 @@
-import { Group } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { Group } from "three"
 
 /** Two V-blocks that hold a motor on its side for the spin test. Origin on the table. */
 export const QC_CRADLE = { motorAxisHeightM: 0.031 } as const

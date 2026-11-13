@@ -1,4 +1,3 @@
-import { Group, Object3D, Path, type Shape } from "three"
 import { USB_CHARGER } from "lib/models/usb-charger"
 import {
   createBoxMesh,
@@ -6,6 +5,7 @@ import {
   createRectangleShape,
   createStandardMaterial,
 } from "lib/scene/primitives"
+import { Group, Object3D, Path, type Shape } from "three"
 
 /**
  * The Boxery white corrugated tuck mailer, 7" x 4" x 3" inside, with a hinged

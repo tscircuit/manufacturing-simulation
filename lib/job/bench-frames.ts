@@ -1,4 +1,3 @@
-import { type Object3D, Vector3 } from "three"
 import type { TableId } from "lib/layout/station-layout"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
@@ -7,6 +6,7 @@ import {
   QC_BENCH_SPOTS,
   SHIP_READY_BENCH_SPOTS,
 } from "lib/world/bench-spots"
+import { type Object3D, Vector3 } from "three"
 
 /** Express a point fixed to `object` in a table's local frame. */
 export function getPointInTableFrame(

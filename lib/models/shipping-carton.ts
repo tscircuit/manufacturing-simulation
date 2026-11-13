@@ -1,7 +1,7 @@
-import { Group, Object3D } from "three"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
+import { Group, Object3D } from "three"
 
 /**
  * Amazon FBA shipping carton for 30 packed units. The packed 7x4x3 mailers
@@ -25,6 +25,8 @@ export const SHIPPING_CARTON_CAPACITY =
 /** Origin under the centre of the carton; the top flaps start open. */
 export interface ShippingCarton {
   group: Group
+  /** Which unit (index) sits in each slot, or null. */
+  occupants: Array<number | null>
   /** Pose of each mailer, filled bottom layer first. */
   slots: Object3D[]
   /** Long flaps on the front/back edges and short flaps on the ends; rotate `rotation.x` / `rotation.z` to close. */
@@ -162,6 +164,7 @@ export function createShippingCarton(): ShippingCarton {
   return {
     group,
     slots,
+    occupants: slots.map(() => null),
     frontFlap,
     backFlap,
     leftFlap,

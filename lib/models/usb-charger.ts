@@ -1,9 +1,9 @@
-import { Group, Object3D } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import {
   BLACK_PLASTIC_MATERIAL,
   STEEL_MATERIAL,
 } from "lib/scene/shared-materials"
+import { Group, Object3D } from "three"
 
 /** 45 W USB-C PD charger brick lying on its back. Origin on its base; the port faces +X. */
 export const USB_CHARGER = {

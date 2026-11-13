@@ -1,70 +1,111 @@
-import { BATCH_SIZE, type TableId } from "lib/layout/station-layout"
-import {
-  ASSEMBLY_STAGE,
-  CARRY_FINISHED_RACK_STAGE,
-} from "lib/job/assembly-bench-steps"
+import { ASSEMBLY_STAGE } from "lib/job/assembly-bench-steps"
 import type { JobStage, JobStep } from "lib/job/job-step"
-import { CARRY_TOTE_STAGE, PACK_OUT_STAGE } from "lib/job/pack-out-steps"
-import { CARRY_READY_RACK_STAGE, QC_STAGE } from "lib/job/qc-bench-steps"
-import {
-  LOAD_CARTON_STAGE,
-  SEAL_AND_SHIP_STAGE,
-} from "lib/job/ship-ready-steps"
+import { PACK_OUT_STAGE } from "lib/job/pack-out-steps"
+import { QC_STAGE } from "lib/job/qc-bench-steps"
+import { LOAD_CARTON_STAGE } from "lib/job/ship-ready-steps"
+import { TRANSFER_STEPS } from "lib/job/transfer-steps"
+import { BATCH_SIZE, type TableId } from "lib/layout/station-layout"
+import type { UnitStage } from "lib/world/create-world"
 
-/** The batch line, bench by bench. */
-export const JOB_STAGES: JobStage[] = [
-  ASSEMBLY_STAGE,
-  CARRY_FINISHED_RACK_STAGE,
-  QC_STAGE,
-  CARRY_READY_RACK_STAGE,
-  PACK_OUT_STAGE,
-  CARRY_TOTE_STAGE,
-  LOAD_CARTON_STAGE,
-  SEAL_AND_SHIP_STAGE,
-]
-
-/** One row of the timing table: a step, timed across every unit it runs for. */
+/** One row of the timing table: a step, timed across every time it runs. */
 export interface JobRow {
   rowIndex: number
-  stage: JobStage
   step: JobStep
-  /** How many times the step runs in a batch. */
-  runCount: number
+  /** How many times the step runs in a full batch; null for moves that happen as needed. */
+  runCount: number | null
 }
 
-export const JOB_ROWS: JobRow[] = JOB_STAGES.flatMap((stage) =>
-  stage.steps.map((step) => ({ stage, step })),
-).map(({ stage, step }, rowIndex) => ({
-  rowIndex,
-  stage,
-  step,
-  runCount: stage.isPerUnit ? BATCH_SIZE : 1,
-}))
-
-/** One step for one unit, in the order the line runs them. */
-export interface WorkItem {
-  workIndex: number
-  row: JobRow
-  unitIndex: number
+/** A bench's per-unit work: which units it takes, and the stage they leave with. */
+export interface UnitStagePlan {
+  stage: JobStage
   tableId: TableId
+  fromStage: UnitStage
+  toStage: UnitStage
+  rows: JobRow[]
 }
 
-function buildWorkItems(): WorkItem[] {
-  const items: Array<Omit<WorkItem, "workIndex">> = []
-  let firstRowIndex = 0
-  for (const stage of JOB_STAGES) {
-    const stageRows = JOB_ROWS.slice(
-      firstRowIndex,
-      firstRowIndex + stage.steps.length,
-    )
-    firstRowIndex += stage.steps.length
-    const unitCount = stage.isPerUnit ? BATCH_SIZE : 1
-    for (let unitIndex = 0; unitIndex < unitCount; unitIndex++) {
-      for (const row of stageRows)
-        items.push({ row, unitIndex, tableId: row.step.station.tableId })
-    }
+const rows: JobRow[] = []
+
+function addRow(params: { step: JobStep; runCount: number | null }): JobRow {
+  const row = { rowIndex: rows.length, ...params }
+  rows.push(row)
+  return row
+}
+
+function addUnitStage(params: {
+  stage: JobStage
+  tableId: TableId
+  fromStage: UnitStage
+  toStage: UnitStage
+}): UnitStagePlan {
+  return {
+    ...params,
+    rows: params.stage.steps.map((step) =>
+      addRow({ step, runCount: BATCH_SIZE }),
+    ),
   }
-  return items.map((item, workIndex) => ({ ...item, workIndex }))
 }
 
-export const WORK_ITEMS: WorkItem[] = buildWorkItems()
+// Rows are added in the order the timing table shows them.
+const assembly = addUnitStage({
+  stage: ASSEMBLY_STAGE,
+  tableId: "assembly_bench",
+  fromStage: "raw",
+  toStage: "assembled",
+})
+const carryFinishedRack = addRow({
+  step: TRANSFER_STEPS.carryFinishedRack,
+  runCount: 1,
+})
+const returnFinishedRack = addRow({
+  step: TRANSFER_STEPS.returnFinishedRack,
+  runCount: null,
+})
+const qc = addUnitStage({
+  stage: QC_STAGE,
+  tableId: "qc_bench",
+  fromStage: "assembled",
+  toStage: "tested",
+})
+const carryReadyRack = addRow({
+  step: TRANSFER_STEPS.carryReadyRack,
+  runCount: 1,
+})
+const returnReadyRack = addRow({
+  step: TRANSFER_STEPS.returnReadyRack,
+  runCount: null,
+})
+const packOut = addUnitStage({
+  stage: PACK_OUT_STAGE,
+  tableId: "pack_out_bench",
+  fromStage: "tested",
+  toStage: "packed",
+})
+const carryTote = addRow({ step: TRANSFER_STEPS.carryTote, runCount: 1 })
+const returnTote = addRow({ step: TRANSFER_STEPS.returnTote, runCount: null })
+const shipReady = addUnitStage({
+  stage: LOAD_CARTON_STAGE,
+  tableId: "ship_ready_bench",
+  fromStage: "packed",
+  toStage: "in_carton",
+})
+const sealAndShip = addRow({ step: TRANSFER_STEPS.sealAndShip, runCount: 1 })
+
+/** Per-unit work at each line bench, in line order. */
+export const UNIT_STAGES: UnitStagePlan[] = [assembly, qc, packOut, shipReady]
+
+/** One-off moves between benches. */
+export const TRANSFER_ROWS = {
+  carryFinishedRack,
+  returnFinishedRack,
+  carryReadyRack,
+  returnReadyRack,
+  carryTote,
+  returnTote,
+  sealAndShip,
+}
+
+export const JOB_ROWS: JobRow[] = rows
+
+/** The line benches in order; the printer and label benches support them. */
+export const LINE_TABLES: TableId[] = UNIT_STAGES.map((plan) => plan.tableId)

@@ -1,5 +1,16 @@
+import { formatSeconds } from "lib/job/bench-work"
+import type { UnitStage } from "lib/world/create-world"
 import type { Ref } from "react"
-import { formatSeconds } from "lib/job/run-work-item"
+
+const STAGE_LABELS: Record<UnitStage, string> = {
+  raw: "To assemble",
+  assembled: "Assembled",
+  tested: "Tested",
+  packed: "Boxed",
+  in_carton: "In carton",
+  shipped: "Shipped",
+}
+
 import type { HudSnapshot } from "lib/viewer/hud-snapshot"
 
 export function CycleTimingPanel(props: {
@@ -22,11 +33,14 @@ export function CycleTimingPanel(props: {
               </span>
               <span>
                 {step.label}
-                {step.runCount > 1 && (
+                {step.runCount !== null && step.runCount > 1 && (
                   <span className="count">
                     {" "}
                     {step.completedCount}/{step.runCount}
                   </span>
+                )}
+                {step.runCount === null && step.completedCount > 0 && (
+                  <span className="count"> ×{step.completedCount}</span>
                 )}
               </span>
               <span className="t">
@@ -36,6 +50,17 @@ export function CycleTimingPanel(props: {
           ))}
         </ol>
         <div className="tot">
+          {hud.unitsByStage.map(({ stage, count }) => (
+            <span key={stage} className="stage-cell">
+              {STAGE_LABELS[stage]} <b>{count}</b>
+            </span>
+          ))}
+          <span>Labels at pack-out</span>
+          <span className="t">
+            {hud.labelsAtPackOut}
+            {hud.printedLabelSheets > 0 &&
+              ` (+${hud.printedLabelSheets} sheets in the Epson)`}
+          </span>
           <span>Spacers in basket</span>
           <span className="t">{hud.spacersInBasket}</span>
           {hud.printerLines.map((line) => (

@@ -3,11 +3,12 @@ import type { HudSnapshot } from "lib/viewer/hud-snapshot"
 const SIMULATION_HINT =
   "Drag to orbit · scroll or pinch to zoom · right-drag to pan"
 const GAME_HINT =
-  "WASD or arrows to walk · E run the bench, again to pause and resume · F screwdriver · drag to orbit · scroll to zoom"
+  "WASD or arrows to walk · E run the bench, again to pause and resume · R carry what is ready to the next bench · F screwdriver · drag to orbit · scroll to zoom"
 
 export function StatusBar(props: { hud: HudSnapshot }) {
   const { hud } = props
-  const hasPrompt = hud.benchPromptLabel || hud.screwdriverPromptLabel
+  const hasPrompt =
+    hud.benchPromptLabel || hud.carryPromptLabel || hud.screwdriverPromptLabel
   return (
     <div className="status" aria-live="polite">
       <div className="now">{hud.statusText}</div>
@@ -16,6 +17,11 @@ export function StatusBar(props: { hud: HudSnapshot }) {
           {hud.benchPromptLabel && (
             <span>
               <kbd>E</kbd> {hud.benchPromptLabel}
+            </span>
+          )}
+          {hud.carryPromptLabel && (
+            <span>
+              <kbd>R</kbd> {hud.carryPromptLabel}
             </span>
           )}
           {hud.screwdriverPromptLabel && (

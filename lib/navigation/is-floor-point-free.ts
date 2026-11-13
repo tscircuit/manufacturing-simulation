@@ -1,5 +1,5 @@
 import { FLOOR_PLAN, getRoomLengthAtX } from "lib/layout/floor-plan"
-import { FOLDING_TABLE, TABLE_PLACEMENTS } from "lib/layout/station-layout"
+import { TABLE_PLACEMENTS, WORK_TABLE } from "lib/layout/station-layout"
 
 const WASHROOM_WALL_MARGIN_M = 0.05
 
@@ -35,8 +35,8 @@ export function isFloorPointFree(params: {
     const localX = dx * cos - dz * sin
     const localZ = dx * sin + dz * cos
     if (
-      Math.abs(localX) < FOLDING_TABLE.lengthM / 2 + clearanceM &&
-      Math.abs(localZ) < FOLDING_TABLE.depthM / 2 + clearanceM
+      Math.abs(localX) < WORK_TABLE.lengthM / 2 + clearanceM &&
+      Math.abs(localZ) < WORK_TABLE.depthM / 2 + clearanceM
     ) {
       return false
     }

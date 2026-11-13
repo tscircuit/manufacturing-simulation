@@ -1,5 +1,5 @@
-import { CanvasTexture, SRGBColorSpace } from "three"
 import type { QcDisplayState } from "lib/models/qc-laptop"
+import { CanvasTexture, SRGBColorSpace } from "three"
 
 const WIDTH_PX = 540
 const HEIGHT_PX = 340

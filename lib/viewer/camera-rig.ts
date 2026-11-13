@@ -1,5 +1,5 @@
-import { type PerspectiveCamera, Vector3 } from "three"
 import { FLOOR_PLAN } from "lib/layout/floor-plan"
+import { type PerspectiveCamera, Vector3 } from "three"
 
 export type CameraMode = "overview" | "follow" | "close_up"
 

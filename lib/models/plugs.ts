@@ -1,4 +1,3 @@
-import { Group, Object3D } from "three"
 import {
   createBoxMesh,
   createCylinderMesh,
@@ -8,6 +7,7 @@ import {
   BLACK_PLASTIC_MATERIAL,
   STEEL_MATERIAL,
 } from "lib/scene/shared-materials"
+import { Group, Object3D } from "three"
 
 /**
  * A cable plug. Origin is the mating face; the plug body runs along +Y and

@@ -1,3 +1,6 @@
+import { FLOOR_PLAN } from "lib/layout/floor-plan"
+import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { DOOR_WOOD_MATERIAL } from "lib/scene/shared-materials"
 import {
   DoubleSide,
   Group,
@@ -9,9 +12,6 @@ import {
   Shape,
   ShapeGeometry,
 } from "three"
-import { FLOOR_PLAN } from "lib/layout/floor-plan"
-import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
-import { DOOR_WOOD_MATERIAL } from "lib/scene/shared-materials"
 
 export interface RoomShell {
   group: Group

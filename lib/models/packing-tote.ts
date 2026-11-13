@@ -1,7 +1,7 @@
-import { Group, Object3D } from "three"
 import { BATCH_SIZE } from "lib/layout/station-layout"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { Group, Object3D } from "three"
 
 const COLUMNS = 2
 const ROWS = 3
@@ -17,6 +17,8 @@ export const PACKING_TOTE = {
 /** Open tote that holds one batch of packed mailers, 2 x 3 x 5, carried from pack-out to ship-ready. Origin on its base. */
 export interface PackingTote {
   group: Group
+  /** Which unit (index) sits in each slot, or null. */
+  occupants: Array<number | null>
   slots: Object3D[]
   leftHandle: Object3D
   rightHandle: Object3D
@@ -75,5 +77,11 @@ export function createPackingTote(): PackingTote {
   const rightHandle = new Object3D()
   rightHandle.position.set(outerWidthM / 2, innerHeightM - 0.02, 0)
   group.add(leftHandle, rightHandle)
-  return { group, slots, leftHandle, rightHandle }
+  return {
+    group,
+    slots,
+    occupants: slots.map(() => null),
+    leftHandle,
+    rightHandle,
+  }
 }

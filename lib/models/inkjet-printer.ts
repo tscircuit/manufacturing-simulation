@@ -1,5 +1,5 @@
-import { Group } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { Group } from "three"
 
 /** Epson EcoTank ET-2400, about 375 x 347 x 179 mm. Origin on the table; paper exits toward +Z. */
 export const INKJET_PRINTER = {

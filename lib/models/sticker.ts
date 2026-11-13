@@ -1,6 +1,6 @@
-import { Group, Mesh, PlaneGeometry } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
+import { Group, Mesh, PlaneGeometry } from "three"
 
 /**
  * 2" x 4" tscircuit product label. Origin at the centre of its adhesive side;

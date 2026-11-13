@@ -1,14 +1,6 @@
 import {
-  BoxGeometry,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  Object3D,
-  Vector3,
-} from "three"
-import {
-  createBackfaceSpacer,
   BACKFACE_SPACER,
+  createBackfaceSpacer,
 } from "lib/models/backface-spacer"
 import {
   createBoxMesh,
@@ -16,6 +8,14 @@ import {
   createStandardMaterial,
 } from "lib/scene/primitives"
 import { DARK_METAL_MATERIAL, STEEL_MATERIAL } from "lib/scene/shared-materials"
+import {
+  BoxGeometry,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+  Vector3,
+} from "three"
 
 export type BambuModel = "P2S" | "H2S"
 

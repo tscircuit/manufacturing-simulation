@@ -1,6 +1,6 @@
-import { Group, Mesh, TorusGeometry } from "three"
 import { createJstPlug } from "lib/models/plugs"
 import { createStandardMaterial } from "lib/scene/primitives"
+import { Group, Mesh, TorusGeometry } from "three"
 
 /** A spare pre-crimped JST-PH 2.0 6-pin motor cable (150 mm), looped and lying flat. Origin on its base. */
 export function createCoiledJstCable(): Group {

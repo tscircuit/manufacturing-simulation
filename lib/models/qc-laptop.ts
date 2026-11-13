@@ -1,5 +1,5 @@
-import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Object3D } from "three"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
+import { BoxGeometry, Group, Mesh, MeshBasicMaterial, Object3D } from "three"
 
 export type QcDisplayState = "idle" | "testing" | "pass"
 

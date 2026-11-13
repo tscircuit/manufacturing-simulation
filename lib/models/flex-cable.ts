@@ -1,3 +1,4 @@
+import { createStandardMaterial } from "lib/scene/primitives"
 import {
   CatmullRomCurve3,
   type Material,
@@ -6,7 +7,6 @@ import {
   TubeGeometry,
   Vector3,
 } from "three"
-import { createStandardMaterial } from "lib/scene/primitives"
 
 /**
  * A cable drawn between two anchors. Each anchor's +Y is the direction the

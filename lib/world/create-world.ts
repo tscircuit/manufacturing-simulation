@@ -1,9 +1,8 @@
-import { Group, type Object3D, Vector3 } from "three"
 import {
   BATCH_SIZE,
-  FOLDING_TABLE,
   TABLE_PLACEMENTS,
   type TableId,
+  WORK_TABLE,
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
 import {
@@ -21,7 +20,6 @@ import {
   createControllerPcb,
 } from "lib/models/controller-pcb"
 import { createFlexCable, type FlexCable } from "lib/models/flex-cable"
-import { createFoldingTable } from "lib/models/folding-table"
 import { createInkjetPrinter } from "lib/models/inkjet-printer"
 import {
   createLabelSheet,
@@ -55,6 +53,7 @@ import {
   getSpacerPilePosition,
   SPACER_TUB,
 } from "lib/models/spacer-basket"
+import { createStandingDesk } from "lib/models/standing-desk"
 import {
   createGanChargingStation,
   createUsbCharger,
@@ -84,6 +83,7 @@ import {
   SCREWDRIVER_REST_QUATERNION,
   SHIP_READY_BENCH_SPOTS,
 } from "lib/world/bench-spots"
+import { Group, type Object3D, Vector3 } from "three"
 
 /** Pre-crimped JST-PH cable between the motor and the PCB. */
 export interface MotorCable {
@@ -98,8 +98,24 @@ export interface QcCable {
   plug: CablePlug
 }
 
+/**
+ * Where a unit is in the line: raw on the foam stand, assembled (spacer, PCB,
+ * long screws, cable), tested at QC, packed in its mailer, in the Amazon
+ * carton, or shipped once the carton is sealed.
+ */
+export type UnitStage =
+  | "raw"
+  | "assembled"
+  | "tested"
+  | "packed"
+  | "in_carton"
+  | "shipped"
+
 /** Everything that goes into one finished, packed unit. */
 export interface AssemblyUnit {
+  stage: UnitStage
+  /** Next step of the current stage's per-unit steps; 0 when the stage hasn't started. */
+  nextStepIndex: number
   motor: Nema17Motor
   pcb: ControllerPcb
   /** Taken from the basket when the spacer is fitted. */
@@ -111,14 +127,16 @@ export interface AssemblyUnit {
   box: WhiteMailerBox
   usbCables: Group[]
   charger: Group
-  label: Group
+  /** Peeled from the top label sheet at pack-out. */
+  label: Group | null
 }
 
 /** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
 export interface LabelPrinterState {
   group: Group
   outputStack: Group
-  printedSheets: Group[]
+  /** Printed sheets waiting in the output tray, bottom first. */
+  printedSheets: LabelSheet[]
   secondsSinceLastSheet: number
 }
 
@@ -144,7 +162,7 @@ export interface ManufacturingWorld {
   laptop: QcLaptop
   qcDataCable: QcCable
   qcPowerCable: QcCable
-  /** Label sheets on the pack-out bench, top sheet first. */
+  /** Label sheets on the pack-out bench, top sheet first; used labels are removed from each sheet. */
   labelSheets: LabelSheet[]
   packingTote: PackingTote
   carton: ShippingCarton
@@ -157,11 +175,13 @@ export interface ManufacturingWorld {
   carriedTub: Group | null
   tubSpacers: Group[]
   labelPrinter: LabelPrinterState
+  /** True once the sealed carton is out by the door. */
+  isCartonShipped: boolean
   /** Every cable whose wire must be redrawn as its ends move. */
   cables: FlexCable[]
 }
 
-const TOP = FOLDING_TABLE.topHeightM
+const TOP = WORK_TABLE.topHeightM
 const PCBS_PER_STACK = 10
 const JIG_HEIGHT_M = 0.03
 /** Enough for one batch plus a few; the printers refill the basket. */
@@ -184,7 +204,7 @@ export function scatter(seed: number): number {
 
 function createPlacedTable(tableId: TableId): Group {
   const placement = TABLE_PLACEMENTS[tableId]
-  const table = createFoldingTable()
+  const table = createStandingDesk()
   table.name = tableId
   table.position.set(placement.centerXM, 0, placement.centerZM)
   table.rotation.y = placement.ccwYawRadians
@@ -499,8 +519,8 @@ function populatePackOutBench(table: Group) {
     table.add(sheet.group)
     labelSheets.push(sheet)
   }
-  // Peel from the front row of the top sheet, then the next sheet.
-  const labels = labelSheets.flatMap((sheet) => [...sheet.labels].reverse())
+  // Peel from the front row first.
+  for (const sheet of labelSheets) sheet.labels.reverse()
   const packingTote = createPackingTote()
   packingTote.group.position.copy(spots.tote)
   table.add(packingTote.group)
@@ -508,7 +528,6 @@ function populatePackOutBench(table: Group) {
     boxes: boxesTopFirst,
     coils,
     chargers,
-    labels,
     labelSheets,
     packingTote,
   }
@@ -578,6 +597,8 @@ export function createWorld(): ManufacturingWorld {
   const units: AssemblyUnit[] = []
   for (let unitIndex = 0; unitIndex < BATCH_SIZE; unitIndex++) {
     units.push({
+      stage: "raw",
+      nextStepIndex: 0,
       motor: assemblyBench.motors[unitIndex],
       pcb: assemblyBench.pcbs[unitIndex],
       spacer: null,
@@ -589,8 +610,9 @@ export function createWorld(): ManufacturingWorld {
         packOutBench.coils[unitIndex * 2 + 1],
       ],
       charger: packOutBench.chargers[unitIndex],
-      label: packOutBench.labels[unitIndex],
+      label: null,
     })
+    assemblyBench.motorFoamStand.occupants[unitIndex] = unitIndex
   }
   const cables = [qcBench.qcDataCable.cable, qcBench.qcPowerCable.cable]
   for (const cable of cables) root.add(cable.wire)
@@ -609,6 +631,7 @@ export function createWorld(): ManufacturingWorld {
     usedScrewBin: assemblyBench.usedScrewBin,
     cableBin: assemblyBench.cableBin,
     removedStockScrews: [],
+    isCartonShipped: false,
     laptop: qcBench.laptop,
     qcDataCable: qcBench.qcDataCable,
     qcPowerCable: qcBench.qcPowerCable,

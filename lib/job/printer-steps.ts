@@ -1,9 +1,9 @@
-import { type Group, Vector3 } from "three"
 import { STATIONS } from "lib/layout/station-layout"
 import {
   BAMBU_PRINTERS,
   type BambuPrinter,
   PRINTER_STATUS_COLORS,
+  populatePlate,
 } from "lib/models/bambu-printer"
 import {
   ASSEMBLY_SPACER_BASKET,
@@ -13,10 +13,10 @@ import {
   type SpacerContainerSize,
 } from "lib/models/spacer-basket"
 import type { SimContext } from "lib/simulation/sim-context"
+import { pickUpInFront } from "lib/tasks/carry-motions"
 import { runInParallel, type SimTask, tween } from "lib/tasks/coroutines"
 import {
   grabObject,
-  holdInHand,
   moveObject,
   releaseHand,
   walkToStation,
@@ -26,9 +26,26 @@ import {
   IDENTITY_QUATERNION,
 } from "lib/world/bench-spots"
 import { scatter } from "lib/world/create-world"
+import { type Group, type Object3D, Vector3 } from "three"
 
 const DOOR_OPEN_CCW_YAW_RADIANS = -1.75
 const TUB_NESTING_M = 0.012
+
+function getGrip(params: { container: Group; name: string }): Object3D {
+  const grip = params.container.getObjectByName(params.name)
+  if (!grip) throw new Error(`Container has no ${params.name}`)
+  return grip
+}
+
+/** Finish every running print now, as if the print time had passed. */
+export function finishPrintsNow(ctx: SimContext): void {
+  for (const printer of ctx.world.printers) {
+    if (printer.isPrinting)
+      printer.printedSeconds =
+        BAMBU_PRINTERS[printer.model].estimatedPlateSeconds
+  }
+  advancePrinters({ dtSeconds: 0, populate: populatePlate }, ctx)
+}
 
 /** Printers holding a finished plate of spacers. */
 export function getFinishedPrinters(ctx: SimContext): BambuPrinter[] {
@@ -215,7 +232,7 @@ function* collectPlate(
 
 /** Empty every finished printer plate into a spacer tub, restart the prints, and pick the tub up. */
 export function* collectFinishedPlates(ctx: SimContext): SimTask {
-  const { world, operator } = ctx
+  const { world } = ctx
   const tub = world.carriedTub ?? world.emptyTubs.at(-1)
   if (!tub) {
     ctx.statusText = "No empty spacer tub on the printer bench"
@@ -229,35 +246,14 @@ export function* collectFinishedPlates(ctx: SimContext): SimTask {
     world.emptyTubs.pop()
     world.carriedTub = tub
     ctx.statusText = `Picking up the tub of ${world.tubSpacers.length} spacers`
-    const halfWidthM = SPACER_TUB.widthM / 2
-    yield* runInParallel([
-      grabObject({
-        hand: operator.leftHand,
-        object: tub,
-        localGripPoint: new Vector3(-halfWidthM, SPACER_TUB.heightM, 0),
-        fingerCurl: 0.8,
-      }),
-      grabObject({
-        hand: operator.rightHand,
-        object: tub,
-        localGripPoint: new Vector3(halfWidthM, SPACER_TUB.heightM, 0),
-        fingerCurl: 0.8,
-      }),
-    ])
-    const bench = tub.parent
-    if (!bench) throw new Error("Tub must be on a bench")
-    yield* moveObject(
+    yield* pickUpInFront(
       {
-        object: tub,
-        hand: operator.rightHand,
-        parent: bench,
-        localPosition: tub.position.clone().add(new Vector3(0, 0.18, 0.08)),
-        localQuaternion: IDENTITY_QUATERNION,
-        durationSeconds: 0.8,
+        item: tub,
+        leftGrip: getGrip({ container: tub, name: "left_grip" }),
+        rightGrip: getGrip({ container: tub, name: "right_grip" }),
       },
       ctx,
     )
-    holdInHand({ hand: operator.rightHand, object: tub })
   }
   ctx.progress.isOperatorBusy = false
   ctx.statusText = `Carrying ${world.tubSpacers.length} spacers. Take them to the assembly bench.`

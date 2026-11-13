@@ -1,9 +1,9 @@
-import { type Object3D, type Quaternion, Vector3 } from "three"
 import type { CablePlug } from "lib/models/plugs"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
 import { grabObject, moveObject, releaseHand } from "lib/tasks/operator-motions"
+import { type Object3D, type Quaternion, Vector3 } from "three"
 
 /** How far out of the port a plug lines up before pushing in. */
 const PLUG_LEAD_IN_M = 0.014

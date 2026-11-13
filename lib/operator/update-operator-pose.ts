@@ -1,4 +1,3 @@
-import { type Mesh, Vector3 } from "three"
 import type {
   BodySide,
   Operator,
@@ -7,8 +6,8 @@ import type {
 import { getHandQuaternion } from "lib/operator/hand-pose"
 import { OPERATOR_BODY, PINCH_POINT_IN_HAND } from "lib/operator/operator-body"
 import { solveTwoBoneIk } from "lib/operator/solve-two-bone-ik"
+import { type Mesh, Vector3 } from "three"
 
-const UP = new Vector3(0, 1, 0)
 /** Palm faces away from the operator while working at a bench. */
 const WORK_BACK_OF_HAND_HINT = new Vector3(0, 0, -1)
 const KNEE_POLE = new Vector3(0, 0, 1)
@@ -39,21 +38,18 @@ function getShoulderPosition(params: {
   )
 }
 
-/** Stretch a unit-height cylinder between two points. */
+const DOWN = new Vector3(0, -1, 0)
+
+/** Hang a limb segment from its upper joint and point it at the next joint. */
 function placeSegment(params: {
   segment: Mesh
   from: Vector3
   to: Vector3
 }): void {
   const { segment, from, to } = params
-  const direction = from.clone().sub(to)
-  const lengthM = direction.length()
-  segment.position.copy(from).add(to).multiplyScalar(0.5)
-  segment.quaternion.setFromUnitVectors(
-    UP,
-    direction.divideScalar(lengthM || 1),
-  )
-  segment.scale.set(1, lengthM, 1)
+  const direction = to.clone().sub(from)
+  segment.position.copy(from)
+  segment.quaternion.setFromUnitVectors(DOWN, direction.normalize())
 }
 
 /** Least hip bend that brings an operator-local target within comfortable reach. */

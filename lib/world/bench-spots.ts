@@ -1,7 +1,7 @@
+import { WORK_TABLE } from "lib/layout/station-layout"
 import { Euler, Quaternion, Vector3 } from "three"
-import { FOLDING_TABLE } from "lib/layout/station-layout"
 
-const TOP = FOLDING_TABLE.topHeightM
+const TOP = WORK_TABLE.topHeightM
 
 /**
  * Where things sit on each bench, in that table's local frame (long axis X;
@@ -17,7 +17,7 @@ export const ASSEMBLY_BENCH_SPOTS = {
   longScrewBin: new Vector3(0.115, TOP, 0),
   usedScrewBin: new Vector3(0, TOP, 0),
   cableBin: new Vector3(-0.115, TOP, 0),
-  screwdriverRest: new Vector3(-0.235, TOP + 0.0135, -0.04),
+  screwdriverRest: new Vector3(-0.235, TOP + 0.02, -0.06),
   /** Three stacks of controller PCBs, the first one nearest the jig. */
   pcbStackBases: [
     new Vector3(-0.09, TOP + 0.004, 0.3),

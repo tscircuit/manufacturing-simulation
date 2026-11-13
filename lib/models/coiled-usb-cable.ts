@@ -1,6 +1,6 @@
-import { Group, Mesh, TorusGeometry } from "three"
 import { createUsbCPlug } from "lib/models/plugs"
 import { createStandardMaterial } from "lib/scene/primitives"
+import { Group, Mesh, TorusGeometry } from "three"
 
 /** LISEN 6.6 ft USB-C to USB-C cable (black), coiled flat and tied, ready to pack. Origin on its base. */
 export const COILED_USB_CABLE = {

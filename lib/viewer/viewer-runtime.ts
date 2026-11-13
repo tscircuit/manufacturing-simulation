@@ -1,3 +1,31 @@
+import { countUnitsByStage, getNextLineWork } from "lib/job/bench-work"
+import { JOB_ROWS } from "lib/job/job-plan"
+import { countLabelsAtPackOut } from "lib/job/label-stock"
+import { getStationStandPose } from "lib/layout/get-station-stand-pose"
+import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
+import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
+import type { QcDisplayState } from "lib/models/qc-laptop"
+import { getPinchWorldPosition } from "lib/operator/hand-pose"
+import type { LineStartId } from "lib/simulation/line-setup"
+import {
+  type GameActionKind,
+  ManufacturingSimulation,
+} from "lib/simulation/manufacturing-simulation"
+import type { ScenarioId } from "lib/simulation/scenarios"
+import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
+import { addSceneLighting } from "lib/viewer/add-scene-lighting"
+import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
+import { createFloorTexture } from "lib/viewer/create-floor-texture"
+import { createLabelSprite } from "lib/viewer/create-label-sprite"
+import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
+import type { HudSnapshot } from "lib/viewer/hud-snapshot"
+import { NEMA17_LABEL_DATA_URL } from "lib/viewer/nema17-label-artwork"
+import {
+  getOperatorObstruction,
+  updateMaterialOpacity,
+} from "lib/viewer/operator-fade"
+import { createStationRing } from "lib/viewer/station-ring"
+import type { ManufacturingWorld } from "lib/world/create-world"
 import {
   Color,
   Mesh,
@@ -10,31 +38,6 @@ import {
   TextureLoader,
   WebGLRenderer,
 } from "three"
-import { JOB_ROWS, WORK_ITEMS } from "lib/job/job-plan"
-import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
-import { getStationStandPose } from "lib/layout/get-station-stand-pose"
-import { type TableId, TABLE_PLACEMENTS } from "lib/layout/station-layout"
-import { getPinchWorldPosition } from "lib/operator/hand-pose"
-import {
-  type GameActionKind,
-  ManufacturingSimulation,
-} from "lib/simulation/manufacturing-simulation"
-import type { ScenarioId } from "lib/simulation/scenarios"
-import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
-import { addSceneLighting } from "lib/viewer/add-scene-lighting"
-import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
-import { createFloorTexture } from "lib/viewer/create-floor-texture"
-import { createLabelSprite } from "lib/viewer/create-label-sprite"
-import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
-import { NEMA17_LABEL_DATA_URL } from "lib/viewer/nema17-label-artwork"
-import type { HudSnapshot } from "lib/viewer/hud-snapshot"
-import {
-  getOperatorObstruction,
-  updateMaterialOpacity,
-} from "lib/viewer/operator-fade"
-import { createStationRing } from "lib/viewer/station-ring"
-import type { QcDisplayState } from "lib/models/qc-laptop"
-import type { ManufacturingWorld } from "lib/world/create-world"
 
 const MAX_FRAME_SECONDS = 0.05
 const HUD_INTERVAL_MS = 100
@@ -200,6 +203,26 @@ export class ViewerRuntime {
     this.simulation.startScenario(scenarioId)
     if (scenarioId !== "run_batch" && scenarioId !== "refill_spacers")
       this.setCameraMode("follow")
+    this.emitHud()
+  }
+
+  /** Start over with all 30 units ready for one bench. */
+  startAt(startId: LineStartId): void {
+    this.simulation.startAt(startId)
+    this.closeUpStationKey = null
+    this.setCameraMode("follow")
+    this.emitHud()
+  }
+
+  /** Finish the running 3D prints now. */
+  finishPrintsNow(): void {
+    this.simulation.finishPrintsNow()
+    this.emitHud()
+  }
+
+  /** Fill the label printer's tray now. */
+  printLabelsNow(): void {
+    this.simulation.printLabelsNow()
     this.emitHud()
   }
 
@@ -431,7 +454,7 @@ export class ViewerRuntime {
     )
       return
     this.didAutoCloseUp = false
-    const nextStep = WORK_ITEMS[ctx.progress.completedWorkCount]?.row.step
+    const nextStep = getNextLineWork(ctx)?.row.step
     const isStayingAtStation =
       nextStep &&
       previousHint &&
@@ -446,7 +469,7 @@ export class ViewerRuntime {
 
   private updateStationRing(nowMs: number): void {
     const { progress, mode } = this.simulation.ctx
-    const nextStep = WORK_ITEMS[progress.completedWorkCount]?.row.step
+    const nextStep = getNextLineWork(this.simulation.ctx)?.row.step
     const isVisible =
       nextStep &&
       !progress.isOperatorBusy &&
@@ -464,10 +487,7 @@ export class ViewerRuntime {
     const { ctx } = this.simulation
     const { progress } = ctx
     const actions = this.simulation.getGameActions()
-    const activeRowIndex =
-      progress.activeWorkIndex === null
-        ? null
-        : WORK_ITEMS[progress.activeWorkIndex].row.rowIndex
+    const { activeRowIndex } = progress
     const steps = JOB_ROWS.map((row) => {
       const completedCount = progress.rowCompletedCounts[row.rowIndex]
       return {
@@ -478,7 +498,7 @@ export class ViewerRuntime {
         state:
           row.rowIndex === activeRowIndex
             ? ("active" as const)
-            : completedCount >= row.runCount
+            : row.runCount !== null && completedCount >= row.runCount
               ? ("done" as const)
               : ("pending" as const),
       }
@@ -488,8 +508,9 @@ export class ViewerRuntime {
       0,
     )
     let statusText = ctx.statusText
-    const nextItem = WORK_ITEMS[progress.completedWorkCount]
-    const hasPrompt = actions.benchAction || actions.screwdriverAction
+    const nextItem = getNextLineWork(ctx)
+    const hasPrompt =
+      actions.benchAction || actions.carryAction || actions.screwdriverAction
     if (ctx.mode === "game" && actions.blockedReason)
       statusText = actions.blockedReason
     else if (
@@ -499,7 +520,8 @@ export class ViewerRuntime {
       nextItem &&
       !ctx.world.carriedTub
     ) {
-      const tableLabel = TABLE_PLACEMENTS[nextItem.tableId].label
+      const tableLabel =
+        TABLE_PLACEMENTS[nextItem.row.step.station.tableId].label
       statusText = `Next: ${nextItem.row.step.label.toLowerCase()} at the ${tableLabel}`
     }
     if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
@@ -515,7 +537,11 @@ export class ViewerRuntime {
       cycleSeconds: progress.cycleSeconds,
       benchPromptLabel:
         actions.pauseLabel ?? actions.benchAction?.label ?? null,
+      carryPromptLabel: actions.carryAction?.label ?? null,
       screwdriverPromptLabel: actions.screwdriverAction?.label ?? null,
+      unitsByStage: countUnitsByStage(ctx),
+      labelsAtPackOut: countLabelsAtPackOut(ctx.world),
+      printedLabelSheets: ctx.world.labelPrinter.printedSheets.length,
       spacersInBasket: ctx.world.spacerStock.length,
       printerLines: ctx.world.printers.map((printer) =>
         getPrinterStatusText(printer),
@@ -564,6 +590,7 @@ export class ViewerRuntime {
     if (key === "g") this.setMode(mode === "game" ? "simulation" : "game")
     if (mode === "game") {
       if (key === "e") this.runGameAction("bench")
+      if (key === "r") this.runGameAction("carry")
       if (key === "f") this.runGameAction("screwdriver")
       if (key.startsWith("arrow") || key === " ") event.preventDefault()
     }

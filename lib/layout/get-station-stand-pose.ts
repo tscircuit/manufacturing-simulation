@@ -1,7 +1,7 @@
 import {
-  FOLDING_TABLE,
   type Station,
   TABLE_PLACEMENTS,
+  WORK_TABLE,
 } from "lib/layout/station-layout"
 
 export interface StandPose {
@@ -14,7 +14,7 @@ export interface StandPose {
 export function getStationStandPose(station: Station): StandPose {
   const table = TABLE_PLACEMENTS[station.tableId]
   const localX = station.alongTableM
-  const localZ = FOLDING_TABLE.depthM / 2 + station.standoffFromEdgeM
+  const localZ = WORK_TABLE.depthM / 2 + station.standoffFromEdgeM
   const cos = Math.cos(table.ccwYawRadians)
   const sin = Math.sin(table.ccwYawRadians)
   return {

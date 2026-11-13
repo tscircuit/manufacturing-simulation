@@ -1,4 +1,14 @@
 import {
+  OPERATOR_BODY,
+  RELAXED_FINGER_CURL,
+  RELAXED_FINGER_DIRECTION,
+} from "lib/operator/operator-body"
+import {
+  createCylinderMesh,
+  createSphereMesh,
+  createStandardMaterial,
+} from "lib/scene/primitives"
+import {
   CapsuleGeometry,
   Group,
   LatheGeometry,
@@ -9,16 +19,6 @@ import {
   Vector2,
   Vector3,
 } from "three"
-import {
-  OPERATOR_BODY,
-  RELAXED_FINGER_CURL,
-  RELAXED_FINGER_DIRECTION,
-} from "lib/operator/operator-body"
-import {
-  createCylinderMesh,
-  createSphereMesh,
-  createStandardMaterial,
-} from "lib/scene/primitives"
 
 /** +1 is the operator's left (local +X), -1 is the right. */
 export type BodySide = 1 | -1
@@ -122,14 +122,77 @@ function createScaledSphere(params: {
   return mesh
 }
 
+/**
+ * One limb segment shaped like the muscle it covers: a body of revolution
+ * built at the segment's real length, from the joint at its origin down -Y to
+ * the next joint, with rounded ends that tuck into the neighbouring segments.
+ * `profile` is (fraction of length, radius) pairs; fractions outside 0..1
+ * form the rounded ends.
+ */
 function createLimbSegment(params: {
-  radiusTopM: number
-  radiusBottomM: number
+  lengthM: number
+  profile: Array<[number, number]>
   material: Material
 }): Mesh {
-  // Unit height; stretched along Y to the segment length each frame.
-  return createCylinderMesh({ ...params, heightM: 1, radialSegments: 16 })
+  const points = params.profile.map(
+    ([fraction, radiusM]) => new Vector2(radiusM, -fraction * params.lengthM),
+  )
+  // LatheGeometry wants points from bottom to top.
+  const geometry = new LatheGeometry(points.reverse(), 22)
+  const mesh = new Mesh(geometry, params.material)
+  mesh.castShadow = true
+  mesh.receiveShadow = true
+  return mesh
 }
+
+/** Thigh to knee: full at the hip, tapering above the knee. */
+const THIGH_PROFILE: Array<[number, number]> = [
+  [-0.09, 0],
+  [-0.06, 0.05],
+  [0, 0.074],
+  [0.2, 0.078],
+  [0.55, 0.066],
+  [0.85, 0.054],
+  [1, 0.05],
+  [1.07, 0.035],
+  [1.1, 0],
+]
+/** Knee to ankle: calf bulge, then a slim ankle. */
+const SHIN_PROFILE: Array<[number, number]> = [
+  [-0.08, 0],
+  [-0.05, 0.035],
+  [0, 0.05],
+  [0.22, 0.056],
+  [0.45, 0.05],
+  [0.8, 0.038],
+  [1, 0.034],
+  [1.05, 0.024],
+  [1.08, 0],
+]
+/** Shoulder to elbow, in a shirt sleeve: deltoid, then biceps. */
+const UPPER_ARM_PROFILE: Array<[number, number]> = [
+  [-0.12, 0],
+  [-0.07, 0.04],
+  [0, 0.052],
+  [0.25, 0.05],
+  [0.6, 0.043],
+  [0.9, 0.037],
+  [1, 0.036],
+  [1.07, 0.024],
+  [1.1, 0],
+]
+/** Elbow to wrist: fuller below the elbow, narrow at the wrist. */
+const FOREARM_PROFILE: Array<[number, number]> = [
+  [-0.07, 0],
+  [-0.04, 0.026],
+  [0, 0.034],
+  [0.2, 0.038],
+  [0.55, 0.031],
+  [0.9, 0.024],
+  [1, 0.023],
+  [1.05, 0.016],
+  [1.08, 0],
+]
 
 /** Body of revolution through `(radius, height)` points, flattened front to back. */
 function createLathe(params: {
@@ -169,26 +232,39 @@ function createHairCap(params: {
   return cap
 }
 
+/** One smooth skull, cheeks and jaw: a sphere that narrows and tucks in below the eyes, with no seams on the face. */
+function createSkullMesh(skin: Material): Mesh {
+  const geometry = new SphereGeometry(1, 40, 30)
+  const positions = geometry.attributes.position
+  for (let index = 0; index < positions.count; index++) {
+    const x = positions.getX(index)
+    const y = positions.getY(index)
+    const z = positions.getZ(index)
+    const belowEyes = Math.max(0, -y)
+    const jawTaper = 1 - 0.34 * belowEyes * belowEyes
+    const isFront = z > 0
+    positions.setXYZ(
+      index,
+      x * 0.079 * jawTaper,
+      y * 0.112,
+      // The face is flatter than the back of the skull; the chin comes forward.
+      z * (isFront ? 0.092 : 0.098) * (1 - 0.12 * belowEyes * belowEyes) +
+        (isFront ? 0.01 * belowEyes : 0),
+    )
+  }
+  geometry.computeVertexNormals()
+  const skull = new Mesh(geometry, skin)
+  skull.position.set(0, 0.128, 0.002)
+  skull.castShadow = true
+  skull.receiveShadow = true
+  return skull
+}
+
 function createHead(materials: OperatorMaterials): Group {
   const head = new Group()
   head.position.set(0, OPERATOR_BODY.neckAboveHipM, 0)
   head.add(
-    // Cranium, cheeks and jaw
-    createScaledSphere({
-      radii: [0.079, 0.098, 0.092],
-      material: materials.skin,
-      position: [0, 0.142, 0.002],
-    }),
-    createScaledSphere({
-      radii: [0.066, 0.06, 0.07],
-      material: materials.skin,
-      position: [0, 0.09, 0.02],
-    }),
-    createScaledSphere({
-      radii: [0.03, 0.022, 0.03],
-      material: materials.skin,
-      position: [0, 0.058, 0.05],
-    }),
+    createSkullMesh(materials.skin),
     // Hair: a full cap over the crown, a fuller back, and short sides above the ears
     createHairCap({
       radii: [0.086, 0.104, 0.099],
@@ -204,14 +280,14 @@ function createHead(materials: OperatorMaterials): Group {
     }),
     // Nose and mouth
     createScaledSphere({
-      radii: [0.0105, 0.019, 0.016],
+      radii: [0.0095, 0.018, 0.012],
       material: materials.skin,
       position: [0, 0.126, 0.091],
     }),
     createScaledSphere({
       radii: [0.017, 0.0032, 0.004],
       material: materials.lips,
-      position: [0, 0.093, 0.085],
+      position: [0, 0.093, 0.09],
     }),
   )
   for (const sideX of [-1, 1]) {
@@ -273,9 +349,12 @@ function createTorso(materials: OperatorMaterials): {
         [0.182, 0.4],
         [0.198, 0.46],
         [0.196, 0.5],
-        [0.165, 0.54],
-        [0.09, 0.572],
-        [0, 0.578],
+        [0.17, 0.545],
+        // Trapezius slopes up to a crew collar instead of a flat shelf.
+        [0.12, 0.578],
+        [0.078, 0.6],
+        [0.062, 0.606],
+        [0, 0.606],
       ],
       material: materials.shirt,
       depthScale: 0.6,
@@ -302,15 +381,17 @@ function createTorso(materials: OperatorMaterials): {
   torso.add(
     shoulderLine,
     belt,
-    createCylinderMesh({
-      radiusTopM: 0.047,
-      radiusBottomM: 0.056,
-      heightM: 0.13,
-      material: materials.skin,
-      position: [0, 0.6, 0.006],
-      radialSegments: 16,
-    }),
   )
+  const neck = createCylinderMesh({
+    radiusTopM: 0.054,
+    radiusBottomM: 0.06,
+    heightM: 0.11,
+    material: materials.skin,
+    position: [0, 0.63, 0.004],
+    radialSegments: 20,
+  })
+  neck.scale.z = 0.92
+  torso.add(neck)
   const head = createHead(materials)
   torso.add(head)
   return { torso, head }
@@ -328,14 +409,14 @@ function createLeg(
     side: params.side,
     hip: createSphereMesh({ radiusM: 0.072, material: materials.pants }),
     thigh: createLimbSegment({
-      radiusTopM: 0.068,
-      radiusBottomM: 0.05,
+      lengthM: OPERATOR_BODY.thighLengthM,
+      profile: THIGH_PROFILE,
       material: materials.pants,
     }),
-    knee: createSphereMesh({ radiusM: 0.05, material: materials.pants }),
+    knee: createSphereMesh({ radiusM: 0.046, material: materials.pants }),
     shin: createLimbSegment({
-      radiusTopM: 0.048,
-      radiusBottomM: 0.036,
+      lengthM: OPERATOR_BODY.shinLengthM,
+      profile: SHIN_PROFILE,
       material: materials.pants,
     }),
     foot,
@@ -436,17 +517,17 @@ function createHand(
     thumb,
     shoulder: createSphereMesh({ radiusM: 0.051, material: materials.shirt }),
     upperArm: createLimbSegment({
-      radiusTopM: 0.05,
-      radiusBottomM: 0.036,
+      lengthM: OPERATOR_BODY.upperArmLengthM,
+      profile: UPPER_ARM_PROFILE,
       material: materials.shirt,
     }),
-    elbow: createSphereMesh({ radiusM: 0.031, material: skin }),
+    elbow: createSphereMesh({ radiusM: 0.033, material: skin }),
     forearm: createLimbSegment({
-      radiusTopM: 0.031,
-      radiusBottomM: 0.024,
+      lengthM: OPERATOR_BODY.forearmLengthM,
+      profile: FOREARM_PROFILE,
       material: skin,
     }),
-    wrist: createSphereMesh({ radiusM: 0.024, material: skin }),
+    wrist: createSphereMesh({ radiusM: 0.022, material: skin }),
     targetPosition: new Vector3(),
     trackTarget: null,
     isReaching: false,
@@ -539,5 +620,9 @@ export function resetOperator(params: {
     for (const child of [...hand.hand.children]) {
       if (child.userData.isCarried) hand.hand.remove(child)
     }
+  }
+  // ...and anything still carried in front of the body.
+  for (const child of [...operator.group.children]) {
+    if (child.userData.isCarried) operator.group.remove(child)
   }
 }

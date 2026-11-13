@@ -16,10 +16,11 @@ function getStickDeflection(event: PointerEvent<HTMLDivElement>): {
   return { x: x / length, y: y / length }
 }
 
-/** On-screen stick and Act button for game mode on touch screens. */
+/** On-screen stick plus Act (E) and Carry (R) buttons for game mode on touch screens. */
 export function TouchControls(props: {
   onStickChange: (stickInput: { forward: number; right: number }) => void
   onAct: () => void
+  onCarry: (() => void) | null
 }) {
   const activePointerId = useRef<number | null>(null)
   const [knobOffset, setKnobOffset] = useState({ xPx: 0, yPx: 0 })
@@ -64,6 +65,11 @@ export function TouchControls(props: {
       <button type="button" className="act" onClick={props.onAct}>
         Act
       </button>
+      {props.onCarry && (
+        <button type="button" className="act carry" onClick={props.onCarry}>
+          Carry
+        </button>
+      )}
     </>
   )
 }

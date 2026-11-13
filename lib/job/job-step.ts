@@ -1,7 +1,7 @@
-import type { Vector3 } from "three"
 import type { Station } from "lib/layout/station-layout"
 import type { CloseUpView, SimContext } from "lib/simulation/sim-context"
 import type { SimTask } from "lib/tasks/coroutines"
+import type { Vector3 } from "three"
 
 /** Which unit of the batch a step is working on; 0 for one-off steps. */
 export interface UnitParams {

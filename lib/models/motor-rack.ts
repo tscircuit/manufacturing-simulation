@@ -1,4 +1,3 @@
-import { Group, Object3D } from "three"
 import { BATCH_SIZE } from "lib/layout/station-layout"
 import {
   createBoxMesh,
@@ -7,6 +6,7 @@ import {
   createRectangleShape,
   createStandardMaterial,
 } from "lib/scene/primitives"
+import { Group, Object3D } from "three"
 
 /** One batch: 5 columns (along X) by 6 rows (along Z). */
 const RACK_COLUMNS = 5
@@ -27,6 +27,8 @@ export const MOTOR_RACK = {
  */
 export interface MotorRack {
   group: Group
+  /** Which unit (index) sits in each slot, or null. */
+  occupants: Array<number | null>
   slots: Object3D[]
   /** Grab points at each end of the rack, in rack coordinates. */
   leftHandle: Object3D
@@ -114,7 +116,13 @@ export function createMotorRack(): MotorRack {
   const rightHandle = new Object3D()
   rightHandle.position.set(handleX, heightM, 0)
   group.add(leftHandle, rightHandle)
-  return { group, slots, leftHandle, rightHandle }
+  return {
+    group,
+    slots,
+    occupants: slots.map(() => null),
+    leftHandle,
+    rightHandle,
+  }
 }
 
 /** Black foam stand the raw NEMA17 motors sit in, one batch to a stand. */
@@ -127,6 +135,7 @@ export function createMotorFoamStand(): MotorRack {
   return {
     group,
     slots,
+    occupants: slots.map(() => null),
     leftHandle: slots[0],
     rightHandle: slots[slots.length - 1],
   }

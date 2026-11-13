@@ -49,7 +49,7 @@ export const VIEWER_STYLES = `
 .msim .stack button { text-align: left; width: 100%; }
 .msim .facts { font-family: var(--mono); font-size: 11px; color: var(--muted); display: grid; grid-template-columns: auto 1fr; gap: 1px 10px; margin: 0; }
 .msim .facts dd { margin: 0; color: var(--fg); font-variant-numeric: tabular-nums; }
-.msim ol.rows { list-style: none; margin: 0; padding: 0 12px; }
+.msim ol.rows { list-style: none; margin: 0; padding: 0 12px; max-height: calc(100vh - 360px); min-height: 120px; overflow-y: auto; }
 .msim ol.rows li { display: grid; grid-template-columns: 18px 1fr auto; gap: 6px; padding: 4px 0; border-top: 1px solid var(--line); color: var(--muted); }
 .msim ol.rows .num { font-family: var(--mono); font-size: 11px; }
 .msim ol.rows li.active { color: var(--fg); font-weight: 600; }
@@ -60,6 +60,9 @@ export const VIEWER_STYLES = `
 .msim .tot { display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; padding: 8px 12px 11px; border-top: 1px solid var(--line); margin-top: 2px; }
 .msim .tot b { font-weight: 600; }
 .msim .tot .printer-line { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+.msim .tot .stage-cell { font-size: 12px; color: var(--muted); }
+.msim .tot .stage-cell b { color: var(--fg, inherit); }
+.msim .act.carry { bottom: calc(214px + env(safe-area-inset-bottom, 0px)); background: var(--panel, #fff); color: inherit; border-color: var(--line); }
 .msim ol.rows .count { font-family: var(--mono); font-size: 11px; color: var(--muted); font-weight: 400; }
 .msim .bottom { position: absolute; left: max(16px, env(safe-area-inset-left, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); bottom: calc(12px + env(safe-area-inset-bottom, 0px)); display: flex; gap: 8px; align-items: flex-end; justify-content: space-between; flex-wrap: wrap; pointer-events: none; }
 .msim .bottom > * { pointer-events: auto; }

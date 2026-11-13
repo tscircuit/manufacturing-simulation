@@ -1,4 +1,3 @@
-import { Group, Object3D } from "three"
 import {
   createBoxMesh,
   createCylinderMesh,
@@ -11,6 +10,7 @@ import {
   DARK_METAL_MATERIAL,
   STEEL_MATERIAL,
 } from "lib/scene/shared-materials"
+import { Group, Object3D } from "three"
 
 export const NEMA17 = {
   faceSizeM: 0.0423,

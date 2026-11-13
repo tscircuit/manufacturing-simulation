@@ -1,4 +1,5 @@
 import { FLOOR_PLAN } from "lib/layout/floor-plan"
+import { METERS_PER_INCH } from "lib/units"
 
 export type TableId =
   | "assembly_bench"
@@ -14,11 +15,15 @@ export type TableId =
  */
 export const BATCH_SIZE = 30
 
-/** A 6' plastic folding table: 72" x 30", 29" high. */
-export const FOLDING_TABLE = {
+/**
+ * Electric standing desk with a 72" x 30" top, set to 42" for a 6'2"
+ * operator: about 10 cm below his elbows, so he works upright.
+ */
+export const WORK_TABLE = {
   lengthM: 1.83,
   depthM: 0.76,
-  topHeightM: 0.74,
+  topHeightM: 42 * METERS_PER_INCH,
+  topThicknessM: 0.025,
 } as const
 
 /**

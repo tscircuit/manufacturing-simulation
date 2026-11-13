@@ -1,11 +1,3 @@
-import {
-  BoxGeometry,
-  Euler,
-  Group,
-  Mesh,
-  MeshBasicMaterial,
-  Object3D,
-} from "three"
 import { BOLT_HOLE_CORNERS } from "lib/models/nema17-motor"
 import {
   createBoxMesh,
@@ -19,6 +11,14 @@ import {
   BLACK_PLASTIC_MATERIAL,
   STEEL_MATERIAL,
 } from "lib/scene/shared-materials"
+import {
+  BoxGeometry,
+  Euler,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Object3D,
+} from "three"
 
 export const CONTROLLER_PCB = {
   faceSizeM: 0.042,

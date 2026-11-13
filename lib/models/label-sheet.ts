@@ -1,7 +1,7 @@
-import { Group } from "three"
 import { createSticker } from "lib/models/sticker"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
+import { Group } from "three"
 
 /**
  * AveneMark 2" x 4" label sheet: US Letter, 10 labels in 2 columns and 5

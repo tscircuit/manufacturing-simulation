@@ -1,13 +1,13 @@
-import { Vector3 } from "three"
-import { STATIONS } from "lib/layout/station-layout"
 import { getJigFocusPoint, getPointInTableFrame } from "lib/job/bench-frames"
+import { releaseSlot, reserveSlot } from "lib/job/container-slots"
 import type { JobStage, JobStep, UnitParams } from "lib/job/job-step"
 import {
   returnScrewdriver,
   steadyMotor,
   takeScrewdriver,
 } from "lib/job/screwdriver-motions"
-import { BACKFACE_SPACER } from "lib/models/backface-spacer"
+import { PCB_TOP_ABOVE_MOUNT_FACE_M } from "lib/job/unit-poses"
+import { STATIONS } from "lib/layout/station-layout"
 import { CONTROLLER_PCB } from "lib/models/controller-pcb"
 import {
   LONG_SCREW_SHANK_M,
@@ -16,7 +16,6 @@ import {
 } from "lib/models/nema17-motor"
 import { FORWARD_FINGER_DIRECTION } from "lib/operator/operator-body"
 import type { SimContext } from "lib/simulation/sim-context"
-import { carryWithBothHands } from "lib/tasks/carry-motions"
 import {
   runInParallel,
   type SimTask,
@@ -33,7 +32,6 @@ import { plugIn } from "lib/tasks/plug-motions"
 import {
   ASSEMBLY_BENCH_SPOTS,
   IDENTITY_QUATERNION,
-  QC_BENCH_SPOTS,
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
 import {
@@ -41,15 +39,10 @@ import {
   setOutLongScrews,
   setOutMotorCable,
 } from "lib/world/create-world"
+import { Vector3 } from "three"
 
 const SCREW_TURN_RADIANS = 15
 const SCREW_DRIVE_SECONDS = 1.4
-/** Spacer (4 mm) plus PCB sit on the back face; screws seat on top of the PCB. */
-const PCB_TOP_ABOVE_MOUNT_FACE_M =
-  NEMA17.backfaceHeightM +
-  BACKFACE_SPACER.baseHeightM +
-  BACKFACE_SPACER.sleeveHeightM +
-  CONTROLLER_PCB.thicknessM
 /** From the operator's side, clear of the window mullions; the operator fades if he's in the way. */
 const ASSEMBLY_CLOSE_UP = {
   azimuthRadians: 0.9,
@@ -81,6 +74,10 @@ function* moveScrewdriverTo(
 
 function* loadMotorIntoJig(params: UnitParams, ctx: SimContext): SimTask {
   const { motor } = ctx.world.units[params.unitIndex]
+  releaseSlot({
+    container: ctx.world.motorFoamStand,
+    unitIndex: params.unitIndex,
+  })
   const hand = ctx.operator.leftHand
   ctx.statusText = `Unit ${params.unitIndex + 1}: loading a NEMA17 from the foam stand into the jig`
   yield* grabObject({
@@ -418,6 +415,10 @@ function* rackFinishedAssembly(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const { motor } = world.units[params.unitIndex]
   const hand = operator.rightHand
+  const slotIndex = reserveSlot({
+    container: world.finishedRack,
+    unitIndex: params.unitIndex,
+  })
   ctx.statusText = `Unit ${params.unitIndex + 1}: setting the finished assembly in the rack`
   yield* grabObject({
     hand,
@@ -431,7 +432,7 @@ function* rackFinishedAssembly(params: UnitParams, ctx: SimContext): SimTask {
       object: motor.group,
       hand,
       parent: world.finishedRack.group,
-      localPosition: world.finishedRack.slots[params.unitIndex].position,
+      localPosition: world.finishedRack.slots[slotIndex].position,
       localQuaternion: IDENTITY_QUATERNION,
       liftHeightM: 0.06,
       travelSeconds: 0.9,
@@ -439,23 +440,6 @@ function* rackFinishedAssembly(params: UnitParams, ctx: SimContext): SimTask {
     ctx,
   )
   yield* releaseHand(hand)
-}
-
-function* carryFinishedRackToQc(_params: UnitParams, ctx: SimContext): SimTask {
-  const { world } = ctx
-  ctx.statusText = "Carrying the rack of assemblies to the QC bench"
-  yield* carryWithBothHands(
-    {
-      item: world.finishedRack.group,
-      leftHandle: world.finishedRack.leftHandle,
-      rightHandle: world.finishedRack.rightHandle,
-      liftHeightM: 0.2,
-      toStation: STATIONS.qc,
-      toParent: world.tables.qc_bench,
-      toPosition: QC_BENCH_SPOTS.incomingRack,
-    },
-    ctx,
-  )
 }
 
 const ASSEMBLY_STEPS: JobStep[] = [
@@ -522,19 +506,4 @@ export const ASSEMBLY_STAGE: JobStage = {
   label: "Assembly",
   isPerUnit: true,
   steps: ASSEMBLY_STEPS,
-}
-
-export const CARRY_FINISHED_RACK_STAGE: JobStage = {
-  label: "Carry the rack to QC",
-  isPerUnit: false,
-  steps: [
-    {
-      label: "Carry the rack to QC",
-      station: STATIONS.assembly,
-      closeUpView: { ...ASSEMBLY_CLOSE_UP, distanceM: 1.6 },
-      getFocusPoint: (_params, ctx) =>
-        ctx.world.finishedRack.group.getWorldPosition(new Vector3()),
-      run: carryFinishedRackToQc,
-    },
-  ],
 }

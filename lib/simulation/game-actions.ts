@@ -1,22 +1,28 @@
 import {
-  FOLDING_TABLE,
-  TABLE_PLACEMENTS,
-  type TableId,
-} from "lib/layout/station-layout"
-import { WORK_ITEMS } from "lib/job/job-plan"
+  countWaitingUnits,
+  getCarryWork,
+  getFollowUp,
+  getNextUnitWork,
+  getWorkBlocker,
+  runBench,
+  runWorkItem,
+} from "lib/job/bench-work"
+import { LINE_TABLES } from "lib/job/job-plan"
+import { collectPrintedLabels } from "lib/job/label-collection"
 import {
   collectFinishedPlates,
   getFinishedPrinters,
   refillSpacerBasket,
 } from "lib/job/printer-steps"
 import {
-  getNextWorkBlocker,
-  runWorkUntilBenchChanges,
-} from "lib/job/run-work-item"
-import {
   pickUpLooseScrewdriver,
   putBackLooseScrewdriver,
 } from "lib/job/screwdriver-motions"
+import {
+  TABLE_PLACEMENTS,
+  type TableId,
+  WORK_TABLE,
+} from "lib/layout/station-layout"
 import { isFloorPointFree } from "lib/navigation/is-floor-point-free"
 import { OPERATOR_GAME_WALK_SPEED_MPS } from "lib/operator/operator-body"
 import type { SimContext } from "lib/simulation/sim-context"
@@ -30,8 +36,10 @@ export interface GameAction {
 }
 
 export interface GameActions {
-  /** E: run this bench's work, collect prints, or refill spacers. */
+  /** E: run this bench's work, collect prints or labels, or refill spacers. */
   benchAction: GameAction | null
+  /** R: move what's ready on to the next bench, return an empty container, or ship the carton. */
+  carryAction: GameAction | null
   /** F: pick up or put back the screwdriver. */
   screwdriverAction: GameAction | null
   /** While a task runs, E pauses or resumes it in place. */
@@ -62,9 +70,9 @@ export function getBenchAtOperator(ctx: SimContext): TableId | null {
     const cos = Math.cos(table.ccwYawRadians)
     const sin = Math.sin(table.ccwYawRadians)
     const alongM = dx * cos - dz * sin
-    const outM = dx * sin + dz * cos - FOLDING_TABLE.depthM / 2
+    const outM = dx * sin + dz * cos - WORK_TABLE.depthM / 2
     if (
-      Math.abs(alongM) < FOLDING_TABLE.lengthM / 2 + 0.2 &&
+      Math.abs(alongM) < WORK_TABLE.lengthM / 2 + 0.2 &&
       outM > 0 &&
       outM < BENCH_REACH_M
     )
@@ -73,16 +81,35 @@ export function getBenchAtOperator(ctx: SimContext): TableId | null {
   return null
 }
 
-function getRemainingWorkAtBench(
+function getLineBenchAction(
   params: { tableId: TableId },
   ctx: SimContext,
-): number {
-  let count = 0
-  for (const item of WORK_ITEMS.slice(ctx.progress.completedWorkCount)) {
-    if (item.tableId !== params.tableId) break
-    count++
+): { action: GameAction | null; blockedReason: string | null } {
+  const { tableId } = params
+  const label = TABLE_PLACEMENTS[tableId].label
+  const work = getNextUnitWork({ tableId }, ctx)
+  if (work) {
+    const blockedReason = getWorkBlocker(work, ctx)
+    if (blockedReason) return { action: null, blockedReason }
+    const waiting = countWaitingUnits({ tableId }, ctx)
+    return {
+      action: {
+        label: `Run the ${label} (${waiting} ${waiting === 1 ? "unit" : "units"})`,
+        createTask: () => runBench({ tableId }, ctx),
+      },
+      blockedReason: null,
+    }
   }
-  return count
+  const followUp = getFollowUp({ tableId }, ctx)
+  if (followUp)
+    return {
+      action: {
+        label: followUp.row.step.label,
+        createTask: () => runWorkItem(followUp, ctx),
+      },
+      blockedReason: null,
+    }
+  return { action: null, blockedReason: null }
 }
 
 /** What the player can do right now. While a task runs, only pausing is offered. */
@@ -92,6 +119,7 @@ export function getGameActions(
 ): GameActions {
   const actions: GameActions = {
     benchAction: null,
+    carryAction: null,
     screwdriverAction: null,
     pauseLabel: null,
     blockedReason: null,
@@ -104,7 +132,9 @@ export function getGameActions(
   const { progress, operator, world } = ctx
   const tableId = getBenchAtOperator(ctx)
   const handsAreEmpty =
-    !operator.leftHand.heldObject && !operator.rightHand.heldObject
+    !operator.leftHand.heldObject &&
+    !operator.rightHand.heldObject &&
+    !world.carriedTub
 
   if (tableId === "assembly_bench" && progress.isHoldingLooseScrewdriver) {
     actions.screwdriverAction = {
@@ -123,10 +153,20 @@ export function getGameActions(
 
   if (tableId === "printer_bench") {
     const finishedCount = getFinishedPrinters(ctx).length
-    if (finishedCount > 0 && handsAreEmpty) {
+    if (finishedCount > 0 && (handsAreEmpty || world.carriedTub)) {
       actions.benchAction = {
         label: `Collect ${finishedCount === 1 ? "the finished plate" : `${finishedCount} finished plates`} into a tub`,
         createTask: () => collectFinishedPlates(ctx),
+      }
+    }
+    return actions
+  }
+  if (tableId === "label_bench") {
+    const sheetCount = world.labelPrinter.printedSheets.length
+    if (sheetCount > 0 && handsAreEmpty) {
+      actions.benchAction = {
+        label: `Take ${sheetCount} printed label ${sheetCount === 1 ? "sheet" : "sheets"} to pack-out`,
+        createTask: () => collectPrintedLabels(ctx),
       }
     }
     return actions
@@ -138,14 +178,16 @@ export function getGameActions(
     }
     return actions
   }
-  const remaining = getRemainingWorkAtBench({ tableId }, ctx)
-  if (remaining === 0 || !handsAreEmpty) return actions
-  actions.blockedReason = getNextWorkBlocker(ctx)
-  if (actions.blockedReason) return actions
-  actions.benchAction = {
-    label: `Run the ${TABLE_PLACEMENTS[tableId].label} (${remaining} steps left)`,
-    createTask: () => runWorkUntilBenchChanges({ tableId }, ctx),
-  }
+  if (!handsAreEmpty || !LINE_TABLES.includes(tableId)) return actions
+  const { action, blockedReason } = getLineBenchAction({ tableId }, ctx)
+  actions.benchAction = action
+  actions.blockedReason = blockedReason
+  const carry = getCarryWork({ tableId }, ctx)
+  if (carry)
+    actions.carryAction = {
+      label: carry.label,
+      createTask: () => runWorkItem(carry.item, ctx),
+    }
   return actions
 }
 
