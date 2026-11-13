@@ -214,6 +214,8 @@ export function* moveObject(
 ): SimTask {
   const { object, hand, parent, localPosition, localQuaternion } = params
   // In transit, parts hang off the world root (identity transform) so a reset clears them.
+  // Moving a carried load off the body ends the carry.
+  if (object.userData.isCarried) ctx.operator.isCarryingLoad = false
   ctx.world.root.attach(object)
   object.userData.isCarried = false
   const startPosition = object.position.clone()

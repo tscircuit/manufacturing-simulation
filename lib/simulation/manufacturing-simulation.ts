@@ -190,6 +190,7 @@ export class ManufacturingSimulation {
     }
     if (
       this.activeTask &&
+      progress.isJobActive &&
       (scenarioId === "refill_spacers" || scenarioId === "collect_labels")
     ) {
       // A batch is running: fit the job in after the current unit instead of stopping the batch.

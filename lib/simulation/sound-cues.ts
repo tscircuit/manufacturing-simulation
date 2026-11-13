@@ -2,7 +2,8 @@ import type { SimContext } from "lib/simulation/sim-context"
 
 /** One-off sounds the simulation asks for; the viewer synthesizes them. Continuous sounds (footsteps, the screwdriver, a spinning motor) are read from the scene instead. */
 export type SoundCue =
-  | "plug_click"
+  | "usb_click"
+  | "jst_click"
   | "plug_pull"
   | "board_chirp"
   | "qc_pass"

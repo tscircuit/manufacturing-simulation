@@ -105,7 +105,7 @@ function updateHandTargets(operator: Operator, dtSeconds: number): number {
     hand.fingerCurl +=
       (hand.targetFingerCurl - hand.fingerCurl) *
       approachFraction({ ratePerSecond: 14, dtSeconds })
-    if (!hand.isReaching) continue
+    if (!hand.isReaching || operator.isCarryingLoad) continue
     const wristTarget = getWristTarget(hand, operator)
     const bend = getRequiredHipBend({
       side: hand.side,

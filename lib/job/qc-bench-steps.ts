@@ -38,6 +38,20 @@ const QC_CLOSE_UP = {
 }
 const SPIN_TEST_SECONDS = 3
 const SPIN_TEST_REVOLUTIONS = 9
+/** Share of the test spent ramping up, and again ramping down, like a real stepper move. */
+const SPIN_TEST_RAMP_FRACTION = 0.25
+
+/** Fraction of the move done at `progress` of the time, for a trapezoidal speed profile. */
+function getTrapezoidDistance(progress: number): number {
+  const ramp = SPIN_TEST_RAMP_FRACTION
+  const cruiseSpeed = 1 / (1 - ramp)
+  if (progress < ramp) return (cruiseSpeed * progress * progress) / (2 * ramp)
+  if (progress > 1 - ramp) {
+    const remaining = 1 - progress
+    return 1 - (cruiseSpeed * remaining * remaining) / (2 * ramp)
+  }
+  return cruiseSpeed * (progress - ramp / 2)
+}
 
 function setQcDisplay(state: QcDisplayState, ctx: SimContext): void {
   ctx.world.laptop.displayState = state
@@ -116,7 +130,8 @@ function* runSpinTest(params: UnitParams, ctx: SimContext): SimTask {
     durationSeconds: SPIN_TEST_SECONDS,
     onProgress: (progress) => {
       rotor.rotation.y =
-        startRadians + SPIN_TEST_REVOLUTIONS * Math.PI * 2 * progress
+        startRadians +
+        SPIN_TEST_REVOLUTIONS * Math.PI * 2 * getTrapezoidDistance(progress)
     },
   })
   setQcDisplay("pass", ctx)

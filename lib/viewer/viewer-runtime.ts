@@ -24,7 +24,7 @@ import {
   getOperatorObstruction,
   updateMaterialOpacity,
 } from "lib/viewer/operator-fade"
-import { SoundPlayer } from "lib/viewer/sound-player"
+import { SoundPlayer } from "lib/viewer/sound/sound-player"
 import { createStationRing } from "lib/viewer/station-ring"
 import type { ManufacturingWorld } from "lib/world/create-world"
 import {
@@ -347,8 +347,11 @@ export class ViewerRuntime {
     this.updateStationRing(nowMs)
     this.soundPlayer.update({
       ctx: this.simulation.ctx,
-      cameraPosition: this.camera.position,
-      isPaused: this.isPaused || this.simulation.isTaskPaused,
+      camera: this.camera,
+      simDtSeconds:
+        this.isPaused || this.simulation.isTaskPaused
+          ? 0
+          : realSeconds * this.speed,
     })
     if (nowMs - this.previousHudMs > HUD_INTERVAL_MS) this.emitHud()
     this.renderer.render(this.simulation.ctx.scene, this.camera)

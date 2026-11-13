@@ -86,7 +86,21 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 
 ### Sound
 
-Synthesized in the browser with WebAudio, with no audio files. It starts after your first click or key press. You hear footsteps, the SKIL screwdriver's whine while driving, screws dropping into the bin, USB-C and JST clicks, the board's buzzer chirp when QC powers it, the stepper whine in the spin test and the laptop's pass chime. Pack-out and ship-ready add the box lid, carton flaps and tape gun. The Epson's carriage runs as each label sheet prints, the Bambu printers beep when a plate finishes, and spacers clatter when poured. Volume falls off as the camera moves away from the operator. Use the Sound checkbox or M to mute.
+Synthesized in the browser with WebAudio, with no audio files. It starts after your first click or key press. Everything plays through a small-office reverb. The operator's sounds are panned and get quieter as the camera moves away.
+
+- **Screwdriver:** the SKIL Twist is modelled as a ~15,000 rpm brushed motor, with motor whine, commutator buzz, planetary gear mesh and brush hiss. It clicks on, spins up, and coasts down with falling pitch. It labours (lower pitch) breaking a stock screw loose and as a long screw seats, then the clutch ratchets.
+- **Stepper:** the spin test now accelerates, cruises and decelerates. The NEMA17's tone follows its real step rate (200 steps per revolution at the rotor's measured speed), so it sweeps up and down like a stepper on a DRV8825, with a knock when the coils energize.
+- **Other sounds:**
+  - footsteps, with a heel strike then the sole
+  - a crisp USB-C detent and a duller JST latch
+  - M3 screws pinging and bouncing in the bin
+  - the board's 2.7 kHz buzzer chirp and the laptop's pass chime
+  - cardboard creases and thumps
+  - the tape gun's stick-slip screech and blade
+  - PLA spacers clattering
+- **From across the room:** the Epson's pick roller, carriage passes and eject; the Bambu finish tone; the printers' fans while they print; and a faint room tone.
+
+Use the Sound checkbox or M to mute.
 
 When the operator stands between the camera and the work, or the camera is zoomed inside him, his body fades out so the work stays visible.
 

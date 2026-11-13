@@ -55,7 +55,8 @@ test(
     }
     for (const cue of [
       "screw_drop",
-      "plug_click",
+      "usb_click",
+      "jst_click",
       "board_chirp",
       "qc_pass",
       "plug_pull",

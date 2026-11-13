@@ -85,6 +85,8 @@ export interface Operator {
   /** 0 = standing still, 1 = full stride. */
   gaitBlend: number
   hipBendRadians: number
+  /** Holding a rack, tote, tub or carton against the body: stay upright. */
+  isCarryingLoad: boolean
 }
 
 interface OperatorMaterials {
@@ -588,6 +590,7 @@ export function createOperator(): Operator {
     gaitPhaseRadians: 0,
     gaitBlend: 0,
     hipBendRadians: 0,
+    isCarryingLoad: false,
   }
 }
 
@@ -604,6 +607,7 @@ export function resetOperator(params: {
   operator.walkSpeedMps = 0
   operator.gaitBlend = 0
   operator.hipBendRadians = 0
+  operator.isCarryingLoad = false
   for (const hand of operator.hands) {
     hand.trackTarget = null
     hand.isReaching = false

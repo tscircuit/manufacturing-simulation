@@ -55,7 +55,7 @@ export function* plugIn(
     },
     ctx,
   )
-  playCue("plug_click", ctx)
+  playCue(plug.kind === "usb_c" ? "usb_click" : "jst_click", ctx)
   yield* releaseHand(hand)
 }
 

@@ -42,7 +42,8 @@ import {
 } from "lib/world/create-world"
 import { Vector3 } from "three"
 
-const SCREW_TURN_RADIANS = 15
+/** Bit rotation for one screw, removing or driving; the sound reads it to judge load. */
+export const SCREW_TURN_RADIANS = 15
 const SCREW_DRIVE_SECONDS = 1.4
 /** From the operator's side, clear of the window mullions; the operator fades if he's in the way. */
 const ASSEMBLY_CLOSE_UP = {

@@ -14,6 +14,7 @@ import { Group, Object3D } from "three"
  * the wire leaves from `wireAnchor`, also pointing +Y.
  */
 export interface CablePlug {
+  kind: "usb_c" | "jst"
   group: Group
   wireAnchor: Object3D
 }
@@ -46,7 +47,7 @@ export function createUsbCPlug(params: { overmoldColor?: number }): CablePlug {
   const wireAnchor = new Object3D()
   wireAnchor.position.y = 0.034
   group.add(wireAnchor)
-  return { group, wireAnchor }
+  return { kind: "usb_c", group, wireAnchor }
 }
 
 const JST_PH_PITCH_M = 0.002
@@ -92,5 +93,5 @@ export function createJstPlug(params: { pinCount: number }): CablePlug {
   const wireAnchor = new Object3D()
   wireAnchor.position.y = 0.0085
   group.add(wireAnchor)
-  return { group, wireAnchor }
+  return { kind: "jst", group, wireAnchor }
 }

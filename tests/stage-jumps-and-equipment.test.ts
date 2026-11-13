@@ -5,6 +5,7 @@ import { countLabelsAtPackOut } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { BATCH_SIZE, STATIONS, type Station } from "lib/layout/station-layout"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
+import { Vector3 } from "three"
 
 function standAt(params: {
   simulation: ManufacturingSimulation
@@ -203,4 +204,35 @@ test(
     expect(simulation.isTaskRunning).toBe(true)
   },
   { timeout: 120_000 },
+)
+
+test(
+  "carrying the rack, tote and carton: upright, each hand on its own side",
+  () => {
+    const simulation = new ManufacturingSimulation()
+    const { ctx } = simulation
+    simulation.setJobUnitCount(1)
+    simulation.startScenario("run_batch")
+    let carrySamples = 0
+    for (
+      let elapsedSeconds = 0;
+      elapsedSeconds < 1500 && simulation.isTaskRunning;
+      elapsedSeconds += 0.05
+    ) {
+      simulation.step(0.05)
+      const { operator } = ctx
+      if (!operator.isCarryingLoad || operator.walkSpeedMps < 0.5) continue
+      carrySamples++
+      expect(operator.hipBendRadians).toBeLessThan(0.05)
+      const leftX = operator.group.worldToLocal(
+        operator.leftHand.hand.getWorldPosition(new Vector3()),
+      ).x
+      const rightX = operator.group.worldToLocal(
+        operator.rightHand.hand.getWorldPosition(new Vector3()),
+      ).x
+      expect(leftX).toBeGreaterThan(rightX)
+    }
+    expect(carrySamples).toBeGreaterThan(20)
+  },
+  { timeout: 60_000 },
 )

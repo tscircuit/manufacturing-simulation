@@ -8,7 +8,9 @@ import {
   walkToStation,
 } from "lib/tasks/operator-motions"
 import { IDENTITY_QUATERNION } from "lib/world/bench-spots"
-import { type Group, type Object3D, Vector3 } from "three"
+import { type Group, type Object3D, Quaternion, Vector3 } from "three"
+
+const UP = new Vector3(0, 1, 0)
 
 /** Where the middle of the two handles sits while carrying, in the operator's frame (facing +Z). */
 const CARRY_HANDLE_MIDPOINT = new Vector3(0, 1.0, 0.36)
@@ -22,8 +24,18 @@ export function* pickUpInFront(
   params: { item: Group; leftGrip: Object3D; rightGrip: Object3D },
   ctx: SimContext,
 ): SimTask {
-  const { item, leftGrip, rightGrip } = params
+  const { item } = params
   const { operator } = ctx
+  // Each hand takes the grip on its own side, whichever way round the item sits on the bench.
+  operator.group.updateWorldMatrix(true, false)
+  const isSwapped =
+    operator.group.worldToLocal(params.leftGrip.getWorldPosition(new Vector3()))
+      .x <
+    operator.group.worldToLocal(
+      params.rightGrip.getWorldPosition(new Vector3()),
+    ).x
+  const leftGrip = isSwapped ? params.rightGrip : params.leftGrip
+  const rightGrip = isSwapped ? params.leftGrip : params.rightGrip
   yield* runInParallel([
     grabObject({
       hand: operator.leftHand,
@@ -39,23 +51,37 @@ export function* pickUpInFront(
     }),
   ])
   item.updateWorldMatrix(true, false)
-  const gripMidpoint = leftGrip
-    .getWorldPosition(new Vector3())
-    .add(rightGrip.getWorldPosition(new Vector3()))
-    .multiplyScalar(0.5)
-  const midpointInItem = item.worldToLocal(gripMidpoint)
+  const leftInItem = item.worldToLocal(leftGrip.getWorldPosition(new Vector3()))
+  const rightInItem = item.worldToLocal(
+    rightGrip.getWorldPosition(new Vector3()),
+  )
+  // Turn the item so the left grip is on the operator's left (+X) and the right grip on the right: hands never cross.
+  const acrossYawRadians = Math.atan2(
+    leftInItem.z - rightInItem.z,
+    leftInItem.x - rightInItem.x,
+  )
+  const carryQuaternion = new Quaternion().setFromAxisAngle(
+    UP,
+    acrossYawRadians,
+  )
+  const midpointInItem = leftInItem.add(rightInItem).multiplyScalar(0.5)
+  // Upright with the load held close: no bending at the hips while carrying.
+  operator.isCarryingLoad = true
   yield* moveObject(
     {
       object: item,
       hand: operator.rightHand,
       parent: operator.group,
-      localPosition: CARRY_HANDLE_MIDPOINT.clone().sub(midpointInItem),
-      localQuaternion: IDENTITY_QUATERNION,
+      localPosition: CARRY_HANDLE_MIDPOINT.clone().sub(
+        midpointInItem.applyQuaternion(carryQuaternion),
+      ),
+      localQuaternion: carryQuaternion,
       durationSeconds: 0.9,
       arcHeightM: 0.03,
     },
     ctx,
   )
+  operator.isCarryingLoad = true
   item.userData.isCarried = true
 }
 
