@@ -378,10 +378,7 @@ function createTorso(materials: OperatorMaterials): {
     radialSegments: 28,
   })
   belt.scale.z = 0.66
-  torso.add(
-    shoulderLine,
-    belt,
-  )
+  torso.add(shoulderLine, belt)
   const neck = createCylinderMesh({
     radiusTopM: 0.054,
     radiusBottomM: 0.06,
