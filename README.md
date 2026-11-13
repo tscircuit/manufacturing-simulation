@@ -23,7 +23,7 @@ simulation.ctx.progress.rowSeconds // seconds per step, summed over the batch
 simulation.ctx.progress.cycleSeconds // total including walking
 ```
 
-## What it simulates (v2 batch line)
+## What it simulates (batch line)
 
 - **Floor:** unit 322 at 2325, 18'3½" × 47'5¼" (46'0¼" on the window side), with the washroom on the east wall, the entry door in the NE corner and the window wall on the west.
 - **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK, and works upright at 42" standing desks (only a slight lean). Shaped limbs, a smooth head with hair, and both hands on the handles when carrying a rack, tote, tub or carton.

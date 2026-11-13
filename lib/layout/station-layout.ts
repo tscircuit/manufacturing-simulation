@@ -77,7 +77,7 @@ function placeOnEastWall(params: {
   }
 }
 
-// Positions follow the v2 line description; adjust once the real layout is measured.
+// Positions follow the line description; adjust once the real layout is measured.
 export const TABLE_PLACEMENTS: Record<TableId, TablePlacement> = {
   assembly_bench: placeOnLine({ lineOrder: 1, label: "Assembly bench" }),
   qc_bench: placeOnLine({ lineOrder: 2, label: "QC bench" }),

@@ -40,7 +40,7 @@ export function ControlPanel(props: {
           <span>
             <span className="eyebrow">2325 · Unit 322</span>
             <br />
-            Line sim v2
+            Line simulation
           </span>
         </summary>
         <div className="body">
