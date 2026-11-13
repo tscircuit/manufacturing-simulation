@@ -98,8 +98,8 @@ Synthesized in the browser with WebAudio, with no audio files. It starts after y
   - the board's 2.7 kHz buzzer chirp and the laptop's pass chime
   - cardboard creases and thumps
   - the tape gun's stick-slip screech and blade
-  - PLA spacers clattering
-- **From across the room:** the Epson's pick roller, carriage passes and eject; the Bambu finish tone; the printers' fans while they print; and a faint room tone.
+  - PLA spacers clacking as they're poured
+- **Printers:** the Epson's pick roller, carriage passes and eject, and the Bambu finish tone. They're quieter the further the camera is from those benches. There's no continuous background noise: the room is silent between sounds.
 
 Use the Sound checkbox or M to mute.
 

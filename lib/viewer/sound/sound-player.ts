@@ -1,10 +1,7 @@
 import { SCREW_TURN_RADIANS } from "lib/job/assembly-bench-steps"
 import type { SimContext } from "lib/simulation/sim-context"
-import {
-  type AudioKit,
-  connectFilters,
-  createRoomImpulse,
-} from "lib/viewer/sound/audio-kit"
+import type { SoundCue } from "lib/simulation/sound-cues"
+import { type AudioKit, createRoomImpulse } from "lib/viewer/sound/audio-kit"
 import { playCueSound, playFootstep } from "lib/viewer/sound/cue-sounds"
 import { ScrewdriverVoice, StepperVoice } from "lib/viewer/sound/motor-voices"
 import { type Camera, Vector3 } from "three"
@@ -16,12 +13,36 @@ const MASTER_GAIN = 0.7
 const REVERB_MIX = 0.22
 /** A bit jump bigger than this in one frame is a new screw starting, not spinning. */
 const SCREW_RESET_RADIANS = 3
-const PRINTER_FAN_FULL_VOLUME_M = 2.5
+/** Printers sound full within this distance of the camera, then fade. */
+const EQUIPMENT_FULL_VOLUME_M = 2.5
+
+/** Cues that come from a printer, not from the operator's hands. */
+function isEquipmentCue(cue: SoundCue): boolean {
+  return cue === "label_printer" || cue === "print_done"
+}
+
+/** Quieter the further the camera is from the printer making the sound. */
+function getEquipmentVolume(params: {
+  cue: SoundCue
+  ctx: SimContext
+  camera: Camera
+}): number {
+  const { tables } = params.ctx.world
+  const bench =
+    params.cue === "label_printer" ? tables.label_bench : tables.printer_bench
+  const distanceM = bench
+    .getWorldPosition(new Vector3())
+    .distanceTo(params.camera.position)
+  return Math.min(
+    1,
+    (EQUIPMENT_FULL_VOLUME_M / Math.max(0.5, distanceM)) ** 1.5,
+  )
+}
 
 /**
  * Synthesized shop-floor sound, with no audio files: one-off cues from the
  * simulation; footsteps, the SKIL screwdriver and the QC stepper driven by
- * what the scene is doing; and a quiet room with the printers' fans.
+ * what the scene is doing. No continuous background noise.
  * Everything runs through a small-office reverb, and the operator's sounds
  * are panned and attenuated by where they are relative to the camera.
  * WebAudio only starts after a user gesture, so call `unlock` from one.
@@ -30,7 +51,6 @@ export class SoundPlayer {
   private kit: AudioKit | null = null
   private master: GainNode | null = null
   private operatorPan: StereoPannerNode | null = null
-  private printerFans: GainNode | null = null
   private screwdriver: ScrewdriverVoice | null = null
   private stepper: StepperVoice | null = null
   private isEnabled = true
@@ -88,45 +108,8 @@ export class SoundPlayer {
     roomBus.connect(master)
     const kit: AudioKit = { audio, operatorBus, roomBus, noise }
 
-    // Room tone: HVAC and traffic through the window wall, barely there.
-    const roomTone = audio.createBufferSource()
-    roomTone.buffer = noise
-    roomTone.loop = true
-    const roomToneGain = audio.createGain()
-    roomToneGain.gain.value = 0.02
-    connectFilters(
-      {
-        from: roomTone,
-        filters: [{ type: "lowpass", frequencyHz: 160 }],
-      },
-      kit,
-    )
-      .connect(roomToneGain)
-      .connect(master)
-    roomTone.start()
-    // Bambu part-cooling and chamber fans while printing.
-    const fanNoise = audio.createBufferSource()
-    fanNoise.buffer = noise
-    fanNoise.loop = true
-    const printerFans = audio.createGain()
-    printerFans.gain.value = 0
-    connectFilters(
-      {
-        from: fanNoise,
-        filters: [
-          { type: "bandpass", frequencyHz: 750, q: 0.6 },
-          { type: "peaking", frequencyHz: 240, q: 4 },
-        ],
-      },
-      kit,
-    )
-      .connect(printerFans)
-      .connect(roomBus)
-    fanNoise.start(0, 0.7)
-
     this.master = master
     this.operatorPan = operatorPan
-    this.printerFans = printerFans
     this.screwdriver = new ScrewdriverVoice(kit)
     this.stepper = new StepperVoice(kit)
     return kit
@@ -198,7 +181,6 @@ export class SoundPlayer {
           )
         : 0
     this.operatorPan?.pan.setTargetAtTime(pan, now, 0.05)
-    this.updatePrinterFans({ ctx, camera, now })
 
     this.screwdriver?.update({
       isSpinning: isScrewdriverSpinning,
@@ -211,22 +193,15 @@ export class SoundPlayer {
       volume,
     })
     if (isFootfall) playFootstep({ volume }, kit)
-    for (const cue of cues) playCueSound({ cue, volume }, kit)
-  }
-
-  private updatePrinterFans(params: {
-    ctx: SimContext
-    camera: Camera
-    now: number
-  }): void {
-    let level = 0
-    for (const printer of params.ctx.world.printers) {
-      if (!printer.isPrinting) continue
-      const distanceM = printer.group
-        .getWorldPosition(new Vector3())
-        .distanceTo(params.camera.position)
-      level += 0.035 * Math.min(1, PRINTER_FAN_FULL_VOLUME_M / distanceM)
-    }
-    this.printerFans?.gain.setTargetAtTime(level, params.now, 0.3)
+    for (const cue of cues)
+      playCueSound(
+        {
+          cue,
+          volume: isEquipmentCue(cue)
+            ? getEquipmentVolume({ cue, ctx, camera })
+            : volume,
+        },
+        kit,
+      )
   }
 }

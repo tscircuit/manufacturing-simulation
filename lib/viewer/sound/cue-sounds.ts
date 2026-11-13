@@ -269,59 +269,50 @@ function playCardboardCrease(
     )
 }
 
-/** Light PLA spacers sliding off a flexed plate or a tilted tub: a dense, uneven clatter. */
+/** Light PLA spacers tipping out of a tub or off a flexed plate: a short run of distinct plastic clacks. */
 function playSpacerPour(params: { volume: number }, kit: AudioKit): void {
-  const durationSeconds = 1.6
-  for (let index = 0; index < 70; index++) {
-    // Most land in the middle of the pour.
-    const position = (Math.random() + Math.random() + Math.random()) / 3
-    const pitch = vary(3200, 0.45)
-    playNoiseBurst(
+  const durationSeconds = 1.1
+  for (let index = 0; index < 22; index++) {
+    // Bunched in the middle of the pour, thinning out at the end.
+    const position = (Math.random() + Math.random()) / 2
+    const atSeconds = position * durationSeconds
+    const gain = vary(0.09, 0.5) * params.volume
+    // A hollow "tok" of a 42 mm PLA part, with a tiny click on contact.
+    playPing(
       {
-        atSeconds: position * durationSeconds,
-        durationSeconds: vary(0.025, 0.5),
-        gain: vary(0.1, 0.6) * params.volume,
-        filters: [{ type: "bandpass", frequencyHz: pitch, q: 3 }],
+        atSeconds,
+        frequencyHz: vary(1250, 0.35),
+        durationSeconds: vary(0.035, 0.3),
+        gain,
+        type: "triangle",
       },
       kit,
     )
-    if (index % 4 === 0)
-      playPing(
-        {
-          atSeconds: position * durationSeconds,
-          frequencyHz: pitch,
-          durationSeconds: 0.04,
-          gain: 0.025 * params.volume,
-        },
-        kit,
-      )
+    playNoiseBurst(
+      {
+        atSeconds,
+        durationSeconds: 0.006,
+        gain: gain * 0.6,
+        filters: [{ type: "bandpass", frequencyHz: vary(3000, 0.2), q: 2 }],
+      },
+      kit,
+    )
   }
-  playNoiseBurst(
-    {
-      durationSeconds,
-      gain: 0.06 * params.volume,
-      attackSeconds: 0.3,
-      filters: [{ type: "bandpass", frequencyHz: 600, q: 0.7 }],
-    },
-    kit,
-  )
 }
 
-/**
- * Epson inkjet printing one sheet: pick roller whirr, carriage passes with
- * their stepper whine and end-of-travel clacks, then the eject.
- */
-function playInkjetSheet(kit: AudioKit): void {
+/** Epson inkjet printing one sheet: pick roller, carriage passes with their stepper whine and soft end stops, then the eject. */
+function playInkjetSheet(params: { volume: number }, kit: AudioKit): void {
+  const { volume } = params
   const roomBus = "room" as const
   playPing(
     {
       frequencyHz: 95,
       endFrequencyHz: 130,
       durationSeconds: 0.5,
-      gain: 0.05,
+      gain: 0.05 * volume,
       type: "sawtooth",
       attackSeconds: 0.05,
-      filters: [{ type: "lowpass", frequencyHz: 700 }],
+      filters: [{ type: "lowpass", frequencyHz: 600 }],
       bus: roomBus,
     },
     kit,
@@ -333,32 +324,34 @@ function playInkjetSheet(kit: AudioKit): void {
         atSeconds,
         frequencyHz: pass % 2 ? 470 : 520,
         durationSeconds: 0.24,
-        gain: 0.035,
-        type: "square",
+        gain: 0.03 * volume,
+        type: "triangle",
         attackSeconds: 0.03,
-        filters: [{ type: "bandpass", frequencyHz: 1100, q: 1.5 }],
         bus: roomBus,
       },
       kit,
     )
-    playNoiseBurst(
+    playPing(
       {
         atSeconds: atSeconds + 0.26,
-        durationSeconds: 0.03,
-        gain: 0.05,
-        filters: [{ type: "bandpass", frequencyHz: 1800, q: 2 }],
+        frequencyHz: 220,
+        durationSeconds: 0.04,
+        gain: 0.04 * volume,
         bus: roomBus,
       },
       kit,
     )
   }
-  playNoiseBurst(
+  playPing(
     {
       atSeconds: 3.6,
-      durationSeconds: 0.5,
-      gain: 0.04,
+      frequencyHz: 120,
+      endFrequencyHz: 90,
+      durationSeconds: 0.45,
+      gain: 0.04 * volume,
+      type: "sawtooth",
       attackSeconds: 0.05,
-      filters: [{ type: "bandpass", frequencyHz: 900, q: 0.8 }],
+      filters: [{ type: "lowpass", frequencyHz: 500 }],
       bus: roomBus,
     },
     kit,
@@ -450,7 +443,7 @@ export function playCueSound(
       playTapeGun({ volume }, kit)
       return
     case "label_printer":
-      playInkjetSheet(kit)
+      playInkjetSheet({ volume }, kit)
       return
     case "print_done":
       // Bambu Lab finish tone, from across the room.
@@ -464,7 +457,7 @@ export function playCueSound(
             atSeconds,
             frequencyHz,
             durationSeconds: 0.2,
-            gain: 0.05,
+            gain: 0.06 * volume,
             type: "triangle",
             bus: "room",
           },
