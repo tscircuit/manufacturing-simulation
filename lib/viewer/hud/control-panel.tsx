@@ -1,3 +1,4 @@
+import type { ProductLine } from "lib/job/job-plan"
 import {
   BATCH_SIZE,
   TABLE_PLACEMENTS,
@@ -19,6 +20,7 @@ const LINE_START_IDS: LineStartId[] = [
 export function ControlPanel(props: {
   detailsRef: Ref<HTMLDetailsElement>
   mode: SimulationMode
+  productLine: ProductLine
   jobUnitCount: number
   onJobUnitCountChange: (unitCount: number) => void
   isPaused: boolean
@@ -43,7 +45,9 @@ export function ControlPanel(props: {
           <span>
             <span className="eyebrow">2325 · Unit 322</span>
             <br />
-            Line simulation
+            {props.productLine === "bagged"
+              ? "Bare unit, bagged"
+              : "Line simulation"}
           </span>
         </summary>
         <div className="body">
@@ -139,7 +143,9 @@ export function ControlPanel(props: {
               </option>
               {LINE_START_IDS.map((startId) => (
                 <option key={startId} value={startId}>
-                  {LINE_STARTS[startId].label}
+                  {props.productLine === "bagged"
+                    ? LINE_STARTS[startId].label.replace("boxed", "bagged")
+                    : LINE_STARTS[startId].label}
                 </option>
               ))}
             </select>

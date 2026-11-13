@@ -470,5 +470,30 @@ export function playCueSound(
     case "pour_spacers":
       playSpacerPour({ volume }, kit)
       return
+    case "bag_zip":
+      // Reclosable zip: a quick run of tiny plastic clicks as the finger slides along.
+      for (let index = 0; index < 18; index++)
+        playNoiseBurst(
+          {
+            atSeconds: index * 0.042 + Math.random() * 0.01,
+            durationSeconds: 0.008,
+            gain: vary(0.12, 0.4) * volume,
+            filters: [{ type: "bandpass", frequencyHz: vary(3600, 0.2), q: 3 }],
+          },
+          kit,
+        )
+      return
+    case "label_press":
+      // A thumb smoothing a sticker down: a soft, papery rub.
+      playNoiseBurst(
+        {
+          durationSeconds: 0.18,
+          gain: 0.1 * volume,
+          attackSeconds: 0.03,
+          filters: [{ type: "bandpass", frequencyHz: vary(1500), q: 1 }],
+        },
+        kit,
+      )
+      return
   }
 }

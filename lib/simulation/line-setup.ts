@@ -1,5 +1,5 @@
 import { releaseSlot, reserveSlot } from "lib/job/container-slots"
-import { takeNextLabel } from "lib/job/label-stock"
+import { takeNextFromSheets, takeNextLabel } from "lib/job/label-stock"
 import {
   FINISHED_RACK_SHUTTLE,
   READY_RACK_SHUTTLE,
@@ -21,15 +21,18 @@ import {
 } from "lib/layout/station-layout"
 import { createBackfaceSpacer } from "lib/models/backface-spacer"
 import { COILED_USB_CABLE } from "lib/models/coiled-usb-cable"
+import { ESD_BAG, setEsdBagFilled } from "lib/models/esd-bag"
 import { createM3Screw, LONG_SCREW_SHANK_M } from "lib/models/nema17-motor"
 import { BOX_POCKETS, POCKET_FLOOR_YM } from "lib/models/white-mailer-box"
 import type { SimContext } from "lib/simulation/sim-context"
 import {
+  BAG_LYING_QUATERNION,
   IDENTITY_QUATERNION,
   MOTOR_IN_BOX_QUATERNION,
   SCREW_LYING_QUATERNION,
 } from "lib/world/bench-spots"
 import { scatter, setOutMotorCable } from "lib/world/create-world"
+import { Vector3 } from "three"
 
 /** The line benches a session can start at, each with a full batch ready for it. */
 export type LineStartId = "assembly" | "qc" | "pack_out" | "ship_ready"
@@ -178,6 +181,47 @@ function packUnitInstantly(
   unit.nextStepIndex = 0
 }
 
+/** Bag a tested unit with its sticker and FNSKU label, and lay the bag in the tote. */
+function bagUnitInstantly(
+  params: { unitIndex: number },
+  ctx: SimContext,
+): void {
+  const { world } = ctx
+  const unit = world.units[params.unitIndex]
+  const { bag } = unit
+  if (!bag) return
+  releaseSlot({ container: world.readyRack, unitIndex: params.unitIndex })
+  setEsdBagFilled({ bag, isFilled: true })
+  bag.group.add(unit.motor.group)
+  unit.motor.group.position.copy(bag.contentsSpot.position)
+  unit.motor.group.quaternion.copy(bag.contentsSpot.quaternion)
+  const sticker = takeNextLabel(world)
+  if (sticker) {
+    bag.group.add(sticker)
+    sticker.position.copy(bag.frontStickerSpot.position)
+    sticker.quaternion.copy(bag.frontStickerSpot.quaternion)
+    unit.label = sticker
+  }
+  const fnsku = takeNextFromSheets(world.fnskuSheets)
+  if (fnsku) {
+    bag.group.add(fnsku)
+    fnsku.position.copy(bag.backLabelSpot.position)
+    fnsku.quaternion.copy(bag.backLabelSpot.quaternion)
+    unit.fnskuLabel = fnsku
+  }
+  const slotIndex = reserveSlot({
+    container: world.packingTote,
+    unitIndex: params.unitIndex,
+  })
+  world.packingTote.group.add(bag.group)
+  bag.group.position
+    .copy(world.packingTote.slots[slotIndex].position)
+    .add(new Vector3(0, ESD_BAG.filledDepthM / 2, ESD_BAG.heightM / 2))
+  bag.group.quaternion.copy(BAG_LYING_QUATERNION)
+  unit.stage = "packed"
+  unit.nextStepIndex = 0
+}
+
 function moveShuttle(
   params: { shuttle: typeof FINISHED_RACK_SHUTTLE; toNextBench: boolean },
   ctx: SimContext,
@@ -218,7 +262,10 @@ export function setUpLineAt(
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: true }, ctx)
   }
   if (depth >= 3) {
-    for (const unitIndex of unitIndices) packUnitInstantly({ unitIndex }, ctx)
+    for (const unitIndex of unitIndices)
+      if (ctx.world.productLine === "bagged")
+        bagUnitInstantly({ unitIndex }, ctx)
+      else packUnitInstantly({ unitIndex }, ctx)
     moveShuttle({ shuttle: READY_RACK_SHUTTLE, toNextBench: false }, ctx)
     moveShuttle({ shuttle: TOTE_SHUTTLE, toNextBench: true }, ctx)
   }

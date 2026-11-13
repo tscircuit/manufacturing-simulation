@@ -38,6 +38,17 @@ simulation.ctx.progress.cycleSeconds // total including walking
   - **Label printer:** an Epson EcoTank ET-2400 that prints an AveneMark sheet (10 labels) every 45 s, up to 6 in its tray. Collecting them carries the sheets to the top of the pack-out stack.
 - **Timing:** every step is clocked per unit and summed over the batch, with walking time separate. A batch of 30 takes about 46½ minutes of simulated time. Gesture durations are placeholders, not measured.
 
+## Second line: the bare unit, bagged
+
+`pages/bare-unit-bagging.page.tsx` is a second simulation on the same floor, with the same printers, tools and operator. The full kit line is unchanged. It makes the bare unit: the tested NEMA17 with the controller board, no box, cables or charger.
+
+- **Assembly and QC:** the same as the kit, including one-at-a-time building with the two circles.
+- **Label printer:** prints 2" × 3" tscircuit bag stickers. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
+- **Bagging bench (the pack-out bench):** the unit goes into a 4" × 6" metallized static-shielding zip bag on a wire stand. The tscircuit sticker goes on the front and the FNSKU label on the back, then the bag goes into the tote.
+- **Ship-ready:** 30 bags stand upright in a 21 × 12 × 7 in carton (about 23 lb). The FBA box ID label goes on the side, then the carton is sealed and shipped.
+
+In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The Amazon packaging, labelling and FCC research behind it is in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
+
 ### Amazon carton for 30
 
 The packed mailer is about 7.25 × 4.25 × 3.1 in. Thirty stack 2 × 3 × 5 into 14.5 × 12.75 × 15.6 in, so a **15 × 13 × 17 in (inside) carton** fits them with a little room for void fill. Each packed unit weighs roughly 0.56 kg (motor, PCB, spacer and cable ~0.31 kg; two USB-C cables ~0.10 kg; 45 W charger ~0.09 kg; mailer and foam ~0.06 kg), so the carton is about 37 lb. That is under the 50 lb FBA limit, and every side is under 25 in. Weigh and measure a packed unit to confirm before ordering cartons.

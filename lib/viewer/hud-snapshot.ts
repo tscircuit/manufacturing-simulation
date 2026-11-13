@@ -1,3 +1,4 @@
+import type { ProductLine } from "lib/job/job-plan"
 import type { SimulationMode } from "lib/simulation/sim-context"
 import type { CameraMode } from "lib/viewer/camera-rig"
 import type { UnitStage } from "lib/world/create-world"
@@ -7,6 +8,8 @@ export type StepRowState = "pending" | "active" | "done"
 /** Everything the HUD panels render, rebuilt a few times a second. */
 export interface HudSnapshot {
   mode: SimulationMode
+  /** The full kit line or the bare-unit bag line. */
+  productLine: ProductLine
   /** Units in this job: 30 for the full batch, or 1 motor. */
   jobUnitCount: number
   statusText: string

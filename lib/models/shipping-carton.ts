@@ -1,3 +1,4 @@
+import { ESD_BAG } from "lib/models/esd-bag"
 import { WHITE_MAILER_BOX } from "lib/models/white-mailer-box"
 import { createBoxMesh, createStandardMaterial } from "lib/scene/primitives"
 import { METERS_PER_INCH } from "lib/units"
@@ -9,6 +10,21 @@ import { Group, type Mesh, Object3D } from "three"
  * 15.6 in block, so a 15 x 13 x 17 in (inside) carton fits them with a little
  * room for void fill. About 37 lb packed, under the FBA 50 lb carton limit.
  */
+/** A carton's inside size and the grid its items pack into. */
+export interface CartonSpec {
+  innerLengthM: number
+  innerWidthM: number
+  innerHeightM: number
+  boardThicknessM: number
+  /** Items along the length (X), across the width (Z) and stacked up. */
+  columns: number
+  rows: number
+  layers: number
+  itemPitchXM: number
+  itemPitchZM: number
+  itemHeightM: number
+}
+
 export const SHIPPING_CARTON = {
   innerLengthM: 15 * METERS_PER_INCH,
   innerWidthM: 13 * METERS_PER_INCH,
@@ -17,7 +33,28 @@ export const SHIPPING_CARTON = {
   columns: 2,
   rows: 3,
   layers: 5,
-} as const
+  itemPitchXM: WHITE_MAILER_BOX.lengthM + 0.002,
+  itemPitchZM: WHITE_MAILER_BOX.widthM + 0.002,
+  itemHeightM: WHITE_MAILER_BOX.heightM,
+} as const satisfies CartonSpec
+
+/**
+ * FBA carton for 30 bare units in 4" x 6" ESD bags, standing on edge 5 along
+ * by 6 across: 21 x 12 x 7 in inside. About 0.33 kg a bagged unit, so roughly
+ * 23 lb packed, under the FBA 50 lb limit and 25 in per side.
+ */
+export const BAG_SHIPPING_CARTON = {
+  innerLengthM: 21 * METERS_PER_INCH,
+  innerWidthM: 12 * METERS_PER_INCH,
+  innerHeightM: 7 * METERS_PER_INCH,
+  boardThicknessM: 0.005,
+  columns: 5,
+  rows: 6,
+  layers: 1,
+  itemPitchXM: ESD_BAG.widthM + 0.002,
+  itemPitchZM: ESD_BAG.filledDepthM + 0.002,
+  itemHeightM: ESD_BAG.heightM,
+} as const satisfies CartonSpec
 
 export const SHIPPING_CARTON_CAPACITY =
   SHIPPING_CARTON.columns * SHIPPING_CARTON.rows * SHIPPING_CARTON.layers
@@ -47,10 +84,12 @@ export interface ShippingCarton {
 /** How far each flap is folded open, in radians. */
 export const CARTON_FLAP_OPEN_RADIANS = 2.2
 
-export function createShippingCarton(): ShippingCarton {
+export function createShippingCarton(
+  spec: CartonSpec = SHIPPING_CARTON,
+): ShippingCarton {
   const group = new Group()
   const board = createStandardMaterial({ color: 0xc49a6c, roughness: 0.95 })
-  const c = SHIPPING_CARTON
+  const c = spec
   const t = c.boardThicknessM
   const lengthM = c.innerLengthM + 2 * t
   const widthM = c.innerWidthM + 2 * t
@@ -165,15 +204,14 @@ export function createShippingCarton(): ShippingCarton {
   }) as [Mesh, Mesh]
 
   const slots: Object3D[] = []
-  const mailer = WHITE_MAILER_BOX
   for (let layer = 0; layer < c.layers; layer++) {
     for (let row = 0; row < c.rows; row++) {
       for (let column = 0; column < c.columns; column++) {
         const slot = new Object3D()
         slot.position.set(
-          (column - (c.columns - 1) / 2) * (mailer.lengthM + 0.002),
-          t + layer * mailer.heightM,
-          (row - (c.rows - 1) / 2) * (mailer.widthM + 0.002),
+          (column - (c.columns - 1) / 2) * c.itemPitchXM,
+          t + layer * c.itemHeightM,
+          (row - (c.rows - 1) / 2) * c.itemPitchZM,
         )
         group.add(slot)
         slots.push(slot)

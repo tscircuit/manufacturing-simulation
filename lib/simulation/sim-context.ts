@@ -1,3 +1,4 @@
+import type { JobPlan } from "lib/job/job-plan"
 import type { Station } from "lib/layout/station-layout"
 import type { NavGrid } from "lib/navigation/nav-grid"
 import type { Operator } from "lib/operator/create-operator"
@@ -65,6 +66,8 @@ export interface SimContext {
   mode: SimulationMode
   statusText: string
   cameraHint: CameraHint | null
+  /** The product this line makes and the work to make it. */
+  jobPlan: JobPlan
   /** Sounds asked for since the viewer last drained them. */
   soundCues: SoundCue[]
 }

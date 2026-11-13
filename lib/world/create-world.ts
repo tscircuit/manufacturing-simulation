@@ -1,3 +1,4 @@
+import type { ProductLine } from "lib/job/job-plan"
 import {
   BATCH_SIZE,
   TABLE_PLACEMENTS,
@@ -19,12 +20,16 @@ import {
   type ControllerPcb,
   createControllerPcb,
 } from "lib/models/controller-pcb"
+import { createEsdBag, ESD_BAG, type EsdBag } from "lib/models/esd-bag"
 import { createFlexCable, type FlexCable } from "lib/models/flex-cable"
 import { createInkjetPrinter } from "lib/models/inkjet-printer"
 import {
+  BAG_LABEL_SHEET,
   createLabelSheet,
+  FNSKU_LABEL_SHEET,
   LABEL_SHEET,
   type LabelSheet,
+  type LabelSheetSpec,
 } from "lib/models/label-sheet"
 import {
   createMotorFoamStand,
@@ -44,7 +49,10 @@ import { createQcCradle } from "lib/models/qc-cradle"
 import { createQcLaptop, type QcLaptop } from "lib/models/qc-laptop"
 import { createScrewdriver, type Screwdriver } from "lib/models/screwdriver"
 import {
+  BAG_SHIPPING_CARTON,
+  type CartonSpec,
   createShippingCarton,
+  SHIPPING_CARTON,
   type ShippingCarton,
 } from "lib/models/shipping-carton"
 import {
@@ -54,6 +62,7 @@ import {
   SPACER_TUB,
 } from "lib/models/spacer-basket"
 import { createStandingDesk } from "lib/models/standing-desk"
+import { createSticker } from "lib/models/sticker"
 import {
   createGanChargingStation,
   createUsbCharger,
@@ -72,8 +81,11 @@ import {
   createStandardMaterial,
 } from "lib/scene/primitives"
 import { BLACK_PLASTIC_MATERIAL } from "lib/scene/shared-materials"
+import { METERS_PER_INCH } from "lib/units"
 import {
   ASSEMBLY_BENCH_SPOTS,
+  BAG_LYING_QUATERNION,
+  BAGGING_BENCH_SPOTS,
   LABEL_BENCH_SPOTS,
   PACK_OUT_BENCH_SPOTS,
   PLUG_LYING_QUATERNION,
@@ -83,7 +95,7 @@ import {
   SCREWDRIVER_REST_QUATERNION,
   SHIP_READY_BENCH_SPOTS,
 } from "lib/world/bench-spots"
-import { Group, type Object3D, Vector3 } from "three"
+import { Group, Matrix4, type Object3D, Vector3 } from "three"
 
 /** Pre-crimped JST-PH cable between the motor and the PCB. */
 export interface MotorCable {
@@ -129,6 +141,9 @@ export interface AssemblyUnit {
   charger: Group
   /** Peeled from the top label sheet at pack-out. */
   label: Group | null
+  /** Bare-unit line: the ESD bag it ships in, and the FNSKU label on the bag. */
+  bag: EsdBag | null
+  fnskuLabel: Group | null
 }
 
 /** The label printer on the label bench, printing AveneMark sheets onto its output stack. */
@@ -142,6 +157,8 @@ export interface LabelPrinterState {
 
 /** Everything movable on the floor. */
 export interface ManufacturingWorld {
+  /** The full kit, or the bare unit in an ESD bag. */
+  productLine: ProductLine
   root: Group
   tables: Record<TableId, Group>
   units: AssemblyUnit[]
@@ -164,6 +181,10 @@ export interface ManufacturingWorld {
   qcPowerCable: QcCable
   /** Label sheets on the pack-out bench, top sheet first; used labels are removed from each sheet. */
   labelSheets: LabelSheet[]
+  /** Bare-unit line: Amazon FNSKU label sheets at the bagging bench, top first. */
+  fnskuSheets: LabelSheet[]
+  /** Bare-unit line: the FBA box ID label, put on the carton's side before sealing. */
+  boxIdLabel: Group | null
   packingTote: PackingTote
   carton: ShippingCarton
   printers: BambuPrinter[]
@@ -533,11 +554,157 @@ function populatePackOutBench(table: Group) {
   }
 }
 
-function populateShipReadyBench(table: Group): ShippingCarton {
-  const carton = createShippingCarton()
+function populateShipReadyBench(
+  table: Group,
+  spec: CartonSpec = SHIPPING_CARTON,
+): ShippingCarton {
+  const carton = createShippingCarton(spec)
   carton.group.position.copy(SHIP_READY_BENCH_SPOTS.carton)
   table.add(carton.group)
   return carton
+}
+
+/** Bare-unit line: 4" x 6" FBA box ID label waiting (unseen) on the carton's long side. */
+function addBoxIdLabel(carton: ShippingCarton): Group {
+  const spec = BAG_SHIPPING_CARTON
+  const outerWidthM = spec.innerWidthM + 2 * spec.boardThicknessM
+  const label = createSticker({
+    widthM: 4 * METERS_PER_INCH,
+    lengthM: 6 * METERS_PER_INCH,
+    artwork: "fba_box",
+  })
+  label.position.set(0, spec.innerHeightM * 0.5, outerWidthM / 2 + 0.0004)
+  // Printed face out of the side (+Z), the 6" side running along the carton.
+  label.quaternion.setFromRotationMatrix(
+    new Matrix4().makeBasis(
+      new Vector3(0, 1, 0),
+      new Vector3(0, 0, 1),
+      new Vector3(1, 0, 0),
+    ),
+  )
+  label.visible = false
+  carton.group.add(label)
+  return label
+}
+
+const BAGS_IN_TRAY = BATCH_SIZE + 6
+const FNSKU_SHEET_COUNT = 2
+
+/** Kit parts the bare unit doesn't ship with: made, never put on a bench. */
+function createUnusedKitParts() {
+  return {
+    boxes: Array.from({ length: BATCH_SIZE }, () => createWhiteMailerBox()),
+    coils: Array.from({ length: BATCH_SIZE * 2 }, () => createCoiledUsbCable()),
+    chargers: Array.from(
+      { length: BATCH_SIZE },
+      () => createUsbCharger().group,
+    ),
+  }
+}
+
+/**
+ * Pack-out bench for bare units: flat ESD bags in a tray, a wire bag stand,
+ * 2" x 3" product sticker sheets, FNSKU sheets and the tote.
+ */
+function populateBaggingBench(table: Group) {
+  const spots = BAGGING_BENCH_SPOTS
+  const tray = new Group()
+  tray.position.copy(spots.bagTray)
+  const cardboard = createStandardMaterial({ color: 0xc49a6c, roughness: 0.95 })
+  const trayWidthM = ESD_BAG.widthM + 0.02
+  const trayLengthM = ESD_BAG.heightM + 0.02
+  tray.add(
+    createBoxMesh({
+      size: [trayWidthM, 0.003, trayLengthM],
+      material: cardboard,
+      position: [0, 0.0015, 0],
+    }),
+  )
+  for (const side of [-1, 1]) {
+    tray.add(
+      createBoxMesh({
+        size: [0.003, 0.03, trayLengthM],
+        material: cardboard,
+        position: [side * (trayWidthM / 2), 0.015, 0],
+      }),
+      createBoxMesh({
+        size: [trayWidthM, 0.03, 0.003],
+        material: cardboard,
+        position: [0, 0.015, side * (trayLengthM / 2)],
+      }),
+    )
+  }
+  table.add(tray)
+  const bags: EsdBag[] = []
+  for (let level = 0; level < BAGS_IN_TRAY; level++) {
+    const bag = createEsdBag()
+    bag.group.quaternion.copy(BAG_LYING_QUATERNION)
+    // Lying front up with the opening toward the back of the bench.
+    bag.group.position.set(0, 0.004 + level * 0.0007, ESD_BAG.heightM / 2)
+    tray.add(bag.group)
+    bags.push(bag)
+  }
+  // Wire stand that holds a bag upright and open while the unit goes in.
+  const wire = createStandardMaterial({
+    color: 0x9aa3ad,
+    metalness: 0.8,
+    roughness: 0.35,
+  })
+  const stand = new Group()
+  stand.position.copy(spots.bagStand)
+  stand.add(
+    createBoxMesh({
+      size: [ESD_BAG.widthM + 0.03, 0.006, 0.07],
+      material: wire,
+      position: [0, 0.003, 0],
+    }),
+  )
+  for (const side of [-1, 1])
+    stand.add(
+      createBoxMesh({
+        size: [0.004, 0.12, 0.004],
+        material: wire,
+        position: [side * (ESD_BAG.widthM / 2 + 0.008), 0.06, 0],
+      }),
+    )
+  table.add(stand)
+
+  const stackSheets = (params: {
+    spec: LabelSheetSpec
+    count: number
+    position: Vector3
+  }): LabelSheet[] => {
+    const sheets: LabelSheet[] = []
+    for (let level = 0; level < params.count; level++) {
+      const sheet = createLabelSheet(params.spec)
+      sheet.group.position.copy(params.position)
+      sheet.group.position.y += (params.count - 1 - level) * 0.0006
+      table.add(sheet.group)
+      sheets.push(sheet)
+    }
+    // Peel from the front row first.
+    for (const sheet of sheets) sheet.labels.reverse()
+    return sheets
+  }
+  const packingTote = createPackingTote()
+  packingTote.group.position.copy(spots.tote)
+  table.add(packingTote.group)
+  return {
+    ...createUnusedKitParts(),
+    // Take from the top of the pile.
+    bags: bags.reverse(),
+    labelSheets: stackSheets({
+      spec: BAG_LABEL_SHEET,
+      count: LABEL_SHEET_COUNT + 1,
+      position: spots.stickerSheets,
+    }),
+    fnskuSheets: stackSheets({
+      spec: FNSKU_LABEL_SHEET,
+      count: FNSKU_SHEET_COUNT,
+      position: spots.fnskuSheets,
+    }),
+    packingTote,
+  }
 }
 
 function populatePrinterBench(table: Group) {
@@ -581,7 +748,11 @@ function populateLabelBench(table: Group): LabelPrinterState {
 }
 
 /** Build every bench and every part on it, in its starting state. */
-export function createWorld(): ManufacturingWorld {
+export function createWorld(
+  params: { productLine?: ProductLine } = {},
+): ManufacturingWorld {
+  const productLine = params.productLine ?? "kit"
+  const isBagged = productLine === "bagged"
   const root = new Group()
   const tableIds = Object.keys(TABLE_PLACEMENTS) as TableId[]
   const tables = Object.fromEntries(
@@ -590,8 +761,18 @@ export function createWorld(): ManufacturingWorld {
   for (const table of Object.values(tables)) root.add(table)
   const assemblyBench = populateAssemblyBench(tables.assembly_bench)
   const qcBench = populateQcBench(tables.qc_bench)
-  const packOutBench = populatePackOutBench(tables.pack_out_bench)
-  const carton = populateShipReadyBench(tables.ship_ready_bench)
+  const packOutBench = isBagged
+    ? populateBaggingBench(tables.pack_out_bench)
+    : {
+        ...populatePackOutBench(tables.pack_out_bench),
+        bags: [],
+        fnskuSheets: [],
+      }
+  const carton = populateShipReadyBench(
+    tables.ship_ready_bench,
+    isBagged ? BAG_SHIPPING_CARTON : SHIPPING_CARTON,
+  )
+  const boxIdLabel = isBagged ? addBoxIdLabel(carton) : null
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
   const units: AssemblyUnit[] = []
@@ -611,6 +792,8 @@ export function createWorld(): ManufacturingWorld {
       ],
       charger: packOutBench.chargers[unitIndex],
       label: null,
+      bag: packOutBench.bags[unitIndex] ?? null,
+      fnskuLabel: null,
     })
     assemblyBench.motorFoamStand.occupants[unitIndex] = unitIndex
   }
@@ -618,6 +801,7 @@ export function createWorld(): ManufacturingWorld {
   for (const cable of cables) root.add(cable.wire)
   root.updateMatrixWorld(true)
   return {
+    productLine,
     root,
     tables,
     units,
@@ -636,6 +820,8 @@ export function createWorld(): ManufacturingWorld {
     qcDataCable: qcBench.qcDataCable,
     qcPowerCable: qcBench.qcPowerCable,
     labelSheets: packOutBench.labelSheets,
+    fnskuSheets: packOutBench.fnskuSheets,
+    boxIdLabel,
     packingTote: packOutBench.packingTote,
     carton,
     printers: printerBench.printers,

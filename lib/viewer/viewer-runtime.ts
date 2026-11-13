@@ -1,10 +1,11 @@
 import { countUnitsByStage, getNextLineWork } from "lib/job/bench-work"
-import { JOB_ROWS } from "lib/job/job-plan"
+import type { ProductLine } from "lib/job/job-plan"
 import { countLabelsAtPackOut } from "lib/job/label-stock"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { TABLE_PLACEMENTS, type TableId } from "lib/layout/station-layout"
 import { BAMBU_PRINTERS, type BambuPrinter } from "lib/models/bambu-printer"
 import type { QcDisplayState } from "lib/models/qc-laptop"
+import type { StickerArtwork } from "lib/models/sticker"
 import { getPinchWorldPosition } from "lib/operator/hand-pose"
 import {
   ASSEMBLY_PAD_RADIUS_M,
@@ -24,6 +25,7 @@ import type { ScenarioId } from "lib/simulation/scenarios"
 import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
+import { createBagLabelTextures } from "lib/viewer/create-bag-label-textures"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
 import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
@@ -113,7 +115,7 @@ function readThemeToken(params: {
  * The React component creates one on mount and disposes it on unmount.
  */
 export class ViewerRuntime {
-  readonly simulation = new ManufacturingSimulation()
+  readonly simulation: ManufacturingSimulation
   private readonly renderer: WebGLRenderer
   private readonly camera = new PerspectiveCamera(42, 1, 0.02, 80)
   private readonly cameraRig = new CameraRig(this.camera)
@@ -141,6 +143,8 @@ export class ViewerRuntime {
   private floorTexture: Texture | null = null
   /** The approved NEMA17 label artwork from tscircuit/product-packaging. */
   private readonly stickerTexture = loadLabelTexture()
+  /** The bare-unit line's bag sticker, FNSKU and FBA box labels. */
+  private readonly bagLabelTextures = createBagLabelTextures()
   private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
     idle: createQcScreenTexture("idle"),
     testing: createQcScreenTexture("testing"),
@@ -167,8 +171,13 @@ export class ViewerRuntime {
       canvas: HTMLCanvasElement
       themeElement: HTMLElement
       onHudChange: (hud: HudSnapshot) => void
+      /** The full kit line (default) or the bare-unit bag line. */
+      productLine?: ProductLine
     },
   ) {
+    this.simulation = new ManufacturingSimulation({
+      productLine: options.productLine,
+    })
     const { canvas } = options
     this.renderer = new WebGLRenderer({ canvas, antialias: true })
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2))
@@ -230,6 +239,8 @@ export class ViewerRuntime {
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
     this.stickerTexture.dispose()
+    for (const texture of Object.values(this.bagLabelTextures))
+      texture.dispose()
     for (const texture of Object.values(this.qcScreenTextures))
       texture.dispose()
     this.renderer.dispose()
@@ -431,8 +442,14 @@ export class ViewerRuntime {
       world.root.traverse((object) => {
         if (!(object instanceof Mesh) || !object.userData.isStickerFace) return
         const material = object.material as MeshStandardMaterial
-        if (material.map === this.stickerTexture) return
-        material.map = this.stickerTexture
+        const artwork: StickerArtwork =
+          object.userData.stickerArtwork ?? "kit_label"
+        const texture =
+          artwork === "kit_label"
+            ? this.stickerTexture
+            : this.bagLabelTextures[artwork]
+        if (material.map === texture) return
+        material.map = texture
         material.color.set(0xffffff)
         material.needsUpdate = true
       })
@@ -592,7 +609,7 @@ export class ViewerRuntime {
     const { progress } = ctx
     const actions = this.simulation.getGameActions()
     const { activeRowIndex } = progress
-    const steps = JOB_ROWS.map((row) => {
+    const steps = ctx.jobPlan.rows.map((row) => {
       const completedCount = progress.rowCompletedCounts[row.rowIndex]
       return {
         label: row.step.label,
@@ -633,6 +650,7 @@ export class ViewerRuntime {
     if (this.simulation.isTaskPaused) statusText = `Paused: ${statusText}`
     this.options.onHudChange({
       mode: ctx.mode,
+      productLine: ctx.jobPlan.productLine,
       jobUnitCount: progress.unitCount,
       statusText,
       isPaused: this.isPaused,

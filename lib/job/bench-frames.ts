@@ -21,7 +21,7 @@ export function getPointInTableFrame(
   )
 }
 
-function getTablePoint(
+export function getTablePoint(
   params: { tableId: TableId; localPoint: Vector3 },
   ctx: SimContext,
 ): Vector3 {

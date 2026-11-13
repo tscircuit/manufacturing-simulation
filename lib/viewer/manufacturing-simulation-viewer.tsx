@@ -1,3 +1,4 @@
+import type { ProductLine } from "lib/job/job-plan"
 import type { CameraMode } from "lib/viewer/camera-rig"
 import { CameraBar } from "lib/viewer/hud/camera-bar"
 import { ControlPanel } from "lib/viewer/hud/control-panel"
@@ -17,7 +18,13 @@ const CAMERA_CYCLE: CameraMode[] = ["follow", "close_up", "overview"]
  * Full-size 3D view of the unit 322 floor with the operator, the three
  * stations, per-step cycle timing and a playable game mode.
  */
-export function ManufacturingSimulationViewer() {
+export function ManufacturingSimulationViewer(
+  props: {
+    /** "kit" (default): the boxed full kit. "bagged": the bare unit in an ESD bag. */
+    productLine?: ProductLine
+  } = {},
+) {
+  const productLine = props.productLine ?? "kit"
   const rootRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const controlDetailsRef = useRef<HTMLDetailsElement>(null)
@@ -38,6 +45,7 @@ export function ManufacturingSimulationViewer() {
       canvas,
       themeElement: root,
       onHudChange: setHud,
+      productLine,
     })
     runtimeRef.current = runtime
     setIsCoarsePointer(window.matchMedia("(pointer: coarse)").matches)
@@ -50,7 +58,7 @@ export function ManufacturingSimulationViewer() {
       runtime.dispose()
       runtimeRef.current = null
     }
-  }, [])
+  }, [productLine])
 
   // On phones and small windows, start with both panels folded so the floor is visible.
   useEffect(() => {
@@ -108,6 +116,7 @@ export function ManufacturingSimulationViewer() {
           <ControlPanel
             detailsRef={controlDetailsRef}
             mode={hud.mode}
+            productLine={hud.productLine}
             jobUnitCount={hud.jobUnitCount}
             onJobUnitCountChange={(unitCount) =>
               runtimeRef.current?.setJobUnitCount(unitCount)

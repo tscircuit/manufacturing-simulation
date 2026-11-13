@@ -10,7 +10,6 @@ import {
   runBench,
   runWorkItem,
 } from "lib/job/bench-work"
-import { LINE_TABLES } from "lib/job/job-plan"
 import { collectPrintedLabels } from "lib/job/label-collection"
 import {
   collectFinishedPlates,
@@ -260,7 +259,8 @@ export function getGameActions(
     !progress.isJobComplete
   )
     return getOneAtATimeAssemblyActions({ actions }, ctx)
-  if (!handsAreEmpty || !LINE_TABLES.includes(tableId)) return actions
+  if (!handsAreEmpty || !ctx.jobPlan.lineTables.includes(tableId))
+    return actions
   const { action, blockedReason } = getLineBenchAction({ tableId }, ctx)
   actions.benchAction = action
   actions.blockedReason = blockedReason

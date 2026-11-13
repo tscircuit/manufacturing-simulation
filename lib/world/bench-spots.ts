@@ -63,6 +63,26 @@ export const PACK_OUT_BENCH_SPOTS = {
   tote: new Vector3(-0.52, TOP, -0.15),
 }
 
+/**
+ * The pack-out bench set up for bare units: a tray of flat 4" x 6" ESD bags,
+ * a bag stand where each unit is bagged, the 2" x 3" product stickers (where
+ * the kit's label sheets go, so collected labels land there too), the FNSKU
+ * sheets, and the tote. The ready rack and tote spots match the kit's.
+ */
+export const BAGGING_BENCH_SPOTS = {
+  incomingRack: PACK_OUT_BENCH_SPOTS.incomingRack,
+  bagTray: new Vector3(0.24, TOP, -0.2),
+  bagStand: new Vector3(0.0, TOP, 0.16),
+  stickerSheets: PACK_OUT_BENCH_SPOTS.labelSheets,
+  fnskuSheets: new Vector3(-0.3, TOP, 0.2),
+  tote: PACK_OUT_BENCH_SPOTS.tote,
+}
+
+/** A flat bag lying in its tray: front up, opening toward the back of the bench. */
+export const BAG_LYING_QUATERNION = new Quaternion().setFromEuler(
+  new Euler(-Math.PI / 2, 0, 0),
+)
+
 export const SHIP_READY_BENCH_SPOTS = {
   carton: new Vector3(0, TOP, 0),
   incomingTote: new Vector3(0.56, TOP, 0.1),

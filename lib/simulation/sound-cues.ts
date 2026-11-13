@@ -14,6 +14,8 @@ export type SoundCue =
   | "print_done"
   | "screw_drop"
   | "pour_spacers"
+  | "bag_zip"
+  | "label_press"
 
 /** Keep only recent cues when nothing drains the queue, e.g. in headless runs. */
 const MAX_QUEUED_CUES = 32

@@ -54,7 +54,10 @@ export function CycleTimingPanel(props: {
           <div className="stages">
             {hud.unitsByStage.map(({ stage, count }) => (
               <span key={stage} className="stage-cell">
-                {STAGE_LABELS[stage]} <b>{count}</b>
+                {stage === "packed" && hud.productLine === "bagged"
+                  ? "Bagged"
+                  : STAGE_LABELS[stage]}{" "}
+                <b>{count}</b>
               </span>
             ))}
           </div>
