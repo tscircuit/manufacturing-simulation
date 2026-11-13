@@ -27,20 +27,20 @@ simulation.ctx.progress.cycleSeconds // total including walking
 
 - **Floor:** unit 322 at 2325, 18'3½" × 47'5¼" (46'0¼" on the window side), with the washroom on the east wall, the entry door in the NE corner and the window wall on the west.
 - **Operator:** 6'2" (1.88 m). Walks with A* around walls and tables, reaches with two-bone arm IK, and works upright at 42" standing desks (only a slight lean). Shaped limbs, a smooth head with hair, and both hands on the handles when carrying a rack, tote, tub or carton.
-- **Batch:** 30 units travel the line together, one rack or tote per bench, and ship in one Amazon carton.
+- **Batch:** 25 units travel the line together, one rack or tote per bench, and ship in one Amazon carton.
 - **Line:** four 6' standing desks (42" high) along the window wall. The printer and label benches are standing desks too.
-  1. **Assembly bench:** a foam stand of 30 NEMA17 motors, the spacer basket, three stacks of RP2040 motor controller boards, a SKIL Twist 2.0 4V screwdriver ([Ace 2033885](https://www.acehardware.com/p/2033885)) held by its grip with the bit on the screw while the other hand braces the side of the motor, clear of the screws, a jig, an empty 30-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 motor cables, 6-pin at the motor and PHR-4 at the board (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The rack goes to QC when all 30 are done, or earlier with R.
+  1. **Assembly bench:** a foam stand of 25 NEMA17 motors, the spacer basket, three stacks of RP2040 motor controller boards, a SKIL Twist 2.0 4V screwdriver ([Ace 2033885](https://www.acehardware.com/p/2033885)) held by its grip with the bit on the screw while the other hand braces the side of the motor, clear of the screws, a jig, an empty 25-slot rack, and three Akro-Mils 30210 AkroBins: long M3 screws (blue tag), used stock screws (red tag) and pre-crimped JST-PH 2.0 motor cables, 6-pin at the motor and PHR-4 at the board (yellow tag). Everything is within reach of one standing spot. Each unit: load the motor, swap the 4 stock screws (too short once the 4 mm spacer and PCB are added) for long ones through a spacer and the PCB, plug in a cable, and rack it. The rack goes to QC when all 25 are done, or earlier with R.
   2. **QC bench:** each unit goes into a cradle with two USB-C cables (laptop data and the 10-port GaN charging station for power), spins, and moves to a second rack, which is carried to pack-out.
-  3. **Pack-out bench:** each unit goes into a 7×4×3" white mailer with pink anti-static foam, with 2 coiled USB-C cables, a 45 W charger and a 2×4" label peeled from a stack of AveneMark sheets, then into a 30-box tote that is carried to ship-ready.
-  4. **Ship-ready bench:** all 30 boxes go into the Amazon carton. Its end flaps fold in, then the long flaps fold over them. A strip of 48 mm tape runs along the seam and down both end faces, and the carton is set out by the door.
+  3. **Pack-out bench:** each unit goes into a 7×4×3" white mailer with pink anti-static foam, with 2 coiled USB-C cables, a 45 W charger and a 2×4" label peeled from a stack of AveneMark sheets, then into a tote that is carried to Ship-ready.
+  4. **Ship-ready bench:** all 25 boxes go into the Amazon carton. The operator folds the flaps and tapes the seam, prints a 4×6" sample FBA Box ID label on the thermal printer, sets it on the table, and applies it to the flat front face before carrying the carton to the door.
 - **East wall:**
   - **3D printers:** a Bambu Lab P2S (25 spacers per plate) and an H2S (49 per plate). Finished plates are emptied into a tub, carried to the assembly bench, and poured into the spacer basket; then the next print starts.
   - **Label printer:** an Epson EcoTank ET-2400 that prints an AveneMark sheet (10 labels) every 45 s, up to 6 in its tray. Collecting them carries the sheets to the top of the pack-out stack.
-- **Timing:** every step is clocked per unit and summed over the batch, with walking time separate. A batch of 30 takes about 46½ minutes of simulated time. Gesture durations are placeholders, not measured.
+- **Timing:** each per-unit step is summed over the batch. The carton is sealed, labeled, and shipped once per batch. A batch of 25 takes about 39 minutes of simulated time using estimated gesture durations.
 
-### Amazon carton for 30
+### Amazon carton for 25
 
-The packed mailer is about 7.25 × 4.25 × 3.1 in. Thirty stack 2 × 3 × 5 into 14.5 × 12.75 × 15.6 in, so a **15 × 13 × 17 in (inside) carton** fits them with a little room for void fill. Each packed unit weighs roughly 0.56 kg (motor, PCB, spacer and cable ~0.31 kg; two USB-C cables ~0.10 kg; 45 W charger ~0.09 kg; mailer and foam ~0.06 kg), so the carton is about 37 lb. That is under the 50 lb FBA limit, and every side is under 25 in. Weigh and measure a packed unit to confirm before ordering cartons.
+The packed mailer is about 7.25 × 4.25 × 3.1 in. The modeled **15 × 13 × 17 in (inside) carton** fits a 2 × 3 × 5 stack, leaving five positions empty for this batch. At roughly 0.56 kg per packed unit, the 25 units weigh about 14 kg (31 lb) before adding the carton and void fill. Weigh and measure the packed carton before shipping. Use the shipment-specific Box ID label from **Send to Amazon → Print box labels** on real shipments. [Amazon shipping label requirements](https://sellercentral.amazon.com/help/hub/reference/external/G200178470)
 
 ### Printer estimates
 
@@ -56,7 +56,7 @@ The PCB is [imrishabh18/rp2040-motor-controller](https://tscircuit.com/imrishabh
 - All 103 populated top-side parts at their placed positions (RP2040, DRV8825, CH224K, INA240s, buttons, crystal, passives), plus the 9 mm buzzer and the RGB status LED.
 - **Cables:** both HRO TYPE-C-31-M-12 USB-C ports are on one edge. QC plugs the laptop's cable into **DATA** and the charging station's cable into **PWR**. The motor cable's PHR-4 slides into the side-entry S4B-PH-K-S (J1, pins A+ A− B+ B−) parallel to the board. The board is turned on the motor so J1 faces the motor's own 6-pin socket.
 
-Parts are drawn as boxes sized from their footprints, merged into one mesh per material and shared by all 30 boards. Table positions are placeholders until the real layout is measured.
+Parts are drawn as boxes sized from their footprints, merged into one mesh per material and shared by all boards. Table positions are placeholders until the real layout is measured.
 
 ## Controls
 
@@ -70,7 +70,7 @@ Parts are drawn as boxes sized from their footprints, merged into one mesh per m
 | M | Sound on or off |
 | WASD or arrows | Walk (game mode) |
 | E | At a bench, run all of its remaining work without stopping. At the printers, collect finished plates into a tub; at the assembly bench with a tub, refill the spacer basket. While anything runs, E pauses it in place; walk away if you like, and E again walks back and carries on (game mode) |
-| R | Carry what's ready to the next bench now, even a part-filled rack or tote; take an empty one back; or seal and ship (game mode) |
+| R | Carry what's ready to the next bench now, take an empty rack or tote back, or seal, label and ship the carton (game mode) |
 | F | Pick up or put back the screwdriver (game mode) |
 | C | Go back to the paused work and carry on (game mode) |
 
@@ -79,12 +79,12 @@ Touch screens get an on-screen stick, an Act button (E) and a Carry button (R) i
 ### Jumping around the line
 
 - **It opens in game mode, one motor at a time,** at the assembly bench. Two circles sit in front of the bench:
-  - **Green circle:** each E builds one more motor into the rack, as many as you want, up to the 30 on the foam stand.
+  - **Green circle:** each E builds one more motor into the rack, up to the 25 on the foam stand.
   - **Amber circle:** E takes the rack, however full, to QC.
 
   QC, pack-out and ship-ready then work with that many, and the carton ships with exactly what you built.
-- **Simulate: Full batch (30) or One at a time.** Full batch runs all 30 bench by bench. In simulation mode, One at a time runs a single motor from start to ship (about 2 minutes of simulated time). Switching starts the line over.
-- **Jump to a bench with 30 ready** starts over with the whole batch already done up to that bench: 30 motors on the foam stand (assembly), 30 assembled in the rack at QC, 30 tested in the ready rack at pack-out, or 30 boxed in the tote at ship-ready. The operator stands at that bench; press E (game mode) or run the batch from there.
+- **Simulate: Full batch (25) or One at a time.** Full batch runs all 25 bench by bench. In simulation mode, One at a time runs a single motor from start to ship. Switching starts the line over.
+- **Jump to a bench with 25 ready** starts over with the whole batch already done up to that bench. Jumping to Ship-ready puts 25 packed mailers in the tote. Press E in game mode or run the batch from there.
 - **3D prints are ready** finishes both running prints now, so their plates can be collected.
 - **Printers and labels during a run:** pause with E and walk to one of the blue floor circles in front of the label printer, the P2S or the H2S. When you walk away, the operator first sets down whatever was in hand (the screwdriver, a screw) on the bench, so nothing floats. On a circle, E does the job now: it takes the printed label sheets to the pack-out stack, or collects the finished plates and refills the assembly spacer basket. The assembly stays paused meanwhile. Press C, or E off the circles, to walk back, pick the work back up and carry on from exactly where you stopped. In simulation mode, the Collect buttons fit the job in after the current unit without stopping the batch.
 - **Labels printed** fills the Epson's tray; **Collect labels to pack-out** (or E at the label bench) carries them over.

@@ -22,6 +22,7 @@ import {
   putBackLooseScrewdriver,
 } from "lib/job/screwdriver-motions"
 import {
+  BATCH_SIZE,
   TABLE_PLACEMENTS,
   type TableId,
   WORK_TABLE,
@@ -151,8 +152,7 @@ function getOneAtATimeAssemblyActions(
     return actions
   }
   if (!canAssembleAnother(ctx)) {
-    actions.blockedReason =
-      "All 30 motors are built: take the rack to QC from the rack circle"
+    actions.blockedReason = `All ${BATCH_SIZE} motors are built: take the rack to QC from the rack circle`
     return actions
   }
   actions.benchAction = {

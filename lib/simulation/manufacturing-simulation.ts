@@ -143,7 +143,7 @@ export class ManufacturingSimulation {
   private activeTask: SimTask | null = null
   /** A printer or label job done while the main task is paused. */
   private sideTask: SimTask | null = null
-  /** How many units the next job runs: the full batch of 30, or 1 motor start to ship. */
+  /** How many units the next job runs: a full batch or 1 motor start to ship. */
   private unitCount: number = BATCH_SIZE
   private pausePose: PausePose | null = null
   private walkInput: WalkInput = {

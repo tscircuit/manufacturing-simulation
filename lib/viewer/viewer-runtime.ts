@@ -24,6 +24,7 @@ import type { ScenarioId } from "lib/simulation/scenarios"
 import type { CameraHint, SimulationMode } from "lib/simulation/sim-context"
 import { addSceneLighting } from "lib/viewer/add-scene-lighting"
 import { type CameraMode, CameraRig } from "lib/viewer/camera-rig"
+import { createCartonLabelTexture } from "lib/viewer/create-carton-label-texture"
 import { createFloorTexture } from "lib/viewer/create-floor-texture"
 import { createLabelSprite } from "lib/viewer/create-label-sprite"
 import { createQcScreenTexture } from "lib/viewer/create-qc-screen-texture"
@@ -141,6 +142,7 @@ export class ViewerRuntime {
   private floorTexture: Texture | null = null
   /** The approved NEMA17 label artwork from tscircuit/product-packaging. */
   private readonly stickerTexture = loadLabelTexture()
+  private readonly cartonLabelTexture = createCartonLabelTexture()
   private readonly qcScreenTextures: Record<QcDisplayState, Texture> = {
     idle: createQcScreenTexture("idle"),
     testing: createQcScreenTexture("testing"),
@@ -230,6 +232,7 @@ export class ViewerRuntime {
     window.removeEventListener("blur", this.clearKeys)
     this.floorTexture?.dispose()
     this.stickerTexture.dispose()
+    this.cartonLabelTexture.dispose()
     for (const texture of Object.values(this.qcScreenTextures))
       texture.dispose()
     this.renderer.dispose()
@@ -407,6 +410,8 @@ export class ViewerRuntime {
     const { world } = this.simulation.ctx
     if (world !== this.decoratedWorld) {
       this.decoratedWorld = world
+      world.cartonLabel.face.material.map = this.cartonLabelTexture
+      world.cartonLabel.face.material.needsUpdate = true
       this.shownQcDisplayState = null
       this.texturedLabelSheetCount = -1
       this.printerSigns = []

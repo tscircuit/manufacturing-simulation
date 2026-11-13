@@ -21,7 +21,7 @@ function standAt(params: {
   params.simulation.ctx.operator.ccwYawRadians = pose.ccwYawRadians
 }
 
-test("jumping to QC puts all 30 assembled units in the rack at the QC bench", () => {
+test("jumping to QC puts all 25 assembled units in the rack at the QC bench", () => {
   const simulation = new ManufacturingSimulation()
   simulation.setMode("game")
   simulation.startAt("qc")
@@ -55,7 +55,7 @@ test(
 )
 
 test(
-  "R carries a partly filled rack to QC before all 30 are assembled, and QC tests them",
+  "R carries a partly filled rack to QC before the full batch is assembled, and QC tests them",
   () => {
     const simulation = new ManufacturingSimulation()
     simulation.setMode("game")

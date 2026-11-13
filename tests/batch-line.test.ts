@@ -1,12 +1,21 @@
 import { expect, test } from "bun:test"
+import { getOccupants } from "lib/job/container-slots"
 import { JOB_ROWS } from "lib/job/job-plan"
-import { BATCH_SIZE, OUTBOUND_SPOT } from "lib/layout/station-layout"
-import { SHIPPING_CARTON_CAPACITY } from "lib/models/shipping-carton"
+import {
+  BATCH_SIZE,
+  OUTBOUND_SPOT,
+  WORK_TABLE,
+} from "lib/layout/station-layout"
+import { CARTON_LABEL } from "lib/models/carton-label"
+import {
+  SHIPPING_CARTON,
+  SHIPPING_CARTON_CAPACITY,
+} from "lib/models/shipping-carton"
 import { ManufacturingSimulation } from "lib/simulation/manufacturing-simulation"
 import { Box3, Vector3 } from "three"
 
 test(
-  "a batch of 30 runs bench to bench and ships in one sealed Amazon carton",
+  "a batch of 25 runs bench to bench and ships in one sealed, labeled Amazon carton",
   () => {
     const simulation = new ManufacturingSimulation()
     simulation.startScenario("run_batch")
@@ -50,12 +59,16 @@ test(
     ).toBe(true)
 
     // The carton holds the whole batch, is sealed, and waits by the door.
-    expect(BATCH_SIZE).toBe(SHIPPING_CARTON_CAPACITY)
+    expect(BATCH_SIZE).toBe(25)
+    expect(getOccupants(world.carton)).toHaveLength(BATCH_SIZE)
+    expect(world.carton.occupants).toHaveLength(SHIPPING_CARTON_CAPACITY)
     expect(world.carton.tape.scale.x).toBeCloseTo(1, 5)
     expect(world.carton.frontFlap.rotation.x).toBeCloseTo(0, 5)
     expect(world.carton.group.parent).toBe(world.root)
     expect(world.carton.group.position.x).toBeCloseTo(OUTBOUND_SPOT.xM, 5)
     expect(world.carton.group.position.y).toBeCloseTo(0, 5)
+    expect(world.cartonLabel.group.visible).toBe(true)
+    expect(world.cartonLabel.group.parent).toBe(world.carton.group)
 
     // Racks and tote ended up where the line put them; hands are empty.
     expect(world.finishedRack.group.parent).toBe(world.tables.qc_bench)
@@ -67,6 +80,57 @@ test(
   },
   { timeout: 120_000 },
 )
+
+test("the Box ID feeds from the printer, rests on the table and stays on the carton", () => {
+  const simulation = new ManufacturingSimulation()
+  simulation.startAt("ship_ready")
+  simulation.startScenario("run_batch")
+  const { world } = simulation.ctx
+  const label = world.cartonLabel.group
+  const printer = world.cartonLabelPrinter
+  const bench = world.tables.ship_ready_bench
+  expect(label.visible).toBe(false)
+
+  let sawPrinting = false
+  let sawLabelOnTable = false
+  let printCues = 0
+  for (let frame = 0; frame < 3_600 && simulation.isTaskRunning; frame++) {
+    simulation.step(0.05)
+    printCues += simulation.ctx.soundCues
+      .splice(0)
+      .filter((cue) => cue === "thermal_label_printer").length
+    if (label.visible && label.parent === printer.group) {
+      sawPrinting ||=
+        label.position.z > printer.feedStart.z &&
+        label.position.z < printer.feedEnd.z
+    }
+    if (label.parent === bench) {
+      sawLabelOnTable = true
+      expect(label.position.y).toBeCloseTo(WORK_TABLE.topHeightM, 6)
+      expect(world.carton.tape.scale.x).toBeCloseTo(1, 6)
+    }
+  }
+  expect(sawPrinting).toBe(true)
+  expect(sawLabelOnTable).toBe(true)
+  expect(printCues).toBe(1)
+  expect(world.isCartonShipped).toBe(true)
+  expect(label.parent).toBe(world.carton.group)
+  expect(label.position.z).toBeGreaterThan(
+    SHIPPING_CARTON.innerWidthM / 2 + SHIPPING_CARTON.boardThicknessM,
+  )
+  expect(label.position.y + CARTON_LABEL.lengthM / 2).toBeLessThan(
+    SHIPPING_CARTON.innerHeightM,
+  )
+  expect(new Vector3(0, 1, 0).applyQuaternion(label.quaternion).z).toBeCloseTo(
+    1,
+  )
+
+  simulation.reset()
+  expect(simulation.ctx.world.cartonLabel.group.visible).toBe(false)
+  expect(simulation.ctx.world.cartonLabel.group.parent).toBe(
+    simulation.ctx.world.cartonLabelPrinter.group,
+  )
+})
 
 test("the same run is deterministic", () => {
   const cycleTimes = [0, 1].map(() => {

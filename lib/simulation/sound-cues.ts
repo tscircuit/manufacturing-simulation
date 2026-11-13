@@ -11,6 +11,7 @@ export type SoundCue =
   | "flap_fold"
   | "tape_gun"
   | "label_printer"
+  | "thermal_label_printer"
   | "print_done"
   | "screw_drop"
   | "pour_spacers"

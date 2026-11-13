@@ -10,6 +10,7 @@ import {
   createBambuPrinter,
   populatePlate,
 } from "lib/models/bambu-printer"
+import { createCartonLabel } from "lib/models/carton-label"
 import { createCoiledJstCable } from "lib/models/coiled-jst-cable"
 import {
   COILED_USB_CABLE,
@@ -54,6 +55,7 @@ import {
   SPACER_TUB,
 } from "lib/models/spacer-basket"
 import { createStandingDesk } from "lib/models/standing-desk"
+import { createThermalLabelPrinter } from "lib/models/thermal-label-printer"
 import {
   createGanChargingStation,
   createUsbCharger,
@@ -166,6 +168,8 @@ export interface ManufacturingWorld {
   labelSheets: LabelSheet[]
   packingTote: PackingTote
   carton: ShippingCarton
+  cartonLabel: ReturnType<typeof createCartonLabel>
+  cartonLabelPrinter: ReturnType<typeof createThermalLabelPrinter>
   printers: BambuPrinter[]
   /** Empty tubs on the printer bench; the last one is used next. */
   emptyTubs: Group[]
@@ -533,11 +537,17 @@ function populatePackOutBench(table: Group) {
   }
 }
 
-function populateShipReadyBench(table: Group): ShippingCarton {
+function populateShipReadyBench(table: Group) {
   const carton = createShippingCarton()
-  carton.group.position.copy(SHIP_READY_BENCH_SPOTS.carton)
-  table.add(carton.group)
-  return carton
+  const cartonLabelPrinter = createThermalLabelPrinter()
+  const cartonLabel = createCartonLabel()
+  const spots = SHIP_READY_BENCH_SPOTS
+  carton.group.position.copy(spots.carton)
+  cartonLabelPrinter.group.position.copy(spots.cartonLabelPrinter)
+  cartonLabel.group.visible = false
+  cartonLabelPrinter.group.add(cartonLabel.group)
+  table.add(carton.group, cartonLabelPrinter.group)
+  return { carton, cartonLabel, cartonLabelPrinter }
 }
 
 function populatePrinterBench(table: Group) {
@@ -591,7 +601,7 @@ export function createWorld(): ManufacturingWorld {
   const assemblyBench = populateAssemblyBench(tables.assembly_bench)
   const qcBench = populateQcBench(tables.qc_bench)
   const packOutBench = populatePackOutBench(tables.pack_out_bench)
-  const carton = populateShipReadyBench(tables.ship_ready_bench)
+  const shipReadyBench = populateShipReadyBench(tables.ship_ready_bench)
   const printerBench = populatePrinterBench(tables.printer_bench)
   const labelPrinter = populateLabelBench(tables.label_bench)
   const units: AssemblyUnit[] = []
@@ -637,7 +647,7 @@ export function createWorld(): ManufacturingWorld {
     qcPowerCable: qcBench.qcPowerCable,
     labelSheets: packOutBench.labelSheets,
     packingTote: packOutBench.packingTote,
-    carton,
+    ...shipReadyBench,
     printers: printerBench.printers,
     emptyTubs: printerBench.emptyTubs,
     usedTubs: [],

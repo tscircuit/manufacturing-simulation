@@ -16,20 +16,30 @@ const SCREW_RESET_RADIANS = 3
 /** Printers sound full within this distance of the camera, then fade. */
 const EQUIPMENT_FULL_VOLUME_M = 2.5
 
-/** Cues that come from a printer, not from the operator's hands. */
-function isEquipmentCue(cue: SoundCue): boolean {
-  return cue === "label_printer" || cue === "print_done"
+type EquipmentCue = "label_printer" | "thermal_label_printer" | "print_done"
+
+/** Cues that come from a printer. */
+function isEquipmentCue(cue: SoundCue): cue is EquipmentCue {
+  return (
+    cue === "label_printer" ||
+    cue === "thermal_label_printer" ||
+    cue === "print_done"
+  )
 }
 
 /** Quieter the further the camera is from the printer making the sound. */
 function getEquipmentVolume(params: {
-  cue: SoundCue
+  cue: EquipmentCue
   ctx: SimContext
   camera: Camera
 }): number {
   const { tables } = params.ctx.world
-  const bench =
-    params.cue === "label_printer" ? tables.label_bench : tables.printer_bench
+  const cueTables = {
+    label_printer: tables.label_bench,
+    thermal_label_printer: tables.ship_ready_bench,
+    print_done: tables.printer_bench,
+  }
+  const bench = cueTables[params.cue]
   const distanceM = bench
     .getWorldPosition(new Vector3())
     .distanceTo(params.camera.position)

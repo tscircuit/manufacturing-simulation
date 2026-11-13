@@ -5,7 +5,7 @@ import { Group, Object3D } from "three"
 
 const COLUMNS = 2
 const ROWS = 3
-const LAYERS = BATCH_SIZE / (COLUMNS * ROWS)
+const LAYERS = Math.ceil(BATCH_SIZE / (COLUMNS * ROWS))
 const WALL_M = 0.004
 
 export const PACKING_TOTE = {
