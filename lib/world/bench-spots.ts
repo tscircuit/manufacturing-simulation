@@ -64,8 +64,8 @@ export const PACK_OUT_BENCH_SPOTS = {
 }
 
 /**
- * The pack-out bench set up for bare units: a tray of flat 4" x 6" ESD bags,
- * a bag stand where each unit is bagged, the 2" x 4" tscircuit labels (where
+ * The pack-out bench set up for bare units: a tray of flat 80 x 120 mm ESD
+ * bags, a clear spot where each bag is held open by hand, filled and labelled, the 2" x 4" tscircuit labels (where
  * the kit's label sheets go, so collected labels land there too), the FNSKU
  * sheets, and the tote. The ready rack and tote spots match the kit's.
  */
@@ -82,7 +82,8 @@ export const BAGGING_BENCH_SPOTS = {
   spacerBasket: new Vector3(0.27, TOP, 0.13),
   /** Tubs set aside after refilling the spacer basket. */
   usedTubs: new Vector3(0.56, TOP, -0.2),
-  bagStand: new Vector3(0.05, TOP, 0.16),
+  /** Where the operator holds a bag open by hand, then lays it flat for its labels. */
+  bagFill: new Vector3(0.05, TOP, 0.16),
   stickerSheets: PACK_OUT_BENCH_SPOTS.labelSheets,
   fnskuSheets: new Vector3(-0.3, TOP, 0.2),
   tote: PACK_OUT_BENCH_SPOTS.tote,

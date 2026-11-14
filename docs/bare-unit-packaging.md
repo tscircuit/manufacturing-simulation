@@ -41,7 +41,6 @@ We ordered the [Ellbest 3.15" × 4.72" (80 × 120 mm) resealable ESD shielding b
 | --- | --- | --- | --- |
 | **Outer bag (ordered)** | [Ellbest 3.15" × 4.72" ESD shielding zip bags, 200 pack (B07QFZBT9Z)](https://www.amazon.com/dp/B07QFZBT9Z) | Already ordered. Metallized, see-through enough to show the parts, recloses, and the 80 mm opening needs no suffocation warning. | |
 | **Screw pouch** | [APQ Supply 2" × 3" pink anti-static 4 mil reclosable bags](https://www.amazon.com/clp/B07S5GNRHL) | Static-dissipative pink film, so it won't charge up against the board inside the outer bag. 4 mil resists screw threads. Folded in half it is 51 × 38 mm, which fits beside the board. | [Poly Bag Guy 2" × 3" 2 mil pink anti-static, 1000](https://www.amazon.com/Poly-Bag-Guy-PBGPBAS700-Anti-Static/dp/B07CLLQ1BS) (thinner, cheaper); [HRX Plastics 2.5" × 3" pink anti-static, 100](https://www.amazon.com/clp/B07CYLX7YW) |
-| **Bag holder** | Print one on the P2S or H2S: a base with two posts just outside the bag's 80 mm width that hold it upright and open. | The hands-free "baggy rack" stands on Amazon are made for sandwich, quart and gallon bags. Their clips don't grip anything as small as an 80 mm bag well. | If you'd rather buy one: [Ruibo adjustable baggy rack, 4 pack](https://www.amazon.com/Holder-plastic-Freezer-Planning-Holders/dp/B07PF9VLX2), at its lowest setting. Check the arms close down to 80 mm first. |
 
 I didn't find a 2" × 2" pink anti-static bag on Amazon, which is why the pouch is 2" × 3" folded in half. Confirm thickness, count and price on each listing before ordering.
 
@@ -82,10 +81,10 @@ Amazon ended its own US prep and labelling services for shipments created from J
 3. **Labels.** The Epson prints the original 2" × 4" tscircuit labels on AveneMark sheets, the same as the kit line. FNSKU sheets come from Seller Central.
 4. **Bagging bench (where QC used to be).** For each unit:
    1. Take a 2" × 3" pink pouch from its box, drop in the 4 long M3 screws side by side, zip it, and fold it in half over the screws.
-   2. Stand an 80 × 120 mm Ellbest shielding bag open on the bag holder (caution sticker on the back).
+   2. Take an 80 × 120 mm Ellbest shielding bag (caution sticker on the back) and hold it open by hand, its bottom resting on the bench. No bag holder.
    3. Put in a spacer, the tested board on top of it, a coiled cable beside them, and the folded screw pouch on the cable.
-   4. Zip the bag.
-   5. Put the original tscircuit 2" × 4" label on the front, just under the zip, and the FNSKU label on the back above the caution sticker.
+   4. Zip the bag and lay it flat, front up.
+   5. Put the original tscircuit 2" × 4" label on the front, just under the zip. Turn the bag over and put the FNSKU label on the back, above the caution sticker. Labels go on flat, which is easier by hand.
    6. Lay the bag in the tote.
 5. **Ship-ready bench.** Stand the 30 bags in the 10 × 8 × 6 carton, put the FBA box ID label on the side, fold the flaps, tape the seam, and set the carton by the door.
 
@@ -94,7 +93,6 @@ Amazon ended its own US prep and labelling services for shipments created from J
 - [Ellbest 3.15" × 4.72" antistatic shielding bags, 200 (Amazon)](https://www.amazon.com/dp/B07QFZBT9Z)
 - [Poly Bag Guy 2" × 3" pink anti-static bags (Amazon)](https://www.amazon.com/Poly-Bag-Guy-PBGPBAS700-Anti-Static/dp/B07CLLQ1BS)
 - [HRX Plastics 2.5" × 3" pink anti-static bags (Amazon)](https://www.amazon.com/clp/B07CYLX7YW)
-- [Ruibo adjustable baggy rack (Amazon)](https://www.amazon.com/Holder-plastic-Freezer-Planning-Holders/dp/B07PF9VLX2)
 - [tscircuit/product-packaging: NEMA17 label](https://github.com/tscircuit/product-packaging/tree/main/products/nema17)
 - [APQ Supply 2" × 3" pink anti-static reclosable bags (Amazon)](https://www.amazon.com/clp/B07S5GNRHL)
 - [Partners Brand PPBAS2105 2½" × 3" pink anti-static 4 mil bags (Amazon)](https://www.amazon.com/Select-Size-Partners-Brand-Anti-Static/dp/B01MTFPNEC)

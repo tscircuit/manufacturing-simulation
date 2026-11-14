@@ -47,12 +47,12 @@ simulation.ctx.progress.cycleSeconds // total including walking
 - **Label printer:** prints the original 2" × 4" tscircuit labels, the same sheets as the kit line. FNSKU sheets (1" × 2-5/8", 30 to a sheet) are on the bagging bench.
 - **Bagging bench:**
   1. Fill a 2" × 3" pink pouch with the 4 long screws, zip it and fold it in half.
-  2. Open an Ellbest 80 × 120 mm shielding zip bag (yellow ESD caution sticker on the back) on the bag holder.
+  2. Hold an Ellbest 80 × 120 mm shielding zip bag open by hand (no bag holder). It has a yellow ESD caution sticker on the back.
   3. Put in the spacer, the board on top of it, a coiled cable and the screw pouch (two piles side by side), then zip.
-  4. Put the tscircuit label on the front and the FNSKU label on the back, then lay the bag in the tote.
+  4. Lay the bag flat: tscircuit label on the front, turn it over, FNSKU label on the back, then into the tote.
 - **Ship-ready:** 30 bags stand upright in a 10 × 8 × 6 in carton (about 2 lb). The FBA box ID label goes on the side, then the carton is sealed and shipped.
 
-In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the bags and bag holder to buy, and the Amazon packaging and labelling rules are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
+In Cosmos, pick "bare-unit-bagging". In the vite dev server, add `?line=bagged`. The bag-size math, the bags to buy, and the Amazon packaging and labelling rules are in [docs/bare-unit-packaging.md](docs/bare-unit-packaging.md).
 
 ### Amazon carton for 30
 

@@ -15,7 +15,7 @@ import {
  * The bare-unit line, no assembly bench and no motors to ship: boards start
  * in a tray at QC and each is spin-tested on the one test motor. At bagging
  * the four screws go in a pink pouch, then the spacer, board, cable and pouch
- * go in a 3" x 5" ESD bag with a tscircuit sticker and an FNSKU label, 30
+ * go in an 80 x 120 mm ESD bag, filled by hand, with the tscircuit label and an FNSKU label, 30
  * bags to a carton with an FBA box ID label.
  */
 export const BAGGED_JOB_PLAN: JobPlan = createJobPlan({

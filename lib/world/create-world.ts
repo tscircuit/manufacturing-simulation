@@ -743,7 +743,7 @@ function createUnusedKitParts() {
 }
 
 /**
- * Pack-out bench for bare units: flat ESD bags in a tray, a printed bag holder,
+ * Pack-out bench for bare units: flat ESD bags in a tray (filled by hand, no holder),
  * the original 2" x 4" tscircuit label sheets, FNSKU sheets and the tote.
  */
 function populateBaggingBench(table: Group) {
@@ -784,27 +784,6 @@ function populateBaggingBench(table: Group) {
     tray.add(bag.group)
     bags.push(bag)
   }
-  // 3D-printed bag holder (from the P2S/H2S) that holds a bag upright and
-  // open while the parts go in; kitchen baggy racks are too big for 80 mm bags.
-  const wire = createStandardMaterial({ color: 0x3a3f45, roughness: 0.8 })
-  const stand = new Group()
-  stand.position.copy(spots.bagStand)
-  stand.add(
-    createBoxMesh({
-      size: [ESD_BAG.widthM + 0.03, 0.006, 0.07],
-      material: wire,
-      position: [0, 0.003, 0],
-    }),
-  )
-  for (const side of [-1, 1])
-    stand.add(
-      createBoxMesh({
-        size: [0.004, 0.12, 0.004],
-        material: wire,
-        position: [side * (ESD_BAG.widthM / 2 + 0.008), 0.06, 0],
-      }),
-    )
-  table.add(stand)
 
   const stackSheets = (params: {
     spec: LabelSheetSpec

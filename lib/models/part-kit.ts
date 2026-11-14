@@ -8,12 +8,12 @@ import { Group, Object3D } from "three"
  * side by side: the controller board on its 4 mm backface spacer, and the
  * coiled motor-to-board cable with the folded screw pouch on top of it.
  *
- * Sizes behind the 3" x 5" outer bag (see docs/bare-unit-packaging.md):
+ * Sizes behind the 80 x 120 mm outer bag (see docs/bare-unit-packaging.md):
  * - board + spacer: 43.6 x 42.3 mm, 10.4 mm high (4 mm spacer, 1.6 mm board,
  *   4.8 mm side-entry JST);
  * - cable coil: about 46 x 46 x 5 mm; folded screw pouch: 51 x 38 x 7 mm;
  * - side by side: 51 x 91 mm, 12 mm thick at most, which needs about
- *   69 x 114 mm inside a flat zip bag. 3" x 5" (76 x 127 mm) fits.
+ *   69 x 115 mm inside a flat zip bag. The Ellbest 80 x 120 mm bag fits.
  */
 export const PART_KIT = {
   boardPileThicknessM: 0.0104,

@@ -16,12 +16,7 @@ import { createScrewPouch, SCREW_POUCH } from "lib/models/screw-pouch"
 import type { OperatorHand } from "lib/operator/create-operator"
 import type { SimContext } from "lib/simulation/sim-context"
 import { playCue } from "lib/simulation/sound-cues"
-import {
-  runInParallel,
-  type SimTask,
-  tween,
-  waitSeconds,
-} from "lib/tasks/coroutines"
+import { type SimTask, tween, waitSeconds } from "lib/tasks/coroutines"
 import {
   grabObject,
   liftAndPlace,
@@ -38,7 +33,7 @@ import {
 import { type AssemblyUnit, setOutLongScrews } from "lib/world/create-world"
 import { type Group, type Object3D, Quaternion, Vector3 } from "three"
 
-/** From beside the operator, looking at the bag stand. */
+/** From beside the operator, looking at the bag in hand. */
 const BAG_CLOSE_UP = {
   azimuthRadians: 1.2,
   elevationRadians: 0.7,
@@ -48,7 +43,24 @@ const LABEL_PEEL_QUATERNION = new Quaternion().setFromAxisAngle(
   new Vector3(1, 0, 0),
   -0.45,
 )
-const BAG_ON_STAND_LIFT_M = 0.006
+/** Held upright by hand, the bag's bottom just rests on the bench. */
+const BAG_IN_HAND_LIFT_M = 0.002
+/** The left hand pinches the bag's top corner, clear of the opening. */
+const BAG_CORNER_GRIP = new Vector3(
+  -ESD_BAG.widthM / 2 + 0.006,
+  ESD_BAG.heightM - 0.025,
+  0,
+)
+/** Lying flat on the bench, front up, opening toward the back. */
+const BAG_FLAT_OFFSET = new Vector3(
+  0,
+  ESD_BAG.filledDepthM / 2,
+  ESD_BAG.heightM / 2,
+)
+/** Turned over on the bench, back up. */
+const BAG_FLIPPED_QUATERNION = BAG_LYING_QUATERNION.clone().multiply(
+  new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI),
+)
 const ZIP_SECONDS = 0.8
 
 function getBag(unit: AssemblyUnit): EsdBag {
@@ -68,11 +80,11 @@ function getPouchFocusPoint(ctx: SimContext): Vector3 {
 }
 
 function getBagFocusPoint(ctx: SimContext): Vector3 {
-  const { bagStand } = BAGGING_BENCH_SPOTS
+  const { bagFill } = BAGGING_BENCH_SPOTS
   return getTablePoint(
     {
       tableId: "pack_out_bench",
-      localPoint: new Vector3(bagStand.x, bagStand.y + 0.09, bagStand.z),
+      localPoint: new Vector3(bagFill.x, bagFill.y + 0.06, bagFill.z),
     },
     ctx,
   )
@@ -194,15 +206,15 @@ function* fillScrewPouch(params: UnitParams, ctx: SimContext): SimTask {
   yield* releaseHand(hand)
 }
 
-/** Take a flat outer bag from the tray, stand it on the wire stand and open it. */
-function* openBagOnStand(params: UnitParams, ctx: SimContext): SimTask {
+/** Take a flat outer bag from the tray and hold it upright and open in the left hand. */
+function* openBagByHand(params: UnitParams, ctx: SimContext): SimTask {
   const { world, operator } = ctx
   const bag = getBag(world.units[params.unitIndex])
-  ctx.statusText = `Unit ${params.unitIndex + 1}: a 3×5 static-shielding bag from the tray`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: an 80×120 mm shielding bag from the tray`
   yield* grabObject({
     hand: operator.leftHand,
     object: bag.group,
-    localGripPoint: new Vector3(0, ESD_BAG.heightM - 0.02, 0),
+    localGripPoint: BAG_CORNER_GRIP,
     fingerCurl: 0.9,
     durationSeconds: 0.7,
   })
@@ -211,16 +223,16 @@ function* openBagOnStand(params: UnitParams, ctx: SimContext): SimTask {
       object: bag.group,
       hand: operator.leftHand,
       parent: world.tables.pack_out_bench,
-      localPosition: BAGGING_BENCH_SPOTS.bagStand
+      localPosition: BAGGING_BENCH_SPOTS.bagFill
         .clone()
-        .add(new Vector3(0, BAG_ON_STAND_LIFT_M, 0)),
+        .add(new Vector3(0, BAG_IN_HAND_LIFT_M, 0)),
       localQuaternion: IDENTITY_QUATERNION,
       durationSeconds: 1,
       arcHeightM: 0.08,
     },
     ctx,
   )
-  ctx.statusText = `Unit ${params.unitIndex + 1}: opening the bag on the stand`
+  ctx.statusText = `Unit ${params.unitIndex + 1}: pinching the zip open, holding the bag in the left hand`
   setEsdBagFilled({ bag, isFilled: true })
   yield* tween({
     durationSeconds: 0.35,
@@ -228,7 +240,40 @@ function* openBagOnStand(params: UnitParams, ctx: SimContext): SimTask {
       bag.filledBody.scale.z = 0.15 + 0.85 * progress
     },
   })
-  yield* releaseHand(operator.leftHand)
+  // The left hand keeps hold of the bag while the right hand fills it.
+}
+
+/** Lay a bag flat on the bench, front up or turned over, with the left hand. */
+function* layBagFlat(
+  params: { bag: EsdBag; isBackUp: boolean },
+  ctx: SimContext,
+): SimTask {
+  const { world, operator } = ctx
+  const { bag } = params
+  const hand = operator.leftHand
+  if (hand.heldObject !== bag.group)
+    yield* grabObject({
+      hand,
+      object: bag.group,
+      localGripPoint: BAG_CORNER_GRIP,
+      fingerCurl: 0.9,
+      durationSeconds: 0.5,
+    })
+  yield* moveObject(
+    {
+      object: bag.group,
+      hand,
+      parent: world.tables.pack_out_bench,
+      localPosition: BAGGING_BENCH_SPOTS.bagFill.clone().add(BAG_FLAT_OFFSET),
+      localQuaternion: params.isBackUp
+        ? BAG_FLIPPED_QUATERNION
+        : BAG_LYING_QUATERNION,
+      durationSeconds: 0.8,
+      arcHeightM: 0.05,
+    },
+    ctx,
+  )
+  yield* releaseHand(hand)
 }
 
 /** Lower one part into the open bag onto its place in the bag's contents. */
@@ -332,10 +377,9 @@ function* packTheBag(params: UnitParams, ctx: SimContext): SimTask {
 
   ctx.statusText = `Unit ${n}: pressing the zip closed`
   yield* slideZipClosed({ bag, hand: operator.rightHand }, ctx)
-  yield* runInParallel([
-    releaseHand(operator.leftHand),
-    releaseHand(operator.rightHand),
-  ])
+  yield* releaseHand(operator.rightHand)
+  ctx.statusText = `Unit ${n}: laying the bag flat, front up, for its label`
+  yield* layBagFlat({ bag, isBackUp: false }, ctx)
 }
 
 /** Peel a label off its sheet and press it onto a spot on the bag. */
@@ -425,21 +469,8 @@ function* applyFnskuLabel(params: UnitParams, ctx: SimContext): SimTask {
   const label = takeNextFromSheets(world.fnskuSheets)
   if (!label) throw new Error("No FNSKU labels left at the bagging bench")
   unit.fnskuLabel = label
-  ctx.statusText = `Unit ${params.unitIndex + 1}: turning the bag round for the FNSKU label`
-  const startYaw = bag.group.rotation.y
-  yield* grabObject({
-    hand: operator.leftHand,
-    object: bag.group,
-    localGripPoint: new Vector3(0, ESD_BAG.heightM - 0.02, 0),
-    fingerCurl: 0.9,
-    durationSeconds: 0.5,
-  })
-  yield* tween({
-    durationSeconds: 0.6,
-    onProgress: (progress) => {
-      bag.group.rotation.y = startYaw + Math.PI * progress
-    },
-  })
+  ctx.statusText = `Unit ${params.unitIndex + 1}: turning the bag over for the FNSKU label`
+  yield* layBagFlat({ bag, isBackUp: true }, ctx)
   ctx.statusText = `Unit ${params.unitIndex + 1}: Amazon FNSKU label on the back, the only barcode on the bag`
   yield* peelAndApply(
     {
@@ -451,7 +482,6 @@ function* applyFnskuLabel(params: UnitParams, ctx: SimContext): SimTask {
     },
     ctx,
   )
-  yield* releaseHand(operator.leftHand)
 }
 
 /** The tote holds bags lying flat, front up, in the kit's mailer slots. */
@@ -517,11 +547,11 @@ export const BAGGING_STAGE: JobStage = {
       run: fillScrewPouch,
     },
     {
-      label: "Open a 3×5 ESD bag on the stand",
+      label: "Hold an 80×120 ESD bag open by hand",
       station: STATIONS.packOut,
       closeUpView: BAG_CLOSE_UP,
       getFocusPoint: (_params, ctx) => getBagFocusPoint(ctx),
-      run: openBagOnStand,
+      run: openBagByHand,
     },
     {
       label: "Spacer, board, cable, screw pouch in; zip",
