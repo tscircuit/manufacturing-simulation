@@ -1,4 +1,5 @@
 import { expect, test } from "bun:test"
+import { FLOOR_PLAN } from "lib/layout/floor-plan"
 import { getStationStandPose } from "lib/layout/get-station-stand-pose"
 import { STATIONS, TABLE_PLACEMENTS } from "lib/layout/station-layout"
 import { findPath, hasLineOfSight } from "lib/navigation/find-path"
@@ -20,6 +21,27 @@ test("tables, walls and the washroom are not walkable", () => {
   expect(isFloorPointFree({ x: -0.1, z: 3, clearanceM: 0.25 })).toBe(false)
   expect(isFloorPointFree({ x: 5.3, z: 2.6, clearanceM: 0.25 })).toBe(false)
   expect(isFloorPointFree({ x: 2.8, z: 3, clearanceM: 0.25 })).toBe(true)
+})
+
+test("operator clearance follows the southwest notch when straddling its edge", () => {
+  const clearanceM = 0.25
+  const zPastWestWall = FLOOR_PLAN.westLengthM - clearanceM + 0.1
+  for (const x of [
+    FLOOR_PLAN.southNotchWidthM - 0.1,
+    FLOOR_PLAN.southNotchWidthM + 0.1,
+  ]) {
+    expect(
+      isFloorPointFree({ x, z: zPastWestWall, clearanceM, tables: [] }),
+    ).toBe(false)
+  }
+  expect(
+    isFloorPointFree({
+      x: FLOOR_PLAN.southNotchWidthM + clearanceM + 0.01,
+      z: zPastWestWall,
+      clearanceM,
+      tables: [],
+    }),
+  ).toBe(true)
 })
 
 test("every station is reachable", () => {

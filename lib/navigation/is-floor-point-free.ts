@@ -21,7 +21,7 @@ export function isFloorPointFree(params: {
   const { x, z, clearanceM } = params
   if (x < clearanceM || x > FLOOR_PLAN.widthM - clearanceM) return false
   if (z < clearanceM) return false
-  if (z > getRoomLengthAtX(x + clearanceM) - clearanceM) return false
+  if (z > getRoomLengthAtX(x - clearanceM) - clearanceM) return false
 
   const { washroom } = FLOOR_PLAN
   const washroomMarginM = WASHROOM_WALL_MARGIN_M + clearanceM
