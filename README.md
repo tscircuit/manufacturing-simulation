@@ -9,7 +9,7 @@ bun install
 bun run start
 ```
 
-`bun run start` opens React Cosmos; pick **pages / manufacturing-simulation**.
+`bun run start` opens React Cosmos; pick **pages / manufacturing-simulation**. The separate **manufacturing-simulation-field-survey** page follows a Uline H-2504BL from 2325 Third Street to the south meadow at Esprit Park. Use the field sequence to jump to the 3 m setup, ambient, holding and stepping pre-scans, or return trip. Street lengths are compressed. The scenario models the workflow and equipment geometry without predicting RF levels.
 
 The simulation also runs headless, which is how the tests time the job:
 
